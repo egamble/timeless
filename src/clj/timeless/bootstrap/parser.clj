@@ -150,7 +150,10 @@
    _ ws]
   (str c))
 
-(defmacro alt-lex [strs]
+(defmacro alt-lex
+  "strs is a collection of op strings, or of tuples of op str and unicode alternative.
+   Expands into a rule whose value on success is the matched op str."
+  [strs]
   (let [rules (map (fn [s]
                      (let [s (if (coll? s) s [s])
                            [s1 c] s
@@ -158,7 +161,7 @@
                            r (if c
                                `(p/alt ~r (nb-char ~c))
                                r)]
-                       `(p/semantics ~r (constantly~s1))))
+                       `(p/semantics ~r (constantly ~s1))))
                    strs)]
     `(p/alt ~@rules)))
 
