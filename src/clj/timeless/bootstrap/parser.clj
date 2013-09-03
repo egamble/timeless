@@ -62,7 +62,7 @@
 
 
 ;;; node builders
-;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;
 
 (defn make-node [type pos-map val]
   {:type type
