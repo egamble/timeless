@@ -10,6 +10,10 @@
   [steps & product-expr]
   `(memoize (p/complex ~steps ~@product-expr)))
 
+(defmacro alt-m
+  [& subrules]
+  `(memoize (p/alt ~@subrules)))
+
 
 ;;; lexer character rules
 ;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -46,7 +50,18 @@
 (def ws (p/rep* (p/alt comment-lex newline-lex (p/lit-alt-seq " \t" nb-char))))
 
 
-;;; node builder
+;;; error reporting
+;;;;;;;;;;;;;;;;;;;
+
+(defn error [msg pos-map]
+  (throw (RuntimeException.
+          (str msg " at (" (:line pos-map) "," (:col pos-map) ")"))))
+
+(defn failpoint-error-fn [msg pos-map]
+  (fn [_ _] (error msg pos-map)))
+
+
+;;; node builders
 ;;;;;;;;;;;;;;;;
 
 (defn make-node [type pos-map val]
@@ -55,16 +70,15 @@
    :line (:line pos-map)
    :col (:col pos-map)})
 
-
-;;; lexer node builder
-;;;;;;;;;;;;;;;;;;;;;;
-
 (defmacro deflex
+  "Node builder for the lex phase.
+   Binds the unqualified name 'pos-state' to the initial state.
+   The name 'pos-state' may be used within the step forms.
+   Returns a node of the given type and value."
   [name type steps val]
   `(def ~name
-     (complex-m [s# p/get-state ~@steps]
-                (make-node ~type s# ~val))))
-
+     (complex-m [~'pos-state p/get-state ~@steps]
+                (make-node ~type ~'pos-state ~val))))
 
 ;;; lexer token rules
 ;;;;;;;;;;;;;;;;;;;;;
@@ -81,7 +95,9 @@
         (p/lit-conc-seq "\\\\" nb-char )
         (p/lit-conc-seq "\\'" nb-char)
         (p/except (p/alt any-nb-char newline-lex) (nb-char \'))))
-   _ single-quote-lex]
+   _ (p/failpoint single-quote-lex
+                  (failpoint-error-fn "Unmatched single quote"
+                                      pos-state))]
 
   (let [f #(if (seq? %) (second %) %)]
     (apply str (map f cs))))
@@ -97,7 +113,9 @@
         (p/lit-conc-seq "\\\\" nb-char)
         (p/lit-conc-seq "\\\"" nb-char)
         (p/except (p/alt any-nb-char newline-lex) double-quote-lex)))
-   _ double-quote-lex]
+   _ (p/failpoint double-quote-lex
+                  (failpoint-error-fn "Unmatched double quote"
+                                      pos-state))]
 
   (let [f #(if (seq? %) (second %) %)]
     (apply str (map f cs))))
@@ -193,14 +211,13 @@
 ;;; tokenize
 ;;;;;;;;;;;;
 
-(defn pos [state]
-  (str "(" (:line state) "," (:col state) ")"))
-
 (defn tokenize [src]
-  (p/rule-match tokens
-                (fn [_] (println "no match"))
-                (fn [_ state] (println (str "match failure at " (pos state))))
-                {:remainder src, :line 1, :col 1}))
+  (let [e (fn [state]
+            (error "Failure to tokenize" state))]
+    (p/rule-match tokens
+                  (fn [s] (e s))
+                  (fn [_ s] (e s))
+                  {:remainder src, :line 1, :col 1})))
 
 
 ;;; node detector
@@ -227,9 +244,14 @@
 (defmacro defunit-shatter
   [name left right]
   `(def ~name
-     (p/conc (node :bracket ~left)
-             (p/rep* expr-shatter)
-             (node :bracket ~right))))
+     (complex-m
+      [n1# (node :bracket ~left)
+       s# (p/rep* expr-shatter)
+       n2# (p/failpoint
+            (node :bracket ~right)
+            (failpoint-error-fn (str "Unmatched \"" ~left "\"")
+                                n1#))]
+      [n1# s# n2#])))
 
 (defunit-shatter paren-shatter   "(" ")")
 (defunit-shatter bracket-shatter "[" "]")
@@ -243,13 +265,16 @@
 (defn shatter
   "Split tokens into groups corresponding to top-level assertions."
   [tokens]
-  (let [m (p/rule-match
+  (let [e (fn [state]
+            (error "Failure to shatter into top-level assertions"
+                   (first (:remainder state))))
+        m (p/rule-match
            (p/rep+ (p/conc (node :name)
                            (node :op "=")
                            (p/rep+ (p/invisi-conc expr-shatter
                                                   (p/not-followed-by (node :op "="))))))
-           (fn [_] (println "no match"))
-           (fn [_ _] (println (str "match failure")))
+           (fn [s] (e s))
+           (fn [_ s] (e s))
            {:remainder tokens})]
     ;; remove nils because p/rep* can return nil
     (map (comp (partial remove nil?) flatten) m)))
@@ -312,8 +337,7 @@
                 :set
                 (if (every? has-val clauses)
                   :fn
-                  "mixed set and fn clauses" ; TODO: replace this with an error fn
-                  ))]
+                  (error "Mixed set and fn clauses" pos-node)))]
      (make-node type pos-node clauses))))
 
 
@@ -384,12 +408,16 @@
   "Makes left associative infix parse rule. op-strs can be a str or coll of strs."
   [op-name op-strs higher-rule]
   `(def ~op-name
-     (complex-m
-      [s# (p/rep* (p/conc ~higher-rule (node :op ~op-strs)))
-       e# ~higher-rule]
-      (if (seq s#)
-        (left-assoc (reverse s#) e# (first (first s#)))
-        e#))))
+     (alt-m
+      (complex-m
+       [s# (p/rep+ (p/conc ~higher-rule (node :op ~op-strs)))
+        :let [pos-node# (-> s# first first)]
+        e# (p/failpoint ~higher-rule
+                        (failpoint-error-fn
+                         (str "Invalid infix op \""  (-> s# last second :val) "\"")
+                         pos-node#))]
+       (left-assoc (reverse s#) e# pos-node#))
+      ~higher-rule)))
 
 
 ;; op-+     is higher than op-range so that  (a+1 .. b)  works
@@ -427,9 +455,12 @@
 
 (defn parse
   [src-str]
-  (map (fn [token-group]
-         (p/rule-match expr
-                       (fn [_] (println "no match"))
-                       (fn [_ _] (println (str "match failure")))
-                       {:remainder token-group}))
-       (shatter (tokenize src-str))))
+  (let [e (fn [state]
+            (error "Failure to parse"
+                   (first (:remainder state))))]
+    (map (fn [token-group]
+           (p/rule-match expr
+                         (fn [s] (e s))
+                         (fn [_ s] (e s))
+                         {:remainder token-group}))
+         (shatter (tokenize src-str)))))
