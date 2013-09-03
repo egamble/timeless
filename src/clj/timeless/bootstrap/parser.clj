@@ -3,8 +3,8 @@
   (:require [name.choi.joshua.fnparse :as p]))
 
 
-;;; memoized complex rule
-;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; memoized rule generators
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defmacro complex-m
   [steps & product-expr]
