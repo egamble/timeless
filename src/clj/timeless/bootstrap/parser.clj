@@ -240,7 +240,7 @@
 ;;; shatter tokens into groups, one group for each top-level assertion
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(def expr-shatter)
+(declare expr-shatter)
 
 (defmacro defunit-shatter
   [name left right]
@@ -284,7 +284,7 @@
 ;;; seq literal
 ;;;;;;;;;;;;;;;
 
-(def expr)
+(declare expr)
 
 (def empty-seq-lit
   (p/semantics (p/conc (node :bracket "[")
@@ -310,7 +310,7 @@
                        (node :bracket "}"))
                #(make-node :set (first %) [])))
 
-(def non-union-expr)
+(declare non-union-expr)
 
 (def clause
   (complex-m
