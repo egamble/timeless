@@ -9,6 +9,4 @@ For example, a fixed property of Timeless is that the compiler must be able to p
 
 The detailed description of Timeless is at https://github.com/egamble/timeless/wiki
 
-Copyright © 2013 Evan Gamble
-
-Distributed under the Eclipse Public License. See the file COPYING.
+Copyright © 2013 Evan Gamble. Distributed under the Eclipse Public License. See the file COPYING.
