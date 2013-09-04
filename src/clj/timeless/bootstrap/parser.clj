@@ -7,7 +7,7 @@
 ;;; memoize rules
 ;;;;;;;;;;;;;;;;;
 
-(def memoized-rules (atom []))
+(def memoized-rules (atom nil))
 
 (defn memoize-rule [rule]
   (let [rule-m (memo rule)]
