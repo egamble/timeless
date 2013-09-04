@@ -1,18 +1,30 @@
 (ns timeless.bootstrap.parser
   "Parser for Timeless. Mainly intended to parse a self-hosting Timeless compiler."
-  (:require [name.choi.joshua.fnparse :as p]))
+  (:require [name.choi.joshua.fnparse :as p]
+            [clojure.core.memoize :refer [memo memo-clear!]]))
 
 
-;;; memoized rule generators
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; memoize rules
+;;;;;;;;;;;;;;;;;
+
+(def memoized-rules (atom []))
+
+(defn memoize-rule [rule]
+  (let [rule-m (memo rule)]
+    (swap! memoized-rules conj rule-m)
+    rule-m))
 
 (defmacro complex-m
   [steps & product-expr]
-  `(memoize (p/complex ~steps ~@product-expr)))
+  `(memoize-rule (p/complex ~steps ~@product-expr)))
 
 (defmacro alt-m
   [& subrules]
-  `(memoize (p/alt ~@subrules)))
+  `(memoize-rule (p/alt ~@subrules)))
+
+(defn clear-rule-memos! []
+  (doseq [rule-m @memoized-rules]
+    (memo-clear! rule-m)))
 
 
 ;;; lexer character rules
@@ -39,6 +51,8 @@
   (p/lit-alt-seq (map char (concat (range (int \A) (inc (int \Z)))
                                    (range (int \a) (inc (int \z)))))
                  nb-char))
+
+(def underscore-lex (nb-char \_))
 
 (def single-quote-lex (nb-char \'))
 (def double-quote-lex (nb-char \"))
@@ -85,8 +99,8 @@
 ;;;;;;;;;;;;;;;;;;;;;
 
 (deflex name-lex :name
-  [c letter-lex
-   cs (p/rep* (p/alt letter-lex digit-lex))]
+  [c (p/alt letter-lex underscore-lex)
+   cs (p/rep* (p/alt digit-lex letter-lex underscore-lex))]
   (apply str c cs))
 
 (deflex quoted-name-lex :name
@@ -95,17 +109,12 @@
        (p/alt
         (p/lit-conc-seq "\\\\" nb-char )
         (p/lit-conc-seq "\\'" nb-char)
-        (p/except (p/alt any-nb-char newline-lex) (nb-char \'))))
+        (p/except (p/alt any-nb-char newline-lex) single-quote-lex)))
    _ (p/failpoint single-quote-lex
                   (failpoint-error-fn "Unmatched single quote"
                                       pos-state))]
-
   (let [f #(if (seq? %) (second %) %)]
     (apply str (map f cs))))
-
-(deflex underscore-name-lex :name
-  [c (nb-char \_)]
-  (str c))
 
 (deflex string-lit :str
   [_ double-quote-lex
@@ -117,7 +126,6 @@
    _ (p/failpoint double-quote-lex
                   (failpoint-error-fn "Unmatched double quote"
                                       pos-state))]
-
   (let [f #(if (seq? %) (second %) %)]
     (apply str (map f cs))))
 
@@ -153,7 +161,7 @@
 (def non-num-atom-lex
   (complex-m
    [_ ws
-    a (p/alt name-lex quoted-name-lex underscore-name-lex string-lit char-lit)
+    a (p/alt name-lex quoted-name-lex string-lit char-lit)
     _ ws]
    a))
 
@@ -286,29 +294,17 @@
 
 (declare expr)
 
-(def empty-seq-lit
-  (p/semantics (p/conc (node :bracket "[")
-                       (node :bracket "]"))
-               #(make-node :seq (first %) [])))
-
-(def non-empty-seq-lit
+(def seq-lit
   (complex-m
    [pos-node (node :bracket "[")
     es (p/rep* (p/invisi-conc expr (node :sep ",")))
-    e expr
+    e (p/opt expr)
     _ (node :bracket "]")]
-   (make-node :seq pos-node (vec (conj es e)))))
-
-(def seq-lit (p/alt empty-seq-lit non-empty-seq-lit))
+   (make-node :seq pos-node (vec (if e (conj es e) es)))))
 
 
 ;;; function and set literals
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(def empty-set-lit
-  (p/semantics (p/conc (node :bracket "{")
-                       (node :bracket "}"))
-               #(make-node :set (first %) [])))
 
 (declare non-union-expr)
 
@@ -329,10 +325,10 @@
   (complex-m
    [pos-node (node :bracket "{")
     es (p/rep* (p/invisi-conc clause (node :sep ",")))
-    e clause
+    e (p/opt clause)
     _ (node :bracket "}")]
 
-   (let [clauses (vec (conj es e))
+   (let [clauses (vec (if e (conj es e) es))
          has-val #(:val (:val %))
          type (if (not-any? has-val clauses)
                 :set
@@ -353,7 +349,7 @@
    e))
 
 (def unit (p/alt (node #{:name :str :char :num})
-                 parens seq-lit fn-lit empty-set-lit))
+                 parens seq-lit fn-lit))
 
 
 ;;; function and set application
@@ -415,7 +411,7 @@
         :let [pos-node# (-> s# first first)]
         e# (p/failpoint ~higher-rule
                         (failpoint-error-fn
-                         (str "Invalid infix op \""  (-> s# last second :val) "\"")
+                         (str "Invalid infix op \"" (-> s# last second :val) "\"")
                          pos-node#))]
        (left-assoc (reverse s#) e# pos-node#))
       ~higher-rule)))
@@ -460,6 +456,7 @@
             (error "Failure to parse"
                    (first (:remainder state))))]
     (map (fn [token-group]
+           (clear-rule-memos!)
            (p/rule-match expr
                          (fn [s] (e s))
                          (fn [_ s] (e s))
