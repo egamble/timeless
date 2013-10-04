@@ -1,7 +1,8 @@
 (ns timeless.bootstrap.parser
   "Parser for Timeless. Mainly intended to parse a self-hosting Timeless compiler."
-  (:require [name.choi.joshua.fnparse :as p]
-            [clojure.core.memoize :refer [memo memo-clear!]]))
+  (:require [name.choi.joshua.fnparse  :as p]
+            [clojure.core.memoize      :refer [memo memo-clear!]]
+            [timeless.bootstrap.common :refer [error node?]]))
 
 
 ;;; memoize rules
@@ -66,10 +67,6 @@
 
 ;;; error reporting
 ;;;;;;;;;;;;;;;;;;;
-
-(defn error [msg pos-map]
-  (throw (RuntimeException.
-          (str msg " at (" (:line pos-map) "," (:col pos-map) ")"))))
 
 (defn failpoint-error-fn [msg pos-map]
   (fn [_ _] (error msg pos-map)))
@@ -194,7 +191,7 @@
 
 (deflex sep-lex :sep
   [_ ws
-   s (alt-lex [["->" \u2192] ","])
+   s (alt-lex [["->" \u2192] ":" ","])
    _ ws]
   s)
 
@@ -203,7 +200,7 @@
    s (alt-lex
       [["/=" \u2260] ["<=" \u2264] [">=" \u2265]
        ["&&" \u2227] ["||" \u2228] ["&" \u2229] ["|" \u222A]
-       "++" "+" "-\\" "-" "*" "/" "<" ">" "=" ":" "..." ".."])
+       "++" "+" "--" "-" "*" "/" "<<" "<" ">>" ">" "=" "." "..." ".."])
    _ ws]
   s)
 
@@ -229,20 +226,14 @@
                   {:remainder src, :line 1, :col 1})))
 
 
-;;; node detector
-;;;;;;;;;;;;;;;;;
+;;; node detector rule
+;;;;;;;;;;;;;;;;;;;;;;
 
 (defn node
   "Detects a node of the given type(s) (a keyword or a set of keywords) and,
    optionally, with the given value or one of a set of values."
   [type & [val]]
-  (p/term
-   (fn [n]
-     (let [t (:type n)
-           v (:val n)]
-       (and (if (set? type) (type t) (= type t))
-            (or (not val)
-                (if (set? val) (val v) (= val v))))))))
+  (p/term #(node? % type val)))
 
 
 ;;; shatter tokens into groups, one group for each top-level assertion
@@ -306,13 +297,11 @@
 ;;; function and set literals
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(declare non-union-expr)
-
 (def clause
   (complex-m
-   [k non-union-expr
+   [k expr
     st (p/opt
-        (complex-m [_ (node :op "|")
+        (complex-m [_ (node :sep ":")
                     st expr]
                    st))
     v (p/opt
@@ -418,31 +407,24 @@
 
 
 ;; op-+     is higher than op-range so that  (a+1 .. b)  works
-;; op-range is higher than op-cons  so that  (a : 1..10) works
-;; op-+     is higher than op-cons  so that  (a+b : s)   works
-;; op-cons  is higher than op-++    so that  (a:b:[] ++ [c,d]) is concat of two seqs
+;; op-range is higher than op-cons  so that  (a . 1..10) works
+;; op-+     is higher than op-cons  so that  (a+b . s)   works
+;; op-cons  is higher than op-++    so that  (a.b.[] ++ [c,d]) is concat of two seqs
 ;; op-++    is higher than op-|     so that  (a++b) can be unioned with other fns
 
-(defop        op-*            #{"*" "/"}    application)
-(defop        op-+            #{"+" "-"}    op-*)
-(defop        op-range        #{".." "..."} op-+)
-(defop-right  op-cons         ":"           op-range)
-(defop        op-++           "++"          op-cons)
-(defop        op-set-diff     "-\\"         op-++)
-(defop        op-&            "&"           op-set-diff)
-(defop        op-|            "|"           op-&)
+(def eq-ops #{"=" "/=" "<=" ">=" "<" ">" "<<" ">>"})
 
-(let [eq-strs #{"=" "/=" "<=" ">=" "<" ">"}]
-
-  (defop      op-=            eq-strs       op-|)
-  (defop      op-&&           "&&"          op-=)
-  (defop      op-||           "||"          op-&&)
-
-  (defop      non-union-op-=  eq-strs       op-&)
-  (defop      non-union-op-&& "&&"          non-union-op-=)
-  (defop      non-union-op-|| "||"          non-union-op-&&))
-
-(def non-union-expr non-union-op-||)
+(defop        op-*       #{"*" "/"}    application)
+(defop        op-+       #{"+" "-"}    op-*)
+(defop        op-range   #{".." "..."} op-+)
+(defop-right  op-cons    "."           op-range)
+(defop        op-++      "++"          op-cons)
+(defop        op---      "--"          op-++)
+(defop        op-&       "&"           op---)
+(defop        op-|       "|"           op-&)
+(defop        op-=       eq-ops        op-|)
+(defop        op-&&      "&&"          op-=)
+(defop        op-||      "||"          op-&&)
 
 (def expr op-||)
 
