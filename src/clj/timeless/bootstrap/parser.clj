@@ -48,11 +48,6 @@
 
 (def sign-lex (p/alt (nb-char \+) (nb-char \-)))
 
-(def letter-lex
-  (p/lit-alt-seq (map char (concat (range (int \A) (inc (int \Z)))
-                                   (range (int \a) (inc (int \z)))))
-                 nb-char))
-
 (def underscore-lex (nb-char \_))
 
 (def single-quote-lex (nb-char \'))
@@ -95,23 +90,26 @@
 ;;; lexer token rules
 ;;;;;;;;;;;;;;;;;;;;;
 
+(def name-char-lex
+  (complex-m
+   [cs (p/alt (p/except any-nb-char (p/lit-alt-seq "_\\ \t[](){}'\".,:+-*/<>=&|#" nb-char))
+              (p/conc (nb-char \\) (p/alt any-nb-char newline-lex)))]
+   (if (seq? cs) (second cs) cs)))
+
+(def underscore-unit-lex
+  (complex-m
+   [cs (p/rep* underscore-lex)
+    c name-char-lex]
+   (str (apply str cs) c)))
+
 (deflex name-lex :name
-  [c (p/alt letter-lex underscore-lex)
-   cs (p/rep* (p/alt digit-lex letter-lex underscore-lex))]
+  [c (p/except underscore-unit-lex digit-lex)
+   cs (p/rep* underscore-unit-lex)]
   (apply str c cs))
 
-(deflex quoted-name-lex :name
-  [_ single-quote-lex
-   cs (p/rep*
-       (p/alt
-        (p/lit-conc-seq "\\\\" nb-char )
-        (p/lit-conc-seq "\\'" nb-char)
-        (p/except (p/alt any-nb-char newline-lex) single-quote-lex)))
-   _ (p/failpoint single-quote-lex
-                  (failpoint-error-fn "Unmatched single quote"
-                                      pos-state))]
-  (let [f #(if (seq? %) (second %) %)]
-    (apply str (map f cs))))
+(deflex underscore-name-lex :name
+  [c underscore-lex]
+  (str c))
 
 (deflex string-lit :str
   [_ double-quote-lex
@@ -127,12 +125,15 @@
     (apply str (map f cs))))
 
 (deflex char-lit :char
-  [_ (nb-char \\)
-   cs (p/alt (p/lit-conc-seq "tab" nb-char)
-             (p/lit-conc-seq "space" nb-char)
-             (p/lit-conc-seq "newline" nb-char)
-             (p/invisi-conc any-nb-char (p/not-followed-by letter-lex))
-             newline-lex)]
+  [_ single-quote-lex
+   cs (p/alt
+       (p/lit-conc-seq "tab" nb-char)
+       (p/lit-conc-seq "space" nb-char)
+       (p/lit-conc-seq "newline" nb-char)
+       (p/alt any-nb-char newline-lex))
+   _ (p/failpoint single-quote-lex
+                  (failpoint-error-fn "Unmatched single quote"
+                                      pos-state))]
   (if (seq? cs)
     (read-string (apply str (cons \\ cs)))
     cs))
@@ -158,7 +159,7 @@
 (def non-num-atom-lex
   (complex-m
    [_ ws
-    a (p/alt name-lex quoted-name-lex string-lit char-lit)
+    a (p/alt name-lex underscore-name-lex string-lit char-lit)
     _ ws]
    a))
 
