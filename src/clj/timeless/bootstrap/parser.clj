@@ -227,8 +227,8 @@
                   {:remainder src, :line 1, :col 1})))
 
 
-;;; token node detector rule
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; token detector
+;;;;;;;;;;;;;;;;;;
 
 (defn token?
   "Detects a token node of the given type(s) (a keyword or a set of keywords)
