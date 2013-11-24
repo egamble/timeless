@@ -2,7 +2,7 @@
   "Parser for Timeless. Mainly intended to parse a self-hosting Timeless compiler."
   (:require [name.choi.joshua.fnparse  :as p]
             [clojure.core.memoize      :refer [memo memo-clear!]]
-            [timeless.bootstrap.common :refer [error node?]]))
+            [timeless.bootstrap.common :refer [error node? update-vals]]))
 
 
 ;;; memoize rules
@@ -227,12 +227,12 @@
                   {:remainder src, :line 1, :col 1})))
 
 
-;;; node detector rule
-;;;;;;;;;;;;;;;;;;;;;;
+;;; token node detector rule
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn node
-  "Detects a node of the given type(s) (a keyword or a set of keywords) and,
-   optionally, with the given value or one of a set of values."
+(defn token?
+  "Detects a token node of the given type(s) (a keyword or a set of keywords)
+   and, optionally, with the given value or one of a set of values."
   [type & [val]]
   (p/term #(node? % type val)))
 
@@ -246,10 +246,10 @@
   [name left right]
   `(def ~name
      (complex-m
-      [n1# (node :bracket ~left)
+      [n1# (token? :bracket ~left)
        s# (p/rep* expr-shatter)
        n2# (p/failpoint
-            (node :bracket ~right)
+            (token? :bracket ~right)
             (failpoint-error-fn (str "Unmatched \"" ~left "\"")
                                 n1#))]
       [n1# s# n2#])))
@@ -258,7 +258,7 @@
 (defunit-shatter bracket-shatter "[" "]")
 (defunit-shatter brace-shatter   "{" "}")
 
-(def expr-shatter (p/alt (node #{:name :str :num :char :sep :op})
+(def expr-shatter (p/alt (token? #{:name :str :num :char :sep :op})
                          paren-shatter
                          bracket-shatter
                          brace-shatter))
@@ -270,10 +270,10 @@
             (error "Failure to shatter into top-level assertions"
                    (first (:remainder state))))
         m (p/rule-match
-           (p/rep+ (p/conc (node :name)
-                           (node :op "=")
+           (p/rep+ (p/conc (token? :name)
+                           (token? :op "=")
                            (p/rep+ (p/invisi-conc expr-shatter
-                                                  (p/not-followed-by (node :op "="))))))
+                                                  (p/not-followed-by (token? :op "="))))))
            (fn [s] (e s))
            (fn [_ s] (e s))
            {:remainder tokens})]
@@ -281,18 +281,18 @@
     (map (comp (partial remove nil?) flatten) m)))
 
 
-;;; seq literal
+;;; vec literal
 ;;;;;;;;;;;;;;;
 
 (declare expr)
 
-(def seq-lit
+(def vec-lit
   (complex-m
-   [pos-node (node :bracket "[")
-    es (p/rep* (p/invisi-conc expr (node :sep ",")))
+   [pos-node (token? :bracket "[")
+    es (p/rep* (p/invisi-conc expr (token? :sep ",")))
     e (p/opt expr)
-    _ (node :bracket "]")]
-   (make-node :seq pos-node (vec (if e (conj es e) es)))))
+    _ (token? :bracket "]")]
+   (make-node :vec pos-node (vec (if e (conj es e) es)))))
 
 
 ;;; function and set literals
@@ -302,21 +302,21 @@
   (complex-m
    [k expr
     st (p/opt
-        (complex-m [_ (node :sep ":")
+        (complex-m [_ (token? :sep ":")
                     st expr]
                    st))
     v (p/opt
-       (complex-m [_ (node :sep "->")
+       (complex-m [_ (token? :sep "->")
                    v expr]
                   v))]
    (make-node :clause k {:key k, :st st, :val v})))
 
 (def fn-lit
   (complex-m
-   [pos-node (node :bracket "{")
-    es (p/rep* (p/invisi-conc clause (node :sep ",")))
+   [pos-node (token? :bracket "{")
+    es (p/rep* (p/invisi-conc clause (token? :sep ",")))
     e (p/opt clause)
-    _ (node :bracket "}")]
+    _ (token? :bracket "}")]
 
    (let [clauses (vec (if e (conj es e) es))
          has-val #(:val (:val %))
@@ -333,13 +333,13 @@
 
 (def parens
   (complex-m
-   [_ (node :bracket "(")
-    e (p/alt (node :op) expr)
-    _ (node :bracket ")")]
+   [_ (token? :bracket "(")
+    e (p/alt (token? :op) expr)
+    _ (token? :bracket ")")]
    e))
 
-(def unit (p/alt (node #{:name :str :char :num})
-                 parens seq-lit fn-lit))
+(def unit (p/alt (token? #{:name :str :char :num})
+                 parens vec-lit fn-lit))
 
 
 ;;; function and set application
@@ -377,7 +377,7 @@
   `(def ~op-name
      (complex-m
       [e# ~higher-rule
-       s# (p/rep* (p/conc (node :op ~op-str) ~higher-rule))]
+       s# (p/rep* (p/conc (token? :op ~op-str) ~higher-rule))]
       (if (seq s#)
         (right-assoc s# e#)
         e#))))
@@ -397,7 +397,7 @@
   `(def ~op-name
      (alt-m
       (complex-m
-       [s# (p/rep+ (p/conc ~higher-rule (node :op ~op-strs)))
+       [s# (p/rep+ (p/conc ~higher-rule (token? :op ~op-strs)))
         :let [pos-node# (-> s# first first)]
         e# (p/failpoint ~higher-rule
                         (failpoint-error-fn
@@ -410,7 +410,7 @@
 ;; op-+     is higher than op-range so that  (a+1 .. b)  works
 ;; op-range is higher than op-cons  so that  (a . 1..10) works
 ;; op-+     is higher than op-cons  so that  (a+b . s)   works
-;; op-cons  is higher than op-++    so that  (a.b.[] ++ [c,d]) is concat of two seqs
+;; op-cons  is higher than op-++    so that  (a.b.[] ++ [c,d]) is concat of two vecs
 ;; op-++    is higher than op-|     so that  (a++b) can be unioned with other fns
 
 (def eq-ops #{"=" "/=" "<=" ">=" "<" ">" "<<" ">>"})
@@ -445,3 +445,20 @@
                          (fn [_ s] (e s))
                          {:remainder token-group}))
          (shatter (tokenize src-str)))))
+
+
+;;; remove line and column info for display
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn strip-node
+  [node]
+  (let [node (case (:type node)
+               (:fn :set :vec :apply) (update-in node [:val]
+                                                 (partial mapv strip-node))
+               :clause (update-in node [:val] (partial update-vals strip-node))
+               node)]
+    (dissoc node :line :col)))
+
+(defn strip
+  [nodes]
+  (map strip-node nodes))
