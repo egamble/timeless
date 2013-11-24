@@ -2,7 +2,7 @@
   "Parser for Timeless. Mainly intended to parse a self-hosting Timeless compiler."
   (:require [name.choi.joshua.fnparse  :as p]
             [clojure.core.memoize      :refer [memo memo-clear!]]
-            [timeless.bootstrap.common :refer [error node? update-vals]]))
+            [timeless.bootstrap.common :refer [error node? update-vals remove-vals]]))
 
 
 ;;; memoize rules
@@ -447,18 +447,28 @@
          (shatter (tokenize src-str)))))
 
 
-;;; remove line and column info for display
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; reformat for display
+;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn strip-node
-  [node]
-  (let [node (case (:type node)
-               (:fn :set :vec :apply) (update-in node [:val]
-                                                 (partial mapv strip-node))
-               :clause (update-in node [:val] (partial update-vals strip-node))
-               node)]
-    (dissoc node :line :col)))
+(defn display-node
+  "Reformat a node for display.
 
-(defn strip
-  [nodes]
-  (map strip-node nodes))
+  By default ops and names are displayed the same way.
+  If wrap-ops? is truthy, display ops in parens."
+
+  [node & [wrap-ops?]]
+  (let [t (:type node)
+        v (:val node)
+        f #(display-node % wrap-ops?)]
+    (case t
+      :name (symbol v)
+      :op (let [s (symbol v)]
+            (if wrap-ops? (list s) s))
+      :apply (map f v)
+      (:fn :set :vec) `[~t ~@(map f v)]
+      :clause (->> v (remove-vals nil?) (update-vals f))
+      v)))
+
+(defn display
+  [nodes & [wrap-ops?]]
+  (map #(display-node % wrap-ops?) nodes))
