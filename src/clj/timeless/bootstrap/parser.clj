@@ -2,7 +2,7 @@
   "Parser for Timeless. Mainly intended to parse a self-hosting Timeless compiler."
   (:require [name.choi.joshua.fnparse  :as p]
             [clojure.core.memoize      :refer [memo memo-clear!]]
-            [timeless.bootstrap.common :refer [error node? update-vals remove-vals]]))
+            [timeless.bootstrap.common :refer [error node? update-vals remove-vals show]]))
 
 
 ;;; memoize rules
@@ -70,11 +70,12 @@
 ;;; node builders
 ;;;;;;;;;;;;;;;;;
 
-(defn make-node [type pos-map val]
-  {:type type
-   :val val
-   :line (:line pos-map)
-   :col (:col pos-map)})
+(defn make-node [type pos-map val & [other-fields]]
+  (merge other-fields
+         {:type type
+          :val val
+          :line (:line pos-map)
+          :col (:col pos-map)}))
 
 (defmacro deflex
   "Node builder for the lex phase.
@@ -199,7 +200,7 @@
 (deflex op-lex :op
   [_ ws
    s (alt-lex
-      [["/=" \u2260] ["<=" \u2264] [">=" \u2265]
+      [["/=" \u2260] ["<=" \u2264] [">=" \u2265] ["<-" \u2208]
        ["&&" \u2227] ["||" \u2228] ["&" \u2229] ["|" \u222A]
        "++" "+" "--" "-" "*" "/" "<<" "<" ">>" ">" "=" "." "..." ".."])
    _ ws]
@@ -309,7 +310,7 @@
        (complex-m [_ (token? :sep "->")
                    v expr]
                   v))]
-   (make-node :clause k {:key k, :st st, :val v})))
+   (make-node :clause k v {:key k, :st st})))
 
 (def fn-lit
   (complex-m
@@ -319,10 +320,9 @@
     _ (token? :bracket "}")]
 
    (let [clauses (vec (if e (conj es e) es))
-         has-val #(:val (:val %))
-         type (if (not-any? has-val clauses)
+         type (if (not-any? :val clauses)
                 :set
-                (if (every? has-val clauses)
+                (if (every? :val clauses)
                   :fn
                   (error "Mixed set and fn clauses" pos-node)))]
      (make-node type pos-node clauses))))
@@ -413,7 +413,7 @@
 ;; op-cons  is higher than op-++    so that  (a.b.[] ++ [c,d]) is concat of two vecs
 ;; op-++    is higher than op-|     so that  (a++b) can be unioned with other fns
 
-(def eq-ops #{"=" "/=" "<=" ">=" "<" ">" "<<" ">>"})
+(def eq-ops #{"=" "/=" "<=" ">=" "<" ">" "<<" ">>" "<-"})
 
 (defop        op-*       #{"*" "/"}    application)
 (defop        op-+       #{"+" "-"}    op-*)
@@ -445,30 +445,3 @@
                          (fn [_ s] (e s))
                          {:remainder token-group}))
          (shatter (tokenize src-str)))))
-
-
-;;; reformat for display
-;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defn display-node
-  "Reformat a node for display.
-
-  By default ops and names are displayed the same way.
-  If wrap-ops? is truthy, display ops in parens."
-
-  [node & [wrap-ops?]]
-  (let [t (:type node)
-        v (:val node)
-        f #(display-node % wrap-ops?)]
-    (case t
-      :name (symbol v)
-      :op (let [s (symbol v)]
-            (if wrap-ops? (list s) s))
-      :apply (map f v)
-      (:fn :set :vec) `[~t ~@(map f v)]
-      :clause (->> v (remove-vals nil?) (update-vals f))
-      v)))
-
-(defn display
-  [nodes & [wrap-ops?]]
-  (map #(display-node % wrap-ops?) nodes))
