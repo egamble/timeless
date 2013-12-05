@@ -3,8 +3,8 @@
   (:require [timeless.bootstrap
              [common      :refer :all]
              [parser      :refer [parse]]]
-            [clojure.walk :refer [postwalk walk]]
-            [clojure.set  :refer [union]]
+            [clojure.walk :refer [postwalk]]
+;            [clojure.set  :refer [union]]
             [let-else     :refer [let?]]))
 
 
@@ -51,8 +51,10 @@
   (let [f (fn [ancestors form]
             (or
              (let? [v (:val form)
-                    :when (and (not (is-op-node? "<-" (third ancestors))) ; don't remake args of member-of ops
-                               (node? form :apply))
+                    :when (and
+                           ;; don't remake setish applications that are args of member-of ops
+                           (not (is-op-node? "<-" (third ancestors))) ; third means great-grandfather
+                           (node? form :apply))
                     name-node (first v)
                     :when (and (node? name-node :name)
                                (re-find #"^[A-Z]" (:val name-node)))
