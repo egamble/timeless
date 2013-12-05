@@ -48,9 +48,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn remake-setish-applications [top-map]
-  (let [f (fn [form]
+  (let [f (fn [ancestors form]
             (or
-             (let? [v (:val form) :when (node? form :apply)
+             (let? [v (:val form)
+                    :when (and (not (is-op-node? "<-" (third ancestors))) ; don't remake args of member-of ops
+                               (node? form :apply))
                     name-node (first v)
                     :when (and (node? name-node :name)
                                (re-find #"^[A-Z]" (:val name-node)))
@@ -64,15 +66,11 @@
                (assoc form :val [op pattern setish]))
              form))]
 
-    (postwalk f top-map)))
+    (postwalk-ancestors f top-map)))
 
 
 ;;; restructure clause nodes
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defn is-op-node? [op node]
-  (and (node? node :apply)
-       (node? (first (:val node)) :op op)))
 
 (defn shatter-st
   "Break up 'such that' into a seq of nodes, one for each &&-separated sub-assertion."

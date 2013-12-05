@@ -265,7 +265,10 @@
                          brace-shatter))
 
 (defn shatter
-  "Split tokens into groups corresponding to top-level assertions."
+  "Split tokens into groups corresponding to top-level assertions.
+  The body of each top-level assertion is wrapped with parens, because '=' is not the lowest precedence op.
+  '=' has relatively high precedence so that e.g. {b : a = b && c} is interpreted as {b : (a = b) && c}
+  rather than {b : a = (b && c)}."
   [tokens]
   (let [e (fn [state]
             (error "Failure to shatter into top-level assertions"
@@ -277,9 +280,17 @@
                                                   (p/not-followed-by (token? :op "="))))))
            (fn [s] (e s))
            (fn [_ s] (e s))
-           {:remainder tokens})]
-    ;; remove nils because p/rep* can return nil
-    (map (comp (partial remove nil?) flatten) m)))
+           {:remainder tokens})
+
+        wrap-group (fn [[name op & rest]]
+                     (let [f #(merge op {:type :bracket :val %})]
+                       `[~name ~op ~(f "(") ~@rest ~(f ")")]))]
+    (map (fn [group]
+           (->> group
+                flatten
+                (remove nil?) ; remove nils because p/rep* can return nil
+                wrap-group))
+         m)))
 
 
 ;;; vec literal

@@ -3,8 +3,8 @@
   (:require [clojure.walk :refer [walk postwalk]]))
 
 
-;;; node predicate
-;;;;;;;;;;;;;;;;;;
+;;; node predicates
+;;;;;;;;;;;;;;;;;;;
 
 (defn node?
   "Returns true for a node of the given type(s) (a keyword or a set of keywords) and,
@@ -15,6 +15,10 @@
     (and (if (set? type) (type t) (= type t))
          (or (not val)
              (if (set? val) (val v) (= val v))))))
+
+(defn is-op-node? [op node]
+  (and (node? node :apply)
+       (node? (first (:val node)) :op op)))
 
 
 ;;; error reporting
@@ -125,3 +129,15 @@
   Concats all the seqs together and returns [<new form> <concat of seqs>]."
   [f form]
   (walk-collect (partial postwalk-collect f) f form))
+
+(defn postwalk-ancestors
+  "Like clojure.walk/postwalk, except the first arg of f is a list of all
+  ancestor nodes in the tree. The first ancestor is the parent of form,
+  the second ancestor is the grandparent of form, etc.
+  The second argument of f is the form."
+  [f form]
+  (letfn [(g [f ancestors form]
+            (walk (partial g f (cons form ancestors))
+                  (partial f ancestors)
+                  form))]
+    (g f nil form)))
