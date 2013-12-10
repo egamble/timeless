@@ -4,7 +4,7 @@
              [common      :refer :all]
              [parser      :refer [parse]]]
             [clojure.walk :refer [postwalk]]
-;            [clojure.set  :refer [union]]
+            [clojure.set  :refer [union]]
             [let-else     :refer [let?]]))
 
 
@@ -153,6 +153,19 @@
     (postwalk f top-map)))
 
 
+;;; reorder 'such that' sub-assertions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn reorder-st
+  "Reorder 'such that' sub-assertions so that all names are bound.
+  Also the non-binding assertions are moved to the earliest point after their
+  names are bound.
+  Equality assertions are changed to binding assertions, with the arguments in
+  whichever order is necessary to allow all names to be bound."
+  [top-map]
+  top-map)
+
+
 ;;; restructure and analyze AST
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -161,7 +174,8 @@
       make-top-map
       check-stdout
       remake-setish-applications
-      remake-clauses))
+      remake-clauses
+      reorder-st))
 
 (defn parse-and-remake [src-str]
   (-> src-str

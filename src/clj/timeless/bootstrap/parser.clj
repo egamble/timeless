@@ -91,9 +91,16 @@
 ;;; lexer token rules
 ;;;;;;;;;;;;;;;;;;;;;
 
+(def forbidden-name-chars
+  (str "_\\ \t[](){}'\".,:+-*/<>=&|#"
+        \u2192 \u21A6 \u27F6 \u27FC
+        \u2264 \u2265 \u2227 \u2228
+        \u2229 \u222A \u2282 \u2286
+        \u2283 \u2287 \u2208 \u220A \u2260))
+
 (def name-char-lex
   (complex-m
-   [cs (p/alt (p/except any-nb-char (p/lit-alt-seq "_\\ \t[](){}'\".,:+-*/<>=&|#" nb-char))
+   [cs (p/alt (p/except any-nb-char (p/lit-alt-seq forbidden-name-chars nb-char))
               (p/conc (nb-char \\) (p/alt any-nb-char newline-lex)))]
    (if (seq? cs) (second cs) cs)))
 
@@ -177,15 +184,16 @@
   (str c))
 
 (defmacro alt-lex
-  "strs is a collection of op strings, or of tuples of op str and unicode alternative.
+  "strs is a collection of op strings, or of tuples of op str and one or more unicode alternatives.
    Expands into a rule whose value on success is the matched op str."
   [strs]
   (let [rules (map (fn [s]
                      (let [s (if (coll? s) s [s])
-                           [s1 c] s
+                           [s1 & cs] s
+                           cs (map #(do `(nb-char ~%)) cs)
                            r `(p/lit-conc-seq ~s1 nb-char)
-                           r (if c
-                               `(p/alt ~r (nb-char ~c))
+                           r (if (seq cs)
+                               `(p/alt ~r ~@cs)
                                r)]
                        `(p/semantics ~r (constantly ~s1))))
                    strs)]
@@ -193,16 +201,19 @@
 
 (deflex sep-lex :sep
   [_ ws
-   s (alt-lex [["->" \u2192] ":" ","])
+   s (alt-lex [["->" \u2192 \u21A6 \u27F6 \u27FC] ":" ","])
    _ ws]
   s)
 
 (deflex op-lex :op
   [_ ws
    s (alt-lex
-      [["/=" \u2260] ["<=" \u2264] [">=" \u2265] ["<-" \u2208]
-       ["&&" \u2227] ["||" \u2228] ["&" \u2229] ["|" \u222A]
-       "++" "+" "--" "-" "*" "/" "<<" "<" ">>" ">" "=" "." "..." ".."])
+      [["<=" \u2264] [">=" \u2265]
+       ["&&" \u2227] ["||" \u2228]
+       ["&" \u2229] ["|" \u222A]
+       ["<<" \u2282 \u2286] [">>" \u2283 \u2287]
+       ["<-" \u2208 \u220A] ["/=" \u2260]
+       "++" "+" "--" "-" "*" "/" "<" ">" "=" "." "..." ".."])
    _ ws]
   s)
 
