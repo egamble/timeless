@@ -435,13 +435,15 @@
 ;; op-cons  is higher than op-++    so that  (a.b.[] ++ [c,d]) is concat of two vecs
 ;; op-++    is higher than op-|     so that  (a++b) can be unioned with other fns
 
+;; op-++ is right-associative to make backtracking easier
+
 (def eq-ops #{"=" "/=" "<=" ">=" "<" ">" "<<" ">>" "<-"})
 
 (defop        op-*       #{"*" "/"}    application)
 (defop        op-+       #{"+" "-"}    op-*)
 (defop        op-range   #{".." "..."} op-+)
 (defop-right  op-cons    "."           op-range)
-(defop        op-++      "++"          op-cons)
+(defop-right  op-++      "++"          op-cons)
 (defop        op---      "--"          op-++)
 (defop        op-&       "&"           op---)
 (defop        op-|       "|"           op-&)
