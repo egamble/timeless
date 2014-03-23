@@ -44,33 +44,6 @@
     (error "No top-level binding for stdout")))
 
 
-;;; change setish applications to member-of ops
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defn remake-setish-applications [top-map]
-  (let [f (fn [ancestors form]
-            (or
-             (let? [v (:val form)
-                    :when (and
-                           ;; don't remake setish applications that are args of member-of ops
-                           (not (is-op-node? "<-" (third ancestors))) ; third means great-grandfather
-                           (node? form :apply))
-                    name-node (first v)
-                    :when (and (node? name-node :name)
-                               (re-find #"^[A-Z]" (:val name-node)))
-
-                    op      (merge form {:type :op :val "<-"})
-                    setish  (vec (butlast v))
-                    setish  (if (second setish)
-                              (merge form {:type :apply :val setish})
-                              (first setish))
-                    pattern (last v)]
-               (assoc form :val [op pattern setish]))
-             form))]
-
-    (postwalk-ancestors f top-map)))
-
-
 ;;; restructure clause nodes
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -84,8 +57,34 @@
                    (mapcat split-and (rest (:val node)))
                    [node])))))
 
+(defn move-key
+  "Replace the key expression with a gensym and add an equality assertion
+  for the key expression and the new name to 'such that'."
+  [clause]
+  (let [k (:key clause)]
+    (let [k-name (merge k {:type :name :val (str (gensym "__"))})
+          eq-op (merge k {:type :op :val "="})
+          eq-assert (merge k {:type :apply :val [eq-op k-name k]})]
+      (-> clause
+          (update-in [:st] (partial cons eq-assert))
+          (assoc :key k-name)))))
+
+(defn move-val
+  "Replace the val expression with a gensym and add an equality assertion
+  for the val expression and the new name to 'such that'."
+  [clause]
+  (let [v (:val clause)]
+    (if v
+      (let [v-name (merge v {:type :name :val (str (gensym "__"))})
+            eq-op (merge v {:type :op :val "="})
+            eq-assert (merge v {:type :apply :val [eq-op v-name v]})]
+        (-> clause
+            (update-in [:st] (partial cons eq-assert))
+            (assoc :val v-name)))
+      clause)))
+
 (defn replace-underscores
-  "Replace underscores in the key with gensymed names."
+  "Replace underscores with gensymed names."
   [clause]
   (let [f (fn [node]
             (if (and (node? node :name)
@@ -93,11 +92,11 @@
               (assoc node :val (str (gensym "__")))
               node))]
 
-    (update-in clause [:key] (partial postwalk f))))
+    (update-in clause [:st] (partial postwalk f))))
 
-(defn extract-key-asserts
-  "Find member-of key assertions, replace them with their left side expressions,
-  and move them to 'such that'."
+(defn extract-member-of-asserts
+  "Find member-of assertions, replace them with their left side expressions,
+  and add them to 'such that'."
   [clause]
   (let [f (fn [form]
             (if (is-op-node? "<-" form)
@@ -105,65 +104,23 @@
                [pattern [form]])
              [form []]))
 
-        [k key-asserts] (postwalk-collect f (:key clause))]
+        [changed-st member-of-asserts] (postwalk-collect f (:st clause))]
 
     (-> clause
-        (update-in [:st] concat key-asserts)
-        (assoc :key k))))
-
-(defn move-key
-  "If the key expression is not a name, gensym a name to be the key and add
-  a binding assertion for the key expression to 'such that'."
-  [clause]
-  (let [k (:key clause)]
-    (if (node? k :name)
-      clause
-      (let [k-name (merge k {:type :name :val (str (gensym "__"))})
-            bind-op (merge k {:type :op :val ":="})
-            bind-assert (merge k {:type :apply :val [bind-op k k-name]})]
-        (-> clause
-            (update-in [:st] (partial cons bind-assert))
-            (assoc :key k-name))))))
-
-(defn move-val
-  "If the val expression is not a name, gensym a name to be the val and add
-  a binding assertion for the new name to 'such that'."
-  [clause]
-  (let [v (:val clause)]
-    (if (or (not v) (node? v :name))
-      clause
-      (let [v-name (merge v {:type :name :val (str (gensym "__"))})
-            bind-op (merge v {:type :op :val ":="})
-            bind-assert (merge v {:type :apply :val [bind-op v-name v]})]
-        (-> clause
-            (update-in [:st] (partial cons bind-assert))
-            (assoc :val v-name))))))
+        (assoc :st (concat changed-st member-of-asserts)))))
 
 (defn remake-clauses [top-map]
   (let [f (fn [form]
             (if (node? form :clause)
               (-> form
                   shatter-st
-                  replace-underscores
-                  extract-key-asserts
                   move-key
-                  move-val)
+                  move-val
+                  extract-member-of-asserts
+                  replace-underscores)
               form))]
 
     (postwalk f top-map)))
-
-
-;;; reorder 'such that' sub-assertions
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defn reorder-st
-  "Reorder 'such that' sub-assertions so that all names are bound.
-  Also the non-binding assertions are moved to the earliest point after their
-  names are bound.
-  Equality assertions are changed to binding assertions, with the arguments in
-  whichever order is necessary to allow all names to be bound."
-  [top-map]
-  top-map)
 
 
 ;;; restructure and analyze AST
@@ -173,9 +130,7 @@
   (-> top-defs
       make-top-map
       check-stdout
-      remake-setish-applications
-      remake-clauses
-      reorder-st))
+      remake-clauses))
 
 (defn parse-and-remake [src-str]
   (-> src-str

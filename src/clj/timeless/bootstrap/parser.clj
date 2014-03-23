@@ -54,8 +54,7 @@
 (def double-quote-lex (nb-char \"))
 
 (def comment-lex (p/conc (nb-char \#)
-                         (p/rep* any-nb-char)
-                         newline-lex))
+                         (p/rep* any-nb-char)))
 
 (def ws (p/rep* (p/alt comment-lex newline-lex (p/lit-alt-seq " \t" nb-char))))
 
@@ -92,7 +91,7 @@
 ;;;;;;;;;;;;;;;;;;;;;
 
 (def forbidden-name-chars
-  (str "_\\ \t[](){}'\".,:+-*/<>=&|#"
+  (str " \t[](){}'\".,:+-*/<>=&|!#\\"
         \u2192 \u21A6 \u27F6 \u27FC
         \u2264 \u2265 \u2227 \u2228
         \u2229 \u222A \u2282 \u2286
@@ -104,20 +103,10 @@
               (p/conc (nb-char \\) (p/alt any-nb-char newline-lex)))]
    (if (seq? cs) (second cs) cs)))
 
-(def underscore-unit-lex
-  (complex-m
-   [cs (p/rep* underscore-lex)
-    c name-char-lex]
-   (str (apply str cs) c)))
-
 (deflex name-lex :name
-  [c (p/except underscore-unit-lex digit-lex)
-   cs (p/rep* underscore-unit-lex)]
+  [c (p/except name-char-lex digit-lex)
+   cs (p/rep* name-char-lex)]
   (apply str c cs))
-
-(deflex underscore-name-lex :name
-  [c underscore-lex]
-  (str c))
 
 (deflex string-lit :str
   [_ double-quote-lex
@@ -167,7 +156,7 @@
 (def non-num-atom-lex
   (complex-m
    [_ ws
-    a (p/alt name-lex underscore-name-lex string-lit char-lit)
+    a (p/alt name-lex string-lit char-lit)
     _ ws]
    a))
 
@@ -213,7 +202,7 @@
        ["&" \u2229] ["|" \u222A]
        ["<<" \u2282 \u2286] [">>" \u2283 \u2287]
        ["<-" \u2208 \u220A] ["/=" \u2260]
-       "++" "+" "--" "-" "*" "/" "<" ">" "=" "." "..." ".."])
+       "++" "+" "--" "-" "*" "/" "<" ">" "=" "." "..." ".." "!"])
    _ ws]
   s)
 
