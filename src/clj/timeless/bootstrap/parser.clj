@@ -50,7 +50,6 @@
 
 (def underscore-lex (nb-char \_))
 
-(def single-quote-lex (nb-char \'))
 (def double-quote-lex (nb-char \"))
 
 (def comment-lex (p/conc (nb-char \#)
@@ -91,17 +90,14 @@
 ;;;;;;;;;;;;;;;;;;;;;
 
 (def forbidden-name-chars
-  (str " \t[](){}'\".,:+-*/<>=&|!#\\"
+  (str " \t[](){}\".,:+-*/<>=&|#\\"
         \u2192 \u21A6 \u27F6 \u27FC
         \u2264 \u2265 \u2227 \u2228
         \u2229 \u222A \u2282 \u2286
         \u2283 \u2287 \u2208 \u220A \u2260))
 
 (def name-char-lex
-  (complex-m
-   [cs (p/alt (p/except any-nb-char (p/lit-alt-seq forbidden-name-chars nb-char))
-              (p/conc (nb-char \\) (p/alt any-nb-char newline-lex)))]
-   (if (seq? cs) (second cs) cs)))
+  (p/except any-nb-char (p/lit-alt-seq forbidden-name-chars nb-char)))
 
 (deflex name-lex :name
   [c (p/except name-char-lex digit-lex)
@@ -122,15 +118,12 @@
     (apply str (map f cs))))
 
 (deflex char-lit :char
-  [_ single-quote-lex
+  [_ (nb-char \\)
    cs (p/alt
        (p/lit-conc-seq "tab" nb-char)
        (p/lit-conc-seq "space" nb-char)
        (p/lit-conc-seq "newline" nb-char)
-       (p/alt any-nb-char newline-lex))
-   _ (p/failpoint single-quote-lex
-                  (failpoint-error-fn "Unmatched single quote"
-                                      pos-state))]
+       (p/alt any-nb-char newline-lex))]
   (if (seq? cs)
     (read-string (apply str (cons \\ cs)))
     cs))
@@ -202,7 +195,7 @@
        ["&" \u2229] ["|" \u222A]
        ["<<" \u2282 \u2286] [">>" \u2283 \u2287]
        ["<-" \u2208 \u220A] ["/=" \u2260]
-       "++" "+" "--" "-" "*" "/" "<" ">" "=" "." "..." ".." "!"])
+       "++" "+" "--" "-" "*" "/" "<" ">" "=" "." "..." ".."])
    _ ws]
   s)
 

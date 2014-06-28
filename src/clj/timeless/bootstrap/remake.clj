@@ -29,7 +29,6 @@
             (condf name
                    predefined        (e "predefined name ")
                    m                 (e "previously bound ")
-                   (partial = "_")   (e nil)
 
                    (assoc m name expr))))]
     (reduce r {} top-defs)))
@@ -83,17 +82,6 @@
             (assoc :val v-name)))
       clause)))
 
-(defn replace-underscores
-  "Replace underscores with gensymed names."
-  [clause]
-  (let [f (fn [node]
-            (if (and (node? node :name)
-                     (= "_" (:val node)))
-              (assoc node :val (str (gensym "__")))
-              node))]
-
-    (update-in clause [:st] (partial postwalk f))))
-
 (defn extract-member-of-asserts
   "Find member-of assertions, replace them with their left side expressions,
   and add them to 'such that'."
@@ -116,8 +104,7 @@
                   shatter-st
                   move-key
                   move-val
-                  extract-member-of-asserts
-                  replace-underscores)
+                  extract-member-of-asserts)
               form))]
 
     (postwalk f top-map)))
@@ -136,3 +123,6 @@
   (-> src-str
       parse
       remake))
+
+;; TODO: restructure embedded assertions for both = and <-
+;; TODO: for embedded assertions (with left expr not missing) replace a non-name LHS with a gensym, then add an = assertion for the left expr and a = or <- assertion for the right expr to the such that
