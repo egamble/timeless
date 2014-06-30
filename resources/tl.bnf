@@ -1,0 +1,46 @@
+defs = def+
+
+def = ws name ws <"="> ws expr ws
+
+<ws> = <#"(\s|#.*\n)*">
+
+<expr> = e1
+
+<e1> = e2 | eq
+eq = e2 (ws <"="> ws e2)+
+
+<e2> = e3 | add
+add = e3 (ws <"+"> ws e3 | add-inv)+
+add-inv = ws <"-"> ws e3
+
+<e3> = e4 | mult
+mult = e4 (ws <"*"> ws e4 | mult-inv)+
+mult-inv = ws <"/"> ws e4
+
+<e4> = unit | apply
+apply = unit (ws unit)+
+
+<unit> = name | str | num | char | paren | vec | set | fn
+
+<non-digit-name-char> = #"[^0-9\s(){}\[\].,:<>=&|+\-*/#→↦⟶⟼∩∪∧∨≠≤≥⊂⊆⊃⊇∈∊\"\\]"
+<name-char> = #"[0-9]" | non-digit-name-char
+name = non-digit-name-char name-char*
+
+str = #"\"(\\(\\|\")|[^\\\"])*\""
+
+<unsigned-num> = #"[0-9]+(\.[0-9]+)?"
+<num> = num-pos | num-neg
+num-pos = <"+">? unsigned-num
+num-neg = <"-"> unsigned-num
+
+char = <"\\"> ("space" | "tab" | "newline" | #"[^\s]")
+
+paren = <"("> ws expr ws <")">
+
+vec = <"["> (ws expr ws <",">)* (ws expr)? ws <"]">
+
+set = <"{"> (ws set-clause ws <",">)* (ws set-clause)? ws <"}">
+set-clause = expr (ws <":"> expr)?
+
+fn = <"{"> (ws fn-clause ws <",">)* ws fn-clause (ws <",">)? ws <"}">
+fn-clause = expr (ws <":"> expr)? ws <("->"|"→"|"↦"|"⟶"|"⟼")> expr
