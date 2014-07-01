@@ -55,8 +55,8 @@ compare-no-eq = union-level (ws compare-op-no-eq ws union-level)+
 <union-level> = intersection-level | union
 union = intersection-level (ws <("|"|"∪")> ws intersection-level)+
 
-<intersection-level> = compare-level | intersection
-intersection = compare-level (ws <("&"|"∩")> ws compare-level)+
+<intersection-level> = set-diff-level | intersection
+intersection = set-diff-level (ws <("&"|"∩")> ws set-diff-level)+
 
 <set-diff-level> = concat-level | set-diff
 set-diff = concat-level (ws <"--"> ws concat-level)+
@@ -86,6 +86,10 @@ apply = unit (ws unit-no-signed-num)+
 <unit> = unit-no-num | num
 <unit-no-signed-num> = unit-no-num | unsigned-num
 
+(*
+Splitting this regex to avoid the redundancy unfortunately allows
+ambiguous parsing of e.g. a12 as either a name or an application of a to 12.
+*)
 name = #"[^0-9\s(){}\[\].,:<>=&|+\-*/#→↦⟶⟼∩∪∧∨≠≤≥⊂⊆⊃⊇∈∊\"\\][^\s(){}\[\].,:<>=&|+\-*/#→↦⟶⟼∩∪∧∨≠≤≥⊂⊆⊃⊇∈∊\"\\]*"
 
 str = #"\"(\\(\\|\")|[^\\\"])*\""
@@ -94,14 +98,14 @@ str = #"\"(\\(\\|\")|[^\\\"])*\""
 unsigned-num = #"[0-9]+(\.[0-9]+)?"
 signed-num = #"(\+|-)[0-9]+(\.[0-9]+)?"
 
-char = <"\\"> ("space" | "tab" | "newline" | #"[^\s]")
+char = <"\\"> #"space|tab|newline|[^\s]"
 
 paren = <"("> ws expr ws <")">
 
 vec = <"["> (ws expr ws <",">)* (ws expr)? ws <"]">
 
 set = <"{"> (ws set-clause ws <",">)* (ws set-clause)? ws <"}">
-set-clause = expr (ws <":"> expr)?
+set-clause = expr (ws <":"> ws expr)?
 
 fn = <"{"> (ws fn-clause ws <",">)* ws fn-clause (ws <",">)? ws <"}">
-fn-clause = expr (ws <":"> expr)? ws <("->"|"→"|"↦"|"⟶"|"⟼")> expr
+fn-clause = expr (ws <":"> ws expr)? ws <("->"|"→"|"↦"|"⟶"|"⟼")> ws expr
