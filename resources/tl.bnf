@@ -1,37 +1,98 @@
 defs = def+
 
-def = ws name ws <"="> ws expr ws
+def = ws name ws <"="> ws expr-no-eq ws
 
 <ws> = <#"(\s|#.*\n)*">
 
-<expr> = e1
 
-<e1> = e2 | eq
-eq = e2 (ws <"="> ws e2)+
+(*
+TODO: allow missing left expr on embedded <-
+TODO: detect embedded = and <- (not top level of such that, not inside ||, &&, or not)
+*)
 
-<e2> = e3 | add
-add = e3 (ws <"+"> ws e3 | add-inv)+
-add-inv = ws <"-"> ws e3
 
-<e3> = e4 | mult
-mult = e4 (ws <"*"> ws e4 | mult-inv)+
-mult-inv = ws <"/"> ws e4
+(*
+add    is higher than range  so that  (a+1 .. b)  works
+add    is higher than cons   so that  (a+b . c)   works
+range  is higher than cons   so that  (a . 1..10) works
+cons   is higher than concat so that  (a.b.[] ++ [c,d]) is concat of two vecs
+concat is higher than union  so that  (a++b) can be unioned with other fns
+*)
 
-<e4> = unit | apply
-apply = unit (ws unit)+
 
-<unit> = name | str | num | char | paren | vec | set | fn
+<expr> = or-level
 
-<non-digit-name-char> = #"[^0-9\s(){}\[\].,:<>=&|+\-*/#→↦⟶⟼∩∪∧∨≠≤≥⊂⊆⊃⊇∈∊\"\\]"
-<name-char> = #"[0-9]" | non-digit-name-char
-name = non-digit-name-char name-char*
+<or-level> = and-level | or
+or = and-level (ws <("||"|"∨")> ws and-level)+
+
+<and-level> = compare-level | and
+and = compare-level (ws <("&&"|"∧")> ws compare-level)+
+
+<compare-level> = union-level | compare
+compare = union-level (ws compare-op ws union-level)+
+
+
+<compare-op> = compare-op-no-eq | eq
+<compare-op-no-eq> = neq | lt | gt | lte | gte | subset | superset | member
+eq = <"=">; neq = <("/="|"≠")>
+lte = <("<="|"≤")>; gte = <(">="|"≥")>; lt = <"<">; gt = <">">
+subset = <("<<"|"⊂"|"⊆")>; superset = <(">>"|"⊃"|"⊇")> 
+member = <("<-"|"∈"|"∊")>
+
+
+<expr-no-eq> = or-level-no-eq
+
+<or-level-no-eq> = and-level-no-eq | or-no-eq
+or-no-eq = and-level-no-eq (ws <("||"|"∨")> ws and-level-no-eq)+
+
+<and-level-no-eq> = compare-level-no-eq | and-no-eq
+and-no-eq = compare-level-no-eq (ws <("&&"|"∧")> ws compare-level-no-eq)+
+
+<compare-level-no-eq> = union-level | compare-no-eq
+compare-no-eq = union-level (ws compare-op-no-eq ws union-level)+
+
+
+<union-level> = intersection-level | union
+union = intersection-level (ws <("|"|"∪")> ws intersection-level)+
+
+<intersection-level> = compare-level | intersection
+intersection = compare-level (ws <("&"|"∩")> ws compare-level)+
+
+<set-diff-level> = concat-level | set-diff
+set-diff = concat-level (ws <"--"> ws concat-level)+
+
+<concat-level> = cons-level | concat
+concat = cons-level (ws <"++"> ws cons-level)+
+
+<cons-level> = range-level | cons
+cons = range-level (ws <"."> ws range-level)+
+
+<range-level> = add-level | incl-range | excl-range
+incl-range = add-level ws <".."> ws add-level
+excl-range = add-level ws <"..."> ws add-level
+
+<add-level> = mult-level | add
+add = mult-level (ws <"+"> ws mult-level | add-inv)+
+add-inv = ws <"-"> ws mult-level
+
+<mult-level> = apply-level | mult
+mult = apply-level (ws <"*"> ws apply-level | mult-inv)+
+mult-inv = ws <"/"> ws apply-level
+
+<apply-level> = unit | apply
+apply = unit (ws unit-no-signed-num)+
+
+<unit-no-num> = name | str | char | paren | vec | set | fn
+<unit> = unit-no-num | num
+<unit-no-signed-num> = unit-no-num | unsigned-num
+
+name = #"[^0-9\s(){}\[\].,:<>=&|+\-*/#→↦⟶⟼∩∪∧∨≠≤≥⊂⊆⊃⊇∈∊\"\\][^\s(){}\[\].,:<>=&|+\-*/#→↦⟶⟼∩∪∧∨≠≤≥⊂⊆⊃⊇∈∊\"\\]*"
 
 str = #"\"(\\(\\|\")|[^\\\"])*\""
 
-<unsigned-num> = #"[0-9]+(\.[0-9]+)?"
-<num> = num-pos | num-neg
-num-pos = <"+">? unsigned-num
-num-neg = <"-"> unsigned-num
+<num> = unsigned-num | signed-num
+unsigned-num = #"[0-9]+(\.[0-9]+)?"
+signed-num = #"(\+|-)[0-9]+(\.[0-9]+)?"
 
 char = <"\\"> ("space" | "tab" | "newline" | #"[^\s]")
 

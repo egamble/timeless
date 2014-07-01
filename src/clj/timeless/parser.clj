@@ -453,8 +453,4 @@
                          {:remainder token-group}))
          (shatter (tokenize src-str)))))
 
-;; TODO: allow missing left expr on embedded <-
-;; TODO: detect embedded = and <- (not top level of such that, not inside ||, &&, or not)
-
-(def parse (insta/parser (clojure.java.io/resource "tl.bnf")))
-
+(def tl-parser (insta/parser (clojure.java.io/resource "tl.bnf")))
