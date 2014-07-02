@@ -6,12 +6,6 @@ def = ws name ws <"="> ws expr-no-eq ws
 
 
 (*
-TODO: allow missing left expr on embedded <-
-TODO: detect embedded = and <- (not top level of such that, not inside ||, &&, or not)
-*)
-
-
-(*
 add    is higher than range  so that  (a+1 .. b)  works
 add    is higher than cons   so that  (a+b . c)   works
 range  is higher than cons   so that  (a . 1..10) works
@@ -28,8 +22,8 @@ or = and-level (ws <("||"|"∨")> ws and-level)+
 <and-level> = compare-level | and
 and = compare-level (ws <("&&"|"∧")> ws compare-level)+
 
-<compare-level> = union-level | compare
-compare = union-level (ws compare-op ws union-level)+
+<compare-level> = unary-member-level | compare
+compare = unary-member-level (ws compare-op ws unary-member-level)+
 
 
 <compare-op> = compare-op-no-eq | eq
@@ -48,9 +42,12 @@ or-no-eq = and-level-no-eq (ws <("||"|"∨")> ws and-level-no-eq)+
 <and-level-no-eq> = compare-level-no-eq | and-no-eq
 and-no-eq = compare-level-no-eq (ws <("&&"|"∧")> ws compare-level-no-eq)+
 
-<compare-level-no-eq> = union-level | compare-no-eq
-compare-no-eq = union-level (ws compare-op-no-eq ws union-level)+
+<compare-level-no-eq> = unary-member-level | compare-no-eq
+compare-no-eq = unary-member-level (ws compare-op-no-eq ws unary-member-level)+
 
+
+<unary-member-level> = union-level | unary-member
+unary-member = <member> ws union-level
 
 <union-level> = intersection-level | union
 union = intersection-level (ws <("|"|"∪")> ws intersection-level)+
