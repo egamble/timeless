@@ -5,4 +5,4 @@ Timeless is a functional, side effect-free, [non-strict](http://en.wikipedia.org
 
 The detailed description of Timeless is at https://github.com/egamble/timeless/wiki
 
-Copyright © 2013-2014 Evan Gamble. Distributed under the Eclipse Public License. See the file COPYING.
+Copyright © 2013-2015 Evan Gamble. Distributed under the Eclipse Public License. See the file COPYING.
