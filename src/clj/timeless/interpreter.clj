@@ -3,21 +3,27 @@
   (:require [let-else :refer [let?]]))
 
 (defn read-top-level
-  "Reads top-level sexprs from stream, which defaults to *in*.
-Returns a context."
+  "Reads top-level assertions from stream, which defaults to *in*.
+  Ignores assertions other than equality assertions.
+  Returns a context map.
+  Don't try to print the returned context, it's circular!"
   ([]
    (read-top-level *in*))
   ([stream]
-   (let [sexprs (->> (repeatedly #(read stream false nil))
-                     (take-while not-empty)
-                     (filter #(= (first %) '=))
-                     (doall))
-         context "hashmap with keys that are LHS names, vals that are atoms"]
-     sexprs))) ; the atoms contain {:context <this context>, :expr}
+   (let [asserts (->> (repeatedly #(read stream false nil))
+                      (take-while not-empty)
+                      (filter #(= (first %) '=))
+                      (doall))
+         context (into {}
+                       (map (fn [[_ name v]]
+                              [name (atom v)])
+                            asserts))]
+     (doseq [a (vals context)]
+       (swap! a (fn [v] {:context context :expr v})))
+     context)))
 
 (defn read-top-level-string
-  "Reads top-level sexprs from string s.
-Returns a context."
+  "Same as read-top-level, except reads from a string."
   [s]
   (with-in-str s
     (read-top-level)))
