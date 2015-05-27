@@ -1,6 +1,9 @@
 (ns timeless.interpreter
   "Interpreter for an S-expression form of Timeless."
-  (:require [let-else :refer [let?]]))
+  (:require [timeless
+             [common :refer :all]
+             [refactor :refer [refactor-fn-set]]]))
+
 
 (defn read-top-level
   "Reads top-level assertions from stream, which defaults to *in*.
@@ -11,15 +14,15 @@
    (read-top-level *in*))
   ([stream]
    (let [asserts (->> (repeatedly #(read stream false nil))
-                      (take-while not-empty)
-                      (filter #(= (first %) '=))
+                      (take-while not-nil?)
+                      (filter (partial is-type? '=))
                       (doall))
          context (into {}
-                       (map (fn [[_ name v]]
-                              [name (atom v)])
+                       (map (fn [[_ sym expr]]
+                              [sym (atom expr)])
                             asserts))]
      (doseq [a (vals context)]
-       (swap! a (fn [v] {:context context :expr v})))
+       (swap! a (fn [expr] {:expr expr :context context})))
      context)))
 
 (defn read-top-level-string
@@ -29,5 +32,5 @@
     (read-top-level)))
 
 (defn eval-in-context
-  [sexpr context]
+  [expr context]
   nil)
