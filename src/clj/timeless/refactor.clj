@@ -31,13 +31,15 @@
           [v asserts])]
     (list type pattern asserts v)))
 
-;; TODO: detect and change non-binding equality assertions to ==
 (defn decompose-assertion
   "Decompose an equality assertion if it contains destructuring patterns,
   i.e. $seq, $tup, ++, :."
   [assert]
-  nil
-  )
+  (if (is-type? '= assert)
+    (let [[_ left right] assert]
+      nil
+      )
+    [assert]))
 
 (defn decompose-fn-set
   "Decomposes destructuring assertions in a $$fn or $$set expr."
