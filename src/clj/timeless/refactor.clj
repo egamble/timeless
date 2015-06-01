@@ -70,12 +70,13 @@
       (normalize-clause-value)))
 
 (defn decompose-assertion
-  "Decompose an equality assertion if it contains destructuring patterns,
-  i.e. :seq, :tup, :cons, ++."
+  "Decompose an equality assertion if it contains nested destructuring ops,
+  or a destructuring op on one side and any list expr on the other side.
+  The destructuring ops are :seq, :tup, :cons, ++."
   [assert]
   (if (is-op? '= assert)
     (let [destr-ops #{:seq :tup :cons '++}
-          [op left right] assert]
+          [_ left right] assert]
       (cond (is-op? destr-ops left)
             (if (list? right)
               (let [nam (gensym)]
@@ -92,7 +93,7 @@
                       (mapcat second r))))
 
             (is-op? destr-ops right)
-            (decompose-assertion (new-op op right left))
+            (decompose-assertion (new-= right left))
 
             :else (list assert)))
     (list assert)))
