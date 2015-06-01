@@ -41,12 +41,15 @@
 ;;; checking exprs
 ;;;;;;;;;;;;;;;;;;
 
-(defn is-type?
-  [sym expr]
+(defn is-op?
+  "Returns true if expr is a list and the first element is either equal to op or a member of op when op is a set."
+  [op expr]
   (and (seq? expr)
-       (= sym (first expr))))
+       (if (set? op)
+         (not-nil? (op (first expr)))
+         (= op (first expr)))))
 
-;; TODO: add all ops, ∞, and $<symbol>s
+;; TODO: add all ops, ∞, and $<symbol>s; alternate characters also
 (def predefined
   #{'Obj 'Num 'Int 'Bool 'Char 'Str 'Set 'Seq 'Fn 'Dom 'Img 'len 'charToInt 'stdin})
 

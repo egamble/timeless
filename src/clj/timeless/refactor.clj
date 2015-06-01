@@ -3,71 +3,136 @@
   (:require [timeless.common :refer :all]))
 
 
+(def new-op list)
+
 (defn new-=
   [left right]
   (list '= left right))
 
-(defn normalize-fn-set
-  "Normalizes a $$fn or $$set expr.
-  Normalize means:
-  (1) ensure the pattern is either a free name or a constant expr w.r.t. the context, and
-  (2) ensure the value is not a list, i.e. it's a name, an atomic constant, or nil (for $$set)."
-  [expr context]
-  (let [[type pattern asserts v] expr
-        ;; ensure the pattern is a free name or a constant w.r.t. context
-        [pattern asserts]
-        (cond (constant? pattern context) [(list '$const pattern)
+(defn extract-embedded-assertions'
+  "Extract embedded assertions from expr and remove :opfn wrappers.
+  Return the new expr and the list of embedded assertions."
+  [expr]
+  (cond (is-op? #{'∈ '∊ '⊂ '=} expr)
+        (let [[op left right] expr]
+          (if (symbol? left)
+            [left (list expr)]
+
+            (let [nam (gensym)]
+              [nam (list (new-= nam left)
+                         (new-op op nam right))])))
+
+        (is-op? :opfn expr)
+        [(second expr) '()]
+
+        (list? expr)
+        (let [r (map extract-embedded-assertions' expr)]
+          [(map first r)
+           (mapcat second r)])
+
+        :else [expr '()]))
+
+(defn extract-embedded-assertions
+  "Extract embedded assertions from a clause pattern."
+  [[op pattern asserts v]]
+  (let [[pattern new-asserts] (extract-embedded-assertions' pattern)
+        asserts (concat new-asserts asserts)]
+    (new-op op pattern asserts v)))
+
+(defn normalize-clause-pattern
+  "Ensure the clause pattern is a free name or a constant w.r.t. context."
+  [[op pattern asserts v] context]
+  (let [[pattern asserts]
+        (cond (constant? pattern context) [(new-op :const pattern)
                                            asserts]
               (symbol? pattern) [pattern asserts]
-              :else (let [sym (gensym)]
-                      [sym (cons (new-= pattern sym)
-                                 asserts)]))
-        ;; ensure the value is not a list
-        [v asserts]
+              :else (let [nam (gensym)]
+                      [nam (cons (new-= pattern nam)
+                                 asserts)]))]
+    (new-op op pattern asserts v)))
+
+(defn normalize-clause-value
+  "Ensure the clause value is not a list, i.e. it's a name, an atomic constant, or nil (for :_set)."
+  [[op pattern asserts v]]
+  (let [[v asserts]
         (if (list? v)
-          (let [sym (gensym)]
-            [sym (concat asserts
-                         (list (new-= sym v)))])
+          (let [nam (gensym)]
+            [nam (concat asserts
+                         (list (new-= nam v)))])
           [v asserts])]
-    (list type pattern asserts v)))
+    (new-op op pattern asserts v)))
+
+(defn normalize-clause
+  "Normalizes a clause, i.e. a :_fn or :_set expr."
+  [clause context]
+  (-> clause
+      (normalize-clause-pattern context)
+      (normalize-clause-value)))
 
 (defn decompose-assertion
   "Decompose an equality assertion if it contains destructuring patterns,
-  i.e. $seq, $tup, ++, :."
+  i.e. :seq, :tup, :cons, ++."
   [assert]
-  (if (is-type? '= assert)
-    (let [[_ left right] assert]
-      nil
-      )
-    [assert]))
+  (if (is-op? '= assert)
+    (let [destr-ops #{:seq :tup :cons '++}
+          [op left right] assert]
+      (cond (is-op? destr-ops left)
+            (if (list? right)
+              (let [nam (gensym)]
+                (mapcat decompose-assertion (list (new-= left nam)
+                                                  (new-= nam right))))
+              (let [f (fn [expr]
+                        (if (list? expr)
+                          (let [nam (gensym)]
+                            [nam (decompose-assertion (new-= nam expr))])
+                          [expr '()]))
+                    r (map f (rest left))]
+                (cons (new-= (apply new-op (first left) (map first r))
+                             right)
+                      (mapcat second r))))
 
-(defn decompose-fn-set
-  "Decomposes destructuring assertions in a $$fn or $$set expr."
-  [expr]
-  (let [[type pattern asserts v] expr
-        asserts (mapcat decompose-assertion asserts)]
-    (list type pattern asserts v)))
+            (is-op? destr-ops right)
+            (decompose-assertion (new-op op right left))
+
+            :else (list assert)))
+    (list assert)))
+
+(defn decompose-assertions
+  "Decomposes destructuring assertions in a :_fn or :_set expr."
+  [[op pattern asserts v]]
+  (let [asserts (mapcat decompose-assertion asserts)]
+    (new-op op pattern asserts v)))
 
 ;; TODO: detect and change non-binding equality assertions to ==
-(defn reorder-fn-set
-  "Reorders assertions in a $$fn or $$set expr."
-  [expr context]
-  expr)
+(defn reorder-assertions
+  "Reorders assertions in a :_fn or :_set expr."
+  [[op pattern asserts v] context]
+
+
+
+  (new-op op pattern asserts v))
+
+(defn make-clause
+  "Make a :_fn or :_set expr, depending on op.
+  The guard is split into a list of assertions."
+  [[pattern guard v] op]
+  (let [asserts (if (is-op? '∧ guard)
+                  (rest guard) ; assuming all ∧ ops have been collapsed into one
+                  (list guard))
+        clause-op (if (= op :fn) :_fn :_set)]
+    (new-op clause-op pattern asserts v)))
 
 (defn refactor-fn-set
-  "Refactors a $fn or $set expr, returning a $$fn or $$set expr."
+  "Refactors a :fn or :set expr."
   [expr context]
-  (let [[type pattern guard v] expr
-        asserts (if (is-type? '∧ guard)
-                  (rest guard) ; assuming all ∧ ops were collapsed into one
-                  (list guard))
-        type (if (= type '$fn)
-               '$$fn
-               '$$set)]
-    (-> (list type
-              pattern
-              asserts        ; just a list of assertions without a ∧ op
-              v)
-        (normalize-fn-set context)
-        (decompose-fn-set)
-        (reorder-fn-set context))))
+  (let [op (first expr)
+        clauses (map #(-> %
+                          (make-clause op)
+                          (extract-embedded-assertions)
+                          (normalize-clause context)
+                          (decompose-assertions)
+                          (reorder-assertions context))
+                     (rest expr))]
+    (if (second clauses)
+      (cons '∪ clauses)
+      (first clauses))))
