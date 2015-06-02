@@ -3,6 +3,10 @@
   (:require [timeless.common :refer :all]))
 
 
+(def op?
+  "Is an expr an operation, rather than a name, an atomic constant, or nil (for the value of a :_set)?"
+  list?)
+
 (def new-op list)
 
 (defn new-=
@@ -10,39 +14,46 @@
   (list '= left right))
 
 (defn extract-embedded-assertions'
-  "Extract embedded assertions from expr and remove :opfn wrappers.
-  Return the new expr and the list of embedded assertions."
-  [expr]
-  (cond (is-op? #{'∈ '∊ '⊂ '=} expr)
-        (let [[op left right] expr]
+  "Extract embedded assertions from pattern and remove :opfn wrappers.
+  Return the new pattern and the list of embedded assertions."
+  [pattern]
+  (cond (op-isa? #{'∈ '∊ '⊂ '=} pattern)
+        ;; pattern is an embedded assertion
+        (let [[op left right] pattern]
           (if (symbol? left)
-            [left (list expr)]
+            ;; left side is a name; extract the assertion but don't generate a new name
+            [left (list pattern)]
 
+            ;; left side is an op or atomic constant; generate a new name and add assertions for the left and right sides
             (let [nam (gensym)]
               [nam (list (new-= nam left)
                          (new-op op nam right))])))
 
-        (is-op? :opfn expr)
-        [(second expr) '()]
+        (op-isa? :opfn pattern)
+        ;; remove the :opfn wrapper without adding any assertions
+        [(second pattern) '()]
 
-        (list? expr)
-        (let [r (map extract-embedded-assertions' expr)]
+        (op? pattern)
+        ;; pattern is an op, so recursively search for embedded assertions
+        (let [r (map extract-embedded-assertions' pattern)]
           [(map first r)
            (mapcat second r)])
 
-        :else [expr '()]))
+        :else [pattern '()]))
 
 (defn extract-embedded-assertions
   "Extract embedded assertions from a clause pattern."
-  [[op pattern asserts v]]
-  (let [[pattern new-asserts] (extract-embedded-assertions' pattern)
+  [clause]
+  (let [[op pattern asserts v] clause
+        [pattern new-asserts] (extract-embedded-assertions' pattern)
         asserts (concat new-asserts asserts)]
     (new-op op pattern asserts v)))
 
 (defn normalize-clause-pattern
   "Ensure the clause pattern is a free name or a constant w.r.t. context."
-  [[op pattern asserts v] context]
-  (let [[pattern asserts]
+  [clause context]
+  (let [[op pattern asserts v] clause
+        [pattern asserts]
         (cond (constant? pattern context) [(new-op :const pattern)
                                            asserts]
               (symbol? pattern) [pattern asserts]
@@ -52,10 +63,11 @@
     (new-op op pattern asserts v)))
 
 (defn normalize-clause-value
-  "Ensure the clause value is not a list, i.e. it's a name, an atomic constant, or nil (for :_set)."
-  [[op pattern asserts v]]
-  (let [[v asserts]
-        (if (list? v)
+  "Ensure the clause value is not an op."
+  [clause]
+  (let [[op pattern asserts v] clause
+        [v asserts]
+        (if (op? v)
           (let [nam (gensym)]
             [nam (concat asserts
                          (list (new-= nam v)))])
@@ -63,27 +75,30 @@
     (new-op op pattern asserts v)))
 
 (defn normalize-clause
-  "Normalizes a clause, i.e. a :_fn or :_set expr."
+  "Normalizes a clause (a :_fn or :_set expr)."
   [clause context]
   (-> clause
       (normalize-clause-pattern context)
       (normalize-clause-value)))
 
 (defn decompose-assertion
-  "Decompose an equality assertion if it contains nested destructuring ops,
-  or a destructuring op on one side and any list expr on the other side.
-  The destructuring ops are :seq, :tup, :cons, ++."
+  "See the description of decompose-assertions.
+  Returns a list of assertions."
   [assert]
-  (if (is-op? '= assert)
+  (if (op-isa? '= assert)
     (let [destr-ops #{:seq :tup :cons '++}
           [_ left right] assert]
-      (cond (is-op? destr-ops left)
-            (if (list? right)
+
+      (cond (op-isa? destr-ops left)
+            ;; left side is a destructuring op
+            (if (op? right)
+              ;; the right side is an op; now separate right and left sides into separate assertions
               (let [nam (gensym)]
                 (mapcat decompose-assertion (list (new-= left nam)
                                                   (new-= nam right))))
+              ;; right side is not an op; now pull out any ops from the left-side destructuring op into separate assertions
               (let [f (fn [expr]
-                        (if (list? expr)
+                        (if (op? expr)
                           (let [nam (gensym)]
                             [nam (decompose-assertion (new-= nam expr))])
                           [expr '()]))
@@ -92,16 +107,22 @@
                              right)
                       (mapcat second r))))
 
-            (is-op? destr-ops right)
+            ;; left side is not a destructuring op; if the right side is such an op, reverse sides and try decomposing again
+            (op-isa? destr-ops right)
             (decompose-assertion (new-= right left))
 
+            ;; neither side is a destructuring op; just return the assertion
             :else (list assert)))
+    ;; not an equality assertion, just return it
     (list assert)))
 
 (defn decompose-assertions
-  "Decomposes destructuring assertions in a :_fn or :_set expr."
-  [[op pattern asserts v]]
-  (let [asserts (mapcat decompose-assertion asserts)]
+  "Decompose the equality assertions (of clause) that contain destructuring ops,
+  so that destructuring ops don't contain ops, and the other side is also not an op.
+  The destructuring ops are :seq, :tup, :cons, ++."
+  [clause]
+  (let [[op pattern asserts v] clause
+        asserts (mapcat decompose-assertion asserts)]
     (new-op op pattern asserts v)))
 
 ;; TODO: detect and change non-binding equality assertions to ==
@@ -114,11 +135,13 @@
   (new-op op pattern asserts v))
 
 (defn make-clause
-  "Make a :_fn or :_set expr, depending on op.
+  "Make a :_fn or :_set clause expr, depending on op.
   The guard is split into a list of assertions."
   [[pattern guard v] op]
-  (let [asserts (if (is-op? '∧ guard)
-                  (rest guard) ; assuming all ∧ ops have been collapsed into one
+  (let [asserts (if (op-isa? '∧ guard)
+                  ;; multiple assertions; assumes nested ∧ ops have already been collapsed into one
+                  (rest guard)
+                  ;; the guard is just one assertion
                   (list guard))
         clause-op (if (= op :fn) :_fn :_set)]
     (new-op clause-op pattern asserts v)))
@@ -127,13 +150,14 @@
   "Refactors a :fn or :set expr."
   [expr context]
   (let [op (first expr)
+        clauses-info (rest expr)
         clauses (map #(-> %
                           (make-clause op)
                           (extract-embedded-assertions)
                           (normalize-clause context)
                           (decompose-assertions)
                           (reorder-assertions context))
-                     (rest expr))]
+                     clauses-info)]
     (if (second clauses)
       (cons '∪ clauses)
       (first clauses))))

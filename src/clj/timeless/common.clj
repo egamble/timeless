@@ -41,7 +41,7 @@
 ;;; checking exprs
 ;;;;;;;;;;;;;;;;;;
 
-(defn is-op?
+(defn op-isa?
   "Returns true if expr is a list and the first element is either equal to op or a member of op when op is a set."
   [op expr]
   (and (seq? expr)
