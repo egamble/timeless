@@ -7,7 +7,7 @@
 
 (defn read-top-level
   "Reads top-level assertions from stream, which defaults to *in*.
-  Ignores assertions other than equality assertions.
+  Ignores assertions other than equality assertions, because this interpreter can't use them.
   Returns a context map.
   Don't try to print the returned context, it's circular!"
   ([]
@@ -15,7 +15,7 @@
   ([stream]
    (let [asserts (->> (repeatedly #(read stream false nil))
                       (take-while not-nil?)
-                      (filter (partial is-type? '=))
+                      (filter (partial op-isa? '=)) ;; keep only equality assertions
                       (doall))
          context (into {}
                        (map (fn [[_ sym expr]]
