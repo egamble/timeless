@@ -125,14 +125,14 @@
         asserts (mapcat decompose-assertion asserts)]
     (new-op op pattern asserts v)))
 
-;; TODO: detect and change non-binding equality assertions to ==
+;; TODO: binding equality assertions become :=
 (defn reorder-assertions
-  "Reorders assertions in a :_fn or :_set expr."
-  [[op pattern asserts v] context]
+  "Reorders the assertions in a clause."
+  [clause context]
+  (let [[op pattern asserts v] clause]
 
 
-
-  (new-op op pattern asserts v))
+    (new-op op pattern asserts v)))
 
 (defn make-clause
   "Make a :_fn or :_set clause expr, depending on op.
