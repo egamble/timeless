@@ -3,15 +3,11 @@
   (:require [timeless.common :refer :all]))
 
 
-(def op?
-  "Is an expr an operation, rather than a name, an atomic constant, or nil (for the value of a :_set)?"
-  list?)
-
 (def make-op list)
 
 (defn make-=
   [left right]
-  (list '= left right))
+  (make-op '= left right))
 
 (defn extract-embedded-assertions*
   "Extract embedded assertions from pattern and remove :opfn wrappers.
@@ -54,23 +50,26 @@
   [clause context]
   (let [[op pattern asserts v] clause
         [pattern asserts]
-        (cond (constant? pattern context) [(make-op :const pattern)
-                                           asserts]
+        (cond (seq (free-names pattern context))
+              [(make-op :const pattern) asserts]
+
               (symbol? pattern) [pattern asserts]
+
               :else (let [nam (gensym)]
                       [nam (cons (make-= pattern nam)
                                  asserts)]))]
     (make-op op pattern asserts v)))
+
+(def destruct-ops #{:seq :tup :cons '++})
 
 (defn decompose-assertion
   "See the description of decompose-assertions.
   Returns a list of assertions."
   [assert]
   (if (op-isa? '= assert)
-    (let [destr-ops #{:seq :tup :cons '++}
-          [_ left right] assert]
+    (let [[_ left right] assert]
 
-      (cond (op-isa? destr-ops left)
+      (cond (op-isa? destruct-ops left)
             ;; left side is a destructuring op
             (if (op? right)
               ;; the right side is an op; now separate right and left sides into separate assertions
@@ -89,7 +88,7 @@
                       (mapcat second r))))
 
             ;; left side is not a destructuring op; if the right side is such an op, reverse sides and try decomposing again
-            (op-isa? destr-ops right)
+            (op-isa? destruct-ops right)
             (decompose-assertion (make-= right left))
 
             ;; neither side is a destructuring op; just return the assertion
@@ -109,14 +108,46 @@
 (defn annotate-assertion
   "TODO"
   [bound assert]
-  nil)
+  (if (op-isa? '= assert)
+    (let [[_ left right] assert
+          f (fn [side]
+              {:can-bind (or (not (op? side))
+                             (op-isa? destruct-ops side))
+               :free (free-names-set side bound)
+               :expr side})]
+      {:equal true
+       :left (f left)
+       :right (f right)})
+    {:equal false
+     :free (free-names-set assert bound)
+     :assert assert}))
 
+(defn some-rest
+  "Similar to some, but also returns the rest of the elements.
+  When pred x is truthy for some x in s, returns [<pred x> <all of s other than x>].
+  Otherwise just returns nil."
+  [pred s]
+  (loop [before []
+         after s]
+    (when (seq after)
+      (let [[x & r] after]
+        (if-let [v (pred x)]
+          [v (concat before r)]
+          (recur (conj before x)
+                 r))))))
+
+;; assert tests
 ;; selected note gets these fields: :selected true :bound <names>
 ;; modify the :assertion field to reverse if necessary, and convert = to := if necessary
-(defn select-next-note
+(defn foo [] nil)
+(defn bar [] nil)
+
+(defn update-note-free
   "TODO"
-  [notes bound]
-  nil)
+  [newly-bound note]
+  
+  )
+
 
 (defn reorder-assertions*
   "TODO"
@@ -125,14 +156,19 @@
          bound bound
          asserts []]
     (if (seq notes)
-      (let [notes (select-next-note notes bound)
-            [before [note & after]] (split-with (comp not :selected) notes)]
+      (let [[note remaining-notes]
+            (some (fn [assert-test]
+                    (some-rest (fn [note]
+                                 (assert-test note bound))
+                               notes))
+                  [foo bar])]
         (if note
-          (recur (concat before after)
-                 (into bound (:bound note))
-                 (conj asserts (:assertion note)))
+          (let [newly-bound (:bound note)]
+            (recur (map (partial update-note-free newly-bound) remaining-notes)
+                   (into bound newly-bound)
+                   (conj asserts (:assert note))))
           (throw (Exception. "can't reorder assertions"))))
-      (seq asserts))))
+      (sequence asserts))))
 
 (defn reorder-assertions
   "Reorders the assertions in a clause."

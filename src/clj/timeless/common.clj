@@ -41,6 +41,10 @@
 ;;; checking exprs
 ;;;;;;;;;;;;;;;;;;
 
+(def op?
+  "Is an expr an operation, rather than a name, an atomic constant, or nil (for the value of a :_set)?"
+  list?)
+
 (defn op-isa?
   "Returns true if expr is a list and the first element is either equal to op or a member of op when op is a set."
   [op expr]
@@ -49,17 +53,23 @@
          (not-nil? (op (first expr)))
          (= op (first expr)))))
 
-;; TODO: add all ops, ∞, and $<symbol>s; alternate characters also
+;; TODO: add all ops, ∞; alternate characters also; don't need keywords
 (def predefined
   #{'Obj 'Num 'Int 'Bool 'Char 'Str 'Set 'Seq 'Fn 'Dom 'Img 'len 'charToInt 'stdin})
 
-(defn constant?
-  "Determines whether expr is constant w.r.t. context."
+(defn free-names
+  "Return the names in expr that are not in context and are not predefined.
+  The context can be a set or map."
   [expr context]
   (condf expr
-         list? (every? constant? expr)
-         ;; the not-nil? is not strictly necessary, just coerces to boolean
-         symbol? (not-nil? (or (predefined expr)
-                               (context expr)))
-         ;; nums, strs, chars, bools
-         :else true))
+         op? (mapcat free-names expr)
+         symbol? (when-not (or (predefined expr)
+                               (context expr))
+                   (list expr))
+         ;; nums, strs, chars, bools, keywords
+         :else nil))
+
+(defn free-names-set
+  "Like free-names, but returns a set."
+  [expr context]
+  (set (free-names expr context)))
