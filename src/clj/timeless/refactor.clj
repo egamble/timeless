@@ -1,6 +1,7 @@
 (ns timeless.refactor
   "Refactor set and fn comprehensions for the Timeless interpreter."
-  (:require [timeless.common :refer :all]))
+  (:require [timeless.common :refer :all]
+            [clojure.set :refer [difference]]))
 
 
 (def make-op list)
@@ -145,9 +146,14 @@
 (defn update-note-free
   "TODO"
   [newly-bound note]
-  
-  )
-
+  (let [f (fn [note k] (update-in note [k :free] difference newly-bound))])
+  (if (:equal note)
+    (-> note
+        (f :left)
+        (f :right)
+        "update :can-bind here"
+)
+    (update-in note [:free] difference newly-bound)))
 
 (defn reorder-assertions*
   "TODO"
