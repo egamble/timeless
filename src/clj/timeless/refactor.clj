@@ -51,14 +51,16 @@
   [clause context]
   (let [[op pattern asserts v] clause
         [pattern asserts]
-        (cond (seq (free-names pattern context))
-              [(make-op :const pattern) asserts]
+        (if (empty? (free-names pattern context))
+          (if (or (symbol? pattern) (op? pattern))
+            [(vary-meta pattern #(assoc % :const true)) asserts]
+            [pattern asserts])
 
-              (symbol? pattern) [pattern asserts]
-
-              :else (let [nam (gensym)]
-                      [nam (cons (make-= pattern nam)
-                                 asserts)]))]
+          (if (symbol? pattern)
+            [pattern asserts]
+            (let [nam (gensym)]
+              [nam (cons (make-= pattern nam)
+                         asserts)])))]
     (make-op op pattern asserts v)))
 
 (def destruct-ops #{:seq :tup :cons '++})
@@ -109,19 +111,20 @@
 (defn annotate-assertion
   "TODO"
   [bound assert]
-  (if (op-isa? '= assert)
-    (let [[_ left right] assert
-          f (fn [side]
-              {:can-bind (or (not (op? side))
-                             (op-isa? destruct-ops side))
-               :free (free-names-set side bound)
-               :expr side})]
-      {:equal true
-       :left (f left)
-       :right (f right)})
-    {:equal false
-     :free (free-names-set assert bound)
-     :assert assert}))
+  (let [assert
+        (if (op-isa? '= assert)
+          (let [[_ left right] assert
+                f (fn [side]
+                    (if (or (symbol? side)
+                            (op-isa? destruct-ops side))
+                      (vary-meta side assoc :can-bind (free-names-set side bound))
+                      side))
+                left (f left)
+                right (f right)]
+            (make-= left right))
+          ;; not an equality assertion
+          assert)]
+    (vary-meta assert assoc :free (free-names-set assert bound))))
 
 (defn some-rest
   "Similar to some, but also returns the rest of the elements.
@@ -146,14 +149,8 @@
 (defn update-note-free
   "TODO"
   [newly-bound note]
-  (let [f (fn [note k] (update-in note [k :free] difference newly-bound))])
-  (if (:equal note)
-    (-> note
-        (f :left)
-        (f :right)
-        "update :can-bind here"
+  
 )
-    (update-in note [:free] difference newly-bound)))
 
 (defn reorder-assertions*
   "TODO"
@@ -181,8 +178,8 @@
   [clause context]
   (let [[op pattern asserts v] clause
         bound (set (concat (keys context)
-                           (when-not (op? pattern)
-                             ;; pattern is not a :const op, so it must be a free name
+                           (when (and (symbol? pattern)
+                                      (not (:const (meta pattern))))
                              [pattern])))
         notes (map (partial annotate-assertion bound)
                    asserts)
