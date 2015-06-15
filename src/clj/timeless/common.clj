@@ -15,20 +15,6 @@
        ~@clauses)))
 
 
-;;; map fns
-;;;;;;;;;;;
-
-(defn update-vals
-  "\"Update\" all values in m by calling f on every value to get the new value."
-  [f m]
-  (into {} (for [[k v] m] [k (f v)])))
-
-(defn remove-vals
-  "Returns a map excluding entries in `m` for which `(pred v)` is logical false"
-  [pred m]
-  (into {} (remove (fn [[_ v]] (pred v)) m)))
-
-
 ;;; miscellany
 ;;;;;;;;;;;;;;
 

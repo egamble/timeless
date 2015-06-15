@@ -111,20 +111,49 @@
 (defn annotate-assertion
   "TODO"
   [bound assert]
-  (let [assert
-        (if (op-isa? '= assert)
-          (let [[_ left right] assert
-                f (fn [side]
-                    (if (or (symbol? side)
-                            (op-isa? destruct-ops side))
-                      (vary-meta side assoc :can-bind (free-names-set side bound))
-                      side))
-                left (f left)
-                right (f right)]
-            (make-= left right))
-          ;; not an equality assertion
-          assert)]
-    (vary-meta assert assoc :free (free-names-set assert bound))))
+  (let [f #(free-names-set % bound)
+        assert (vary-meta assert assoc :free (f assert))]
+    (if (op-isa? '= assert)
+      (let [[_ left right] assert
+            g (fn [side]
+                (if (or (symbol? side)
+                        (op-isa? destruct-ops side))
+                  (vary-meta side assoc :can-bind (f side))
+                  side))]
+        (make-= (g left) (g right)))
+      ;; must be a symbol or list
+      assert)))
+
+(defn update-assert-free
+  "TODO"
+  [newly-bound assert]
+  (let [f #(difference % newly-bound)
+        assert (vary-meta assert update-in [:free] (f assert))]
+    (if (op-isa? '= assert)
+      (let [[_ left right] assert
+            g (fn [side]
+                (if (or (op? side)
+                        (symbol? side))
+                  (vary-meta side update-in [:can-bind] (f side))
+                  side))]
+        (make-= (g left) (g right)))
+      ;; must be a symbol or list
+      assert)))
+
+(defn deannotate-assertion
+  "Remove temporary metadata, leaving e.g. :row and :column."
+  [assert]
+  (let [assert (vary-meta assert dissoc :free)]
+    (if (op-isa? #{'= :=} assert)
+      (let [[op left right] assert
+            g (fn [side]
+                (if (or (op? side)
+                        (symbol? side))
+                  (vary-meta side dissoc :can-bind)
+                  side))]
+        (make-op op (g left) (g right)))
+      ;; must be a symbol or list
+      assert)))
 
 (defn some-rest
   "Similar to some, but also returns the rest of the elements.
@@ -141,37 +170,52 @@
                  r))))))
 
 ;; assert tests
-;; selected note gets these fields: :selected true :bound <names>
+;; selected note gets meta kv: :bound <names>
 ;; modify the :assertion field to reverse if necessary, and convert = to := if necessary
-(defn foo [] nil)
-(defn bar [] nil)
+(defn assert-no-free?
+  [assert _]
+  (when (empty? (:free (meta assert)))
+    assert))
 
-(defn update-note-free
-  "TODO"
-  [newly-bound note]
-  
-)
+(defn assert-binds-one-side?
+  [assert _]
+  (when (op-isa? '= assert)
+    (let [[_ left right] assert
+          f (fn [side] (-> side meta :can-bind seq))
+          left-binds? (f left)
+          right-binds? (f right)]
+      (cond (and left-binds?
+                 (not right-binds?))
+            (make-op := left right)
+
+            (and right-binds?
+                 (not left-binds?))
+            (make-op := right left)
+
+            ;; otherwise nil
+            ))))
 
 (defn reorder-assertions*
   "TODO"
-  [notes bound]
-  (loop [notes notes
+  [asserts bound]
+  (loop [asserts asserts
          bound bound
-         asserts []]
-    (if (seq notes)
-      (let [[note remaining-notes]
+         reordered-asserts []]
+    (if (seq asserts)
+      (let [[assert remaining-asserts]
             (some (fn [assert-test]
-                    (some-rest (fn [note]
-                                 (assert-test note bound))
-                               notes))
+                    (some-rest (fn [assert]
+                                 (assert-test assert bound))
+                               asserts))
                   [foo bar])]
-        (if note
-          (let [newly-bound (:bound note)]
-            (recur (map (partial update-note-free newly-bound) remaining-notes)
+        (if assert
+          (let [m (meta assert)
+                newly-bound (:bound m)]
+            (recur (map (partial update-assert-free newly-bound) remaining-asserts)
                    (into bound newly-bound)
-                   (conj asserts (:assert note))))
+                   (conj reordered-asserts (deannotate-assertion assert))))
           (throw (Exception. "can't reorder assertions"))))
-      (sequence asserts))))
+      (sequence reordered-asserts))))
 
 (defn reorder-assertions
   "Reorders the assertions in a clause."
@@ -181,9 +225,10 @@
                            (when (and (symbol? pattern)
                                       (not (:const (meta pattern))))
                              [pattern])))
-        notes (map (partial annotate-assertion bound)
-                   asserts)
-        asserts (reorder-assertions* notes bound)]
+        asserts (reorder-assertions*
+                 (map (partial annotate-assertion bound)
+                      asserts)
+                 bound)]
     (make-op op pattern asserts v)))
 
 (defn make-clause
