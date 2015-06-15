@@ -155,20 +155,6 @@
       ;; must be a symbol or list
       assert)))
 
-(defn some-rest
-  "Similar to some, but also returns the rest of the elements.
-  When pred x is truthy for some x in s, returns [<pred x> <all of s other than x>].
-  Otherwise just returns nil."
-  [pred s]
-  (loop [before []
-         after s]
-    (when (seq after)
-      (let [[x & r] after]
-        (if-let [v (pred x)]
-          [v (concat before r)]
-          (recur (conj before x)
-                 r))))))
-
 ;; assert tests
 ;; selected note gets meta kv: :bound <names>
 ;; modify the :assertion field to reverse if necessary, and convert = to := if necessary
@@ -207,7 +193,8 @@
                     (some-rest (fn [assert]
                                  (assert-test assert bound))
                                asserts))
-                  [foo bar])]
+                  [assert-no-free?
+                   assert-binds-one-side?])]
         (if assert
           (let [m (meta assert)
                 newly-bound (:bound m)]

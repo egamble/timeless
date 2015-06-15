@@ -23,6 +23,20 @@
 
 (defn third [s] (second (rest s)))
 
+(defn some-rest
+  "Similar to some, but also returns the rest of the elements.
+  When pred x is truthy for some x in s, returns [<pred x> <all of s other than x>].
+  Otherwise just returns nil."
+  [pred s]
+  (loop [before []
+         after s]
+    (when (seq after)
+      (let [[x & r] after]
+        (if-let [v (pred x)]
+          [v (concat before r)]
+          (recur (conj before x)
+                 r))))))
+
 
 ;;; checking exprs
 ;;;;;;;;;;;;;;;;;;
