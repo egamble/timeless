@@ -1,5 +1,5 @@
-(ns timeless.refactor
-  "Refactor set and fn comprehensions for the Timeless interpreter."
+(ns timeless.transform
+  "Transform set and fn comprehensions for the Timeless interpreter."
   (:require [timeless.common :refer :all]
             [clojure.set :refer [difference]]))
 
@@ -10,9 +10,8 @@
   [left right]
   (make-op '= left right))
 
-;; TODO: use (<op>) rather than (:opfn <op>) for <op>s not used as assertions that would normally be assertions
 (defn extract-embedded-assertions*
-  "Extract embedded assertions from pattern and remove :opfn wrappers.
+  "Extract embedded assertions from pattern and remove :noassert wrappers.
   Return the new pattern and the list of embedded assertions."
   [pattern]
   (cond (op-isa? #{'∈ '∊ '⊂ '=} pattern)
@@ -27,8 +26,8 @@
               [nam (list (make-= nam left)
                          (make-op op nam right))])))
 
-        (op-isa? :opfn pattern)
-        ;; remove the :opfn wrapper without adding any assertions
+        (op-isa? :noassert pattern)
+        ;; remove the :noassert wrapper without adding any assertions
         [(second pattern) '()]
 
         (op? pattern)
@@ -231,8 +230,8 @@
         clause-op (if (= op :fn) :_fn :_set)]
     (make-op clause-op pattern asserts v)))
 
-(defn refactor-comprehension
-  "Refactors a :fn or :set comprehension."
+(defn transform-comprehension
+  "Transforms a :fn or :set comprehension."
   [expr context]
   (let [op (first expr)
         clauses-info (rest expr)

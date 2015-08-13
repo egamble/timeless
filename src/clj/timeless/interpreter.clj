@@ -2,7 +2,7 @@
   "Interpreter for an S-expression form of Timeless."
   (:require [timeless
              [common :refer :all]
-             [refactor :refer [refactor-fn-set]]]))
+             [transform :refer [transform-comprehension]]]))
 
 
 (defn read-top-level
