@@ -10,6 +10,7 @@
   [left right]
   (make-op '= left right))
 
+;; TODO: use (<op>) rather than (:opfn <op>) for <op>s not used as assertions that would normally be assertions
 (defn extract-embedded-assertions*
   "Extract embedded assertions from pattern and remove :opfn wrappers.
   Return the new pattern and the list of embedded assertions."
