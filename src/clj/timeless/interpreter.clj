@@ -5,6 +5,13 @@
              [transform :refer [transform-comprehension]]]))
 
 
+(defn name->sym
+  "Throughout an expression, convert (:name <name str>) to a symbol."
+  [expr]
+  (cond (op-isa? :name expr) (symbol (second expr))
+    (op? expr) (map name->sym expr)
+    expr))
+
 (defn read-top-level
   "Reads top-level assertions from stream, which defaults to *in*.
   Ignores assertions other than equality assertions, because this interpreter can't use them.
@@ -16,10 +23,11 @@
    (let [asserts (->> (repeatedly #(read stream false nil))
                       (take-while not-nil?)
                       (filter (partial op-isa? '=)) ;; keep only equality assertions
+                      (map name->sym)
                       (doall))
          context (into {}
-                       (map (fn [[_ sym expr]]
-                              [sym (atom expr)])
+                       (map (fn [[_ nam expr]]
+                              [nam (atom expr)])
                             asserts))]
      (doseq [a (vals context)]
        (swap! a (fn [expr] {:expr expr :context context})))

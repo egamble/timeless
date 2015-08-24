@@ -42,20 +42,20 @@
 ;;;;;;;;;;;;;;;;;;
 
 (def op?
-  "Is an expr an operation, rather than a name, an atomic constant, or nil (for the value of a :_set)?"
+  "Is an expr an operation, rather than a name, an atomic constant, or nil (for the value of a :set clause)?"
   list?)
 
 (defn op-isa?
-  "Returns true if expr is a list and the first element is either equal to op or a member of op when op is a set."
-  [op expr]
+  "Returns true if expr is a list and the first element is either equal to op-name or a member of op-name when op-name is a set."
+  [op-name expr]
   (and (seq? expr)
-       (if (set? op)
-         (not-nil? (op (first expr)))
-         (= op (first expr)))))
+       (if (set? op-name)
+         (not-nil? (op-name (first expr)))
+         (= op-name (first expr)))))
 
-;; TODO: add all ops, ∞; alternate characters also; don't need keywords
+;; TODO: add all predefined operators, ∞; don't need keywords
 (def predefined
-  #{'Obj 'Num 'Int 'Bool 'Char 'Str 'Set 'Seq 'Fn 'Dom 'Img 'len 'charToInt 'stdin})
+  #{'Obj 'Num 'Int 'Bool 'Char 'Str 'Set 'Seq 'Fn 'Dom 'Img 'card 'charInt 'stdin})
 
 (defn free-names
   "Return the names in expr that are not in context and are not predefined.
@@ -69,7 +69,7 @@
          ;; nums, strs, chars, bools, keywords
          :else nil))
 
-(defn free-names-set
+(defn set-of-free-names
   "Like free-names, but returns a set."
   [expr context]
   (set (free-names expr context)))
