@@ -6,11 +6,12 @@
 
 
 (defn name->sym
-  "Throughout an expression, convert (:name <name str>) to a symbol."
+  "Throughout an expression, convert (:name <name str>) to a symbol, and make gensyms for underscores."
   [expr]
   (cond (op-isa? :name expr) (symbol (second expr))
-    (op? expr) (map name->sym expr)
-    expr))
+        (op? expr) (map name->sym expr)
+        (= '_ expr) (gensym "__")
+        expr))
 
 (defn read-top-level
   "Reads top-level assertions from stream, which defaults to *in*.
