@@ -7,8 +7,8 @@
 (def make-op list)
 
 (defn make-=
-  [left right]
-  (make-op '= left right))
+  [a b]
+  (make-op '= a b))
 
 (defn split-assertions
   "The guard of a clause is split into a list of assertions."
@@ -28,14 +28,14 @@
         ;; pattern is an embedded assertion
         (let [[op-name a b] pattern]
           (cond (nil? b) ; pattern is a right section
-                (let [nam (gensym)]
+                (let [nam (new-name)]
                   [nam (list (make-op op-name nam a))])
 
                 (symbol? a) ; left side is a name; extract the assertion but don't generate a new name
                 [a (list pattern)]
 
                 :else ; left side is an op or atomic constant; generate a new name and add assertions for the left and right sides
-                (let [nam (gensym)]
+                (let [nam (new-name)]
                   [nam (list (make-= nam a)
                              (make-op op-name nam b))])))
 
@@ -65,7 +65,7 @@
 
           (if (symbol? pattern)
             [pattern asserts]
-            (let [nam (gensym)]
+            (let [nam (new-name)]
               [nam (cons (make-= pattern nam)
                          asserts)])))]
     (list pattern asserts v)))
@@ -86,13 +86,13 @@
             ;; left side is a destructuring op
             (if (op? b)
               ;; the right side is an op; now separate right and left sides into separate assertions
-              (let [nam (gensym)]
+              (let [nam (new-name)]
                 (mapcat decompose-assertion (list (make-= a nam)
                                                   (make-= nam b))))
               ;; right side is not an op; now pull out any ops from the left-side destructuring op into separate assertions
               (let [f (fn [expr]
                         (if (op? expr)
-                          (let [nam (gensym)]
+                          (let [nam (new-name)]
                             [nam (decompose-assertion (make-= nam expr))])
                           [expr '()]))
                     r (map f (rest a))]

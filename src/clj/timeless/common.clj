@@ -73,3 +73,7 @@
   "Like free-names, but returns a set."
   [expr context]
   (set (free-names expr context)))
+
+(defn new-name
+  []
+  (gensym "__"))

@@ -10,7 +10,7 @@
   [expr]
   (cond (op-isa? :name expr) (symbol (second expr))
         (op? expr) (map name->sym expr)
-        (= '_ expr) (gensym "__")
+        (= '_ expr) (new-name)
         expr))
 
 (defn read-top-level
