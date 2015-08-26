@@ -4,7 +4,6 @@
              [common :refer :all]
              [transform :refer [transform-comprehension]]]))
 
-
 (defn set-all-names-in-tree
   "Throughout an expression, convert (:name <name str>) to a symbol, make gensyms for underscores, and tag all subexpressions with the set of all names used within."
   [expr]

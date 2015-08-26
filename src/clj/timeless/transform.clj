@@ -3,13 +3,11 @@
   (:require [timeless.common :refer :all]
             [clojure.set :as set]))
 
-
 (defn make-clause
   [pattern asserts v]
   (list pattern asserts v))
 
-
-;;; -----------------------------------------------------
+;;; ---------------------------------------------------------------------------
 (defn split-assertions
   "The guard of a clause is split into a list of assertions."
   [[pattern guard v]]
@@ -19,10 +17,9 @@
                   ;; the guard is just one assertion
                   (list guard))]
     (make-clause pattern asserts v)))
-;;; -----------------------------------------------------
+;;; ---------------------------------------------------------------------------
 
-
-;;; -----------------------------------------------------
+;;; ---------------------------------------------------------------------------
 (defn extract-embedded-assertions*
   "Extract embedded assertions from a pattern.
   Return the new pattern and the list of embedded assertions."
@@ -56,10 +53,9 @@
   (let [[pattern new-asserts] (extract-embedded-assertions* pattern)
         asserts (concat new-asserts asserts)]
     (make-clause pattern asserts v)))
-;;; -----------------------------------------------------
+;;; ---------------------------------------------------------------------------
 
-
-;;; -----------------------------------------------------
+;;; ---------------------------------------------------------------------------
 (defn normalize-clause
   "Ensure the clause pattern is a free name or a constant w.r.t. bound names."
   [[pattern asserts v] bound-names]
@@ -76,10 +72,9 @@
               [nam (cons (make-= pattern nam)
                          asserts)])))]
     (make-clause pattern asserts v)))
-;;; -----------------------------------------------------
+;;; ---------------------------------------------------------------------------
 
-
-;;; -----------------------------------------------------
+;;; ---------------------------------------------------------------------------
 ;;; decompose assertions
 ;;;
 (defn destructuring-op?
@@ -128,10 +123,9 @@
   [[pattern asserts v]]
   (let [asserts (mapcat decompose-assertion asserts)]
     (make-clause pattern asserts v)))
-;;; -----------------------------------------------------
+;;; ---------------------------------------------------------------------------
 
-
-;;; -----------------------------------------------------
+;;; ---------------------------------------------------------------------------
 ;;; set, update, unset :can-bind
 ;;;
 (defn set-can-bind!
@@ -180,10 +174,9 @@
         (make-op op-name (g a) (g b)))
       ;; must be a symbol or list
       assert)))
-;;; -----------------------------------------------------
+;;; ---------------------------------------------------------------------------
 
-
-;;; -----------------------------------------------------
+;;; ---------------------------------------------------------------------------
 ;;; assertion tests
 ;;;
 ;;; the selected assertion gets tagged with :bound-names (is this the best way?)
@@ -213,10 +206,9 @@
 
             ;; otherwise nil
             ))))
-;;; -----------------------------------------------------
+;;; ---------------------------------------------------------------------------
 
-
-;;; -----------------------------------------------------
+;;; ---------------------------------------------------------------------------
 ;; TODO
 (defn reorder-assertions*
   "TODO"
@@ -252,8 +244,7 @@
         asserts (map (partial set-can-bind! bound-names)
                      asserts)]
     (make-clause pattern (reorder-assertions* asserts) v)))
-;;; -----------------------------------------------------
-
+;;; ---------------------------------------------------------------------------
 
 (defn transform-comprehension
   "Transforms a :fn or :set comprehension."

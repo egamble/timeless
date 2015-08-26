@@ -2,45 +2,11 @@
   "Generally useful defs for the Timeless interpreter."
   (:require [clojure.set :as set]))
 
-
-;;; condf: the missing cond macro
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defmacro condf
-  "Variant of cond that takes an expr and several clauses, where the test in
-  each clause is a pred to be applied to the expr value. A single default
-  expression can follow the clauses, as in condp."
-  [expr & clauses]
-  `(let [expr# ~expr]
-     (condp (fn [pred# _#] (pred# expr#)) nil
-       ~@clauses)))
-
-
-;;; miscellany
-;;;;;;;;;;;;;;
-
-;; because some? is an awful name for this function
-(def not-nil? some?)
-
-(defn third [s] (second (rest s)))
-
-(defn some-rest
-  "Similar to some, but also returns the rest of the elements.
-  When pred x is truthy for some x in s, returns [<pred x> <all of s other than x>].
-  Otherwise just returns nil."
-  [pred s]
-  (loop [before []
-         after s]
-    (when (seq after)
-      (let [[x & r] after]
-        (if-let [v (pred x)]
-          [v (concat before r)]
-          (recur (conj before x)
-                 r))))))
-
-
-;;; checking exprs
-;;;;;;;;;;;;;;;;;;
+(def predefined
+  #{'Obj 'Num 'Int 'Bool 'Char 'Str 'Set 'Seq 'Fn
+    '* '/ '+ '- (symbol ":") '++ '∩ '∪ '= '≠ '< '> '≤ '≥ '∈ '∉ '⊂ '∧ '∨
+    'Dom 'Img 'card 'charInt 'stdin
+    'true 'false '∞})
 
 (def op?
   "Is an expr an operation, rather than a name, an atomic constant, or nil (for the value of a :set clause)?"
@@ -53,12 +19,6 @@
        (if (set? op-name)
          (not-nil? (op-name (first expr)))
          (= op-name (first expr)))))
-
-(def predefined
-  #{'Obj 'Num 'Int 'Bool 'Char 'Str 'Set 'Seq 'Fn
-    '* '/ '+ '- (symbol ":") '++ '∩ '∪ '= '≠ '< '> '≤ '≥ '∈ '∉ '⊂ '∧ '∨
-    'Dom 'Img 'card 'charInt 'stdin
-    'true 'false '∞})
 
 (defn set-all-names
   [expr name-set]
@@ -90,3 +50,31 @@
 (defn make-=
   [a b]
   (make-op '= a b))
+
+(defmacro condf
+  "Variant of cond that takes an expr and several clauses, where the test in
+  each clause is a pred to be applied to the expr value. A single default
+  expression can follow the clauses, as in condp."
+  [expr & clauses]
+  `(let [expr# ~expr]
+     (condp (fn [pred# _#] (pred# expr#)) nil
+       ~@clauses)))
+
+(defn third [s] (second (rest s)))
+
+;; because some? is an awful name for this function
+(def not-nil? some?)
+
+(defn some-rest
+  "Similar to some, but also returns the rest of the elements.
+  When pred x is truthy for some x in s, returns [<pred x> <all of s other than x>].
+  Otherwise just returns nil."
+  [pred s]
+  (loop [before []
+         after s]
+    (when (seq after)
+      (let [[x & r] after]
+        (if-let [v (pred x)]
+          [v (concat before r)]
+          (recur (conj before x)
+                 r))))))
