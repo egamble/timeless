@@ -51,6 +51,9 @@
   [a b]
   (make-op '= a b))
 
+;;; ---------------------------------------------------------------------------
+;;; miscellany
+;;;
 (defmacro condf
   "Variant of cond that takes an expr and several clauses, where the test in
   each clause is a pred to be applied to the expr value. A single default
@@ -78,3 +81,4 @@
           [v (concat before r)]
           (recur (conj before x)
                  r))))))
+;;; ---------------------------------------------------------------------------
