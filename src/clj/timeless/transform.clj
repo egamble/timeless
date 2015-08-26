@@ -63,7 +63,7 @@
         (if (empty? (set/difference (:all-names (meta pattern))
                                     bound-names))
           (if (or (symbol? pattern) (op? pattern))
-            [(vary-meta pattern #(assoc % :const true)) asserts]
+            [(vary-meta pattern assoc :const true) asserts]
             [pattern asserts])
 
           (if (symbol? pattern)

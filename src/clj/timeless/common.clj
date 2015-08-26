@@ -22,7 +22,7 @@
 
 (defn set-all-names
   [expr name-set]
-  (vary-meta expr #(assoc % :all-names name-set)))
+  (vary-meta expr assoc :all-names name-set))
 
 (defn tag-name
   [nam]
