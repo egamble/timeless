@@ -1,5 +1,6 @@
 (ns timeless.common
-  "Generally useful defs for the Timeless interpreter.")
+  "Generally useful defs for the Timeless interpreter."
+  (:require [clojure.set :as set]))
 
 
 ;;; condf: the missing cond macro
@@ -53,27 +54,39 @@
          (not-nil? (op-name (first expr)))
          (= op-name (first expr)))))
 
-;; TODO: add all predefined operators, ∞; don't need keywords
 (def predefined
-  #{'Obj 'Num 'Int 'Bool 'Char 'Str 'Set 'Seq 'Fn 'Dom 'Img 'card 'charInt 'stdin})
+  #{'Obj 'Num 'Int 'Bool 'Char 'Str 'Set 'Seq 'Fn
+    '* '/ '+ '- (symbol ":") '++ '∩ '∪ '= '≠ '< '> '≤ '≥ '∈ '∉ '⊂ '∧ '∨
+    'Dom 'Img 'card 'charInt 'stdin
+    'true 'false '∞})
 
-(defn free-names
-  "Return the names in expr that are not in context and are not predefined.
-  The context can be a set or map."
-  [expr context]
-  (condf expr
-         op? (mapcat free-names expr)
-         symbol? (when-not (or (predefined expr)
-                               (context expr))
-                   (list expr))
-         ;; nums, strs, chars, bools, keywords
-         :else nil))
+(defn set-all-names
+  [expr name-set]
+  (vary-meta expr #(assoc % :all-names name-set)))
 
-(defn set-of-free-names
-  "Like free-names, but returns a set."
-  [expr context]
-  (set (free-names expr context)))
+(defn tag-name
+  [nam]
+  (set-all-names nam #{nam}))
 
 (defn new-name
   []
-  (gensym "__"))
+  (let [nam (gensym "__")]
+    (tag-name nam)))
+
+(defn collect-all-names
+  [exprs]
+  (reduce #(set/union %1 (:all-names (meta %2)) )
+          #{}
+          exprs))
+
+(defn make-op
+  [op-name &rest exprs]
+  (when (symbol? op-name) ; as opposed to a keyword such as :=
+    (tag-name op-name))
+  (let [op (apply list op-name exprs)
+        names (collect-all-names op)]
+    (set-all-names op)))
+
+(defn make-=
+  [a b]
+  (make-op '= a b))

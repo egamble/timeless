@@ -4,12 +4,12 @@
             [clojure.set :as set]))
 
 
-(def make-op list)
+(defn make-clause
+  [pattern asserts v]
+  (list pattern asserts v))
 
-(defn make-=
-  [a b]
-  (make-op '= a b))
 
+;;; -----------------------------------------------------
 (defn split-assertions
   "The guard of a clause is split into a list of assertions."
   [[pattern guard v]]
@@ -18,8 +18,11 @@
                   (rest guard)
                   ;; the guard is just one assertion
                   (list guard))]
-    (list pattern asserts v)))
+    (make-clause pattern asserts v)))
+;;; -----------------------------------------------------
 
+
+;;; -----------------------------------------------------
 (defn extract-embedded-assertions*
   "Extract embedded assertions from a pattern.
   Return the new pattern and the list of embedded assertions."
@@ -52,13 +55,17 @@
   [[pattern asserts v]]
   (let [[pattern new-asserts] (extract-embedded-assertions* pattern)
         asserts (concat new-asserts asserts)]
-    (list pattern asserts v)))
+    (make-clause pattern asserts v)))
+;;; -----------------------------------------------------
 
+
+;;; -----------------------------------------------------
 (defn normalize-clause
-  "Ensure the clause pattern is a free name or a constant w.r.t. context."
-  [[pattern asserts v] context]
+  "Ensure the clause pattern is a free name or a constant w.r.t. bound names."
+  [[pattern asserts v] bound-names]
   (let [[pattern asserts]
-        (if (empty? (free-names pattern context))
+        (if (empty? (set/difference (:all-names (meta pattern))
+                                    bound-names))
           (if (or (symbol? pattern) (op? pattern))
             [(vary-meta pattern #(assoc % :const true)) asserts]
             [pattern asserts])
@@ -68,8 +75,13 @@
             (let [nam (new-name)]
               [nam (cons (make-= pattern nam)
                          asserts)])))]
-    (list pattern asserts v)))
+    (make-clause pattern asserts v)))
+;;; -----------------------------------------------------
 
+
+;;; -----------------------------------------------------
+;;; decompose assertions
+;;;
 (defn destructuring-op?
   "The destructuring operators are :seq, :tup, :, and ++."
   [expr]
@@ -113,28 +125,31 @@
   "Decompose the equality assertions (of clause) that contain destructuring ops,
   so that destructuring ops don't contain ops, and the other side is also not an op.
   The destructuring operators are :seq, :tup, :, and ++."
-  [clause]
-  (let [[pattern asserts v] clause
-        asserts (mapcat decompose-assertion asserts)]
-    (make-op pattern asserts v)))
+  [[pattern asserts v]]
+  (let [asserts (mapcat decompose-assertion asserts)]
+    (make-clause pattern asserts v)))
+;;; -----------------------------------------------------
 
-(defn tag-assert-free
+
+;;; -----------------------------------------------------
+;;; set, update, unset :can-bind
+;;;
+(defn set-can-bind!
   "TODO"
   [bound-names assert]
-  (let [f #(set-of-free-names % bound-names)
-        assert (vary-meta assert assoc :free (f assert))]
-    (if (op-isa? '= assert)
-      (let [[_ a b] assert
-            g (fn [side]
-                (if (or (symbol? side)
-                        (destructuring-op? side))
-                  (vary-meta side assoc :can-bind (f side))
-                  side))]
-        (make-= (g a) (g b)))
-      ;; must be a symbol or list
-      assert)))
+  (let [f (fn [side]
+            (when (or (symbol? side)
+                      (destructuring-op? side))
+              (vary-meta side assoc :can-bind
+                         (set/difference (:all-names (meta side)) bound-names))))]
+    (when (op-isa? '= assert)
+      (let [[_ a b] assert]
+        (f a)
+        (f b)))
+    assert))
 
-(defn update-assert-free
+;; TODO
+(defn update-can-bind!
   "TODO"
   [newly-bound-names assert]
   (let [f #(set/difference % newly-bound-names)
@@ -150,8 +165,9 @@
       ;; must be a symbol or list
       assert)))
 
-(defn untag-assert-free
-  "Remove temporary metadata for :free and :can-bind, but leave e.g. :row and :column."
+;; TODO
+(defn unset-can-bind!
+  "Remove temporary metadata for :can-bind, but leave e.g. :row and :column."
   [assert]
   (let [assert (vary-meta assert dissoc :free)]
     (if (op-isa? #{'= :=} assert)
@@ -164,19 +180,22 @@
         (make-op op-name (g a) (g b)))
       ;; must be a symbol or list
       assert)))
+;;; -----------------------------------------------------
 
 
-;; -----------------------------------------------------
-;; assert tests
-
-;; selected annotation gets meta key value: :bound <names>
-;; modify the :assertion field to reverse if necessary, and convert = to := if necessary
-
+;;; -----------------------------------------------------
+;;; assertion tests
+;;;
+;;; the selected assertion gets tagged with :bound-names (is this the best way?)
+;;; reverse if necessary, and convert = to := if necessary
+;;;
+;; TODO
 (defn assert-no-free?
   [assert _]
   (when (empty? (:free (meta assert)))
     assert))
 
+;; TODO
 (defn assert-binds-one-side?
   [assert _]
   (when (op-isa? '= assert)
@@ -194,9 +213,11 @@
 
             ;; otherwise nil
             ))))
-;; -----------------------------------------------------
+;;; -----------------------------------------------------
 
 
+;;; -----------------------------------------------------
+;; TODO
 (defn reorder-assertions*
   "TODO"
   [asserts bound-names]
@@ -214,36 +235,36 @@
         (if assert
           (let [m (meta assert)
                 newly-bound-names (:bound m)]
-            (recur (map (partial update-assert-free newly-bound-names) remaining-asserts)
+            (recur (map (partial update-can-bind! newly-bound-names) remaining-asserts)
                    (into bound-names newly-bound-names)
-                   (conj reordered-asserts (untag-assert-free assert))))
+                   (conj reordered-asserts (unset-can-bind! assert))))
           (throw (Exception. "can't reorder assertions"))))
       (sequence reordered-asserts))))
 
 (defn reorder-assertions
   "Reorders the assertions in a clause."
-  [[pattern asserts v] context]
-  (let [ ;; The current bound names are the ones in the context together with
-        ;; the pattern name if the pattern hasn't been tagged :const.
-        bound-names (set (concat (keys context)
-                                 (when (and (symbol? pattern)
-                                            (not (:const (meta pattern))))
-                                   [pattern])))
-        asserts (reorder-assertions*
-                 (map (partial tag-assert-free bound-names)
-                      asserts)
-                 bound-names)]
-    (list pattern asserts v)))
+  [[pattern asserts v] bound-names]
+  (let [;; add a pattern name to the bound names if the pattern hasn't been tagged :const
+        bound-names (if (and (symbol? pattern)
+                             (not (:const (meta pattern))))
+                      (set/union bound-names #{pattern})
+                      bound-names)
+        asserts (map (partial set-can-bind! bound-names)
+                     asserts)]
+    (make-clause pattern (reorder-assertions* asserts) v)))
+;;; -----------------------------------------------------
+
 
 (defn transform-comprehension
   "Transforms a :fn or :set comprehension."
   [comprehension context]
-  (let [clauses (map (fn [clause]
+  (let [bound-names (set/union (keys context) predefined)
+        clauses (map (fn [clause]
                        (-> clause
                            (split-assertions)
                            (extract-embedded-assertions)
-                           (normalize-clause context)
+                           (normalize-clause bound-names)
                            (decompose-assertions)
-                           (reorder-assertions context)))
+                           (reorder-assertions bound-names)))
                      (rest comprehension))]
     (cons (first comprehension) clauses)))
