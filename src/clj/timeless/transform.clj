@@ -126,72 +126,19 @@
 ;;; ---------------------------------------------------------------------------
 
 ;;; ---------------------------------------------------------------------------
-;;; set, update, unset :can-bind
-;;;
-(defn set-can-bind!
-  "TODO"
-  [bound-names assert]
-  (let [f (fn [side]
-            (when (or (symbol? side)
-                      (destructuring-op? side))
-              (vary-meta side assoc :can-bind
-                         (set/difference (:all-names (meta side)) bound-names))))]
-    (when (op-isa? '= assert)
-      (let [[_ a b] assert]
-        (f a)
-        (f b)))
-    assert))
-
-(defn update-can-bind!
-  "TODO"
-  [newly-bound-names assert]
-  (let [f (fn [side]
-            (when (or (op? side)
-                      (symbol? side))
-              (vary-meta side update-in [:can-bind]
-                         #(set/difference % newly-bound-names))))]
-    (when (op-isa? '= assert)
-      (let [[_ a b] assert]
-        (f a)
-        (f b)))
-    assert))
-
-(defn unset-can-bind!
-  "Remove temporary metadata for :can-bind, but leave e.g. :row and :column."
-  [assert]
-  (let [f (fn [side]
-            (when (or (op? side)
-                      (symbol? side))
-              (vary-meta side dissoc :can-bind)))]
-    (when (op-isa? '= assert)
-      (let [[_ a b] assert]
-        (f a)
-        (f b)))
-    assert))
-
-(defn binds
-  "TODO"
-  [assert]
-  (if (op-isa? := assert)
-    (let [[_ a _]]
-      (:can-bind (meta a)))))
-;;; ---------------------------------------------------------------------------
-
-;;; ---------------------------------------------------------------------------
 ;;; assertion tests
 ;;;
-;;; the selected assertion gets tagged with :bound-names (is this the best way?)
 ;;; reverse if necessary, and convert = to := if necessary
 ;;;
 ;; TODO
 (defn assert-no-free?
-  [assert _]
+  [assert bound-names can-be-bound]
   (when (empty? (:free (meta assert)))
     assert))
 
 ;; TODO
 (defn assert-binds-one-side?
-  [assert _]
+  [assert bound-names can-be-bound]
   (when (op-isa? '= assert)
     (let [[_ a b] assert
           f (fn [side] (-> side meta :can-bind seq))
@@ -207,29 +154,56 @@
 
             ;; otherwise nil
             ))))
+
+;; TODO
+(defn assert-singly-recursive?
+  [assert bound-names can-be-bound]
+  nil)
 ;;; ---------------------------------------------------------------------------
 
 ;;; ---------------------------------------------------------------------------
-;; TODO
+;;; reorder assertions
+;;;
+(defn free-names
+  [bound-names expr]
+  (set/difference (:all-names (meta expr)) bound-names))
+
+(defn can-bind
+  [bound-names assert]
+  (let [f (fn [side]
+            (when (or (symbol? side)
+                      (destructuring-op? side))
+              (free-names bound-names side)))]
+    (when (op-isa? '= assert)
+      (let [[_ a b] assert]
+        (set/union (f a) (f b))))))
+
+(defn does-bind
+  [bound-names assert]
+  (if (op-isa? := assert)
+    (let [[_ a _] assert]
+      (free-names bound-names a))))
+
 (defn reorder-assertions*
-  "TODO"
-  [asserts bound-names]
+  [asserts bound-names can-be-bound]
   (loop [asserts asserts
+         reordered-asserts []
          bound-names bound-names
-         reordered-asserts []]
+         can-be-bound can-be-bound]
     (if (seq asserts)
       (let [[assert remaining-asserts]
             (some (fn [assert-test]
                     (some-rest (fn [assert]
-                                 (assert-test assert bound-names))
+                                 (assert-test assert bound-names can-be-bound))
                                asserts))
                   [assert-no-free?
                    assert-binds-one-side?])]
         (if assert
-          (let [newly-bound-names (binds assert)]
-            (recur (map (partial update-can-bind! newly-bound-names) remaining-asserts)
-                   (into bound-names newly-bound-names)
-                   (conj reordered-asserts (unset-can-bind! assert))))
+          (let [newly-bound (does-bind bound-names assert)]
+            (recur remaining-asserts
+                   (conj reordered-asserts assert)
+                   (set/union bound-names newly-bound)
+                   (set/difference can-be-bound newly-bound)))
           (throw (Exception. "can't reorder assertions"))))
       (sequence reordered-asserts))))
 
@@ -241,9 +215,11 @@
                              (not (:const (meta pattern))))
                       (set/union bound-names #{pattern})
                       bound-names)
-        asserts (map (partial set-can-bind! bound-names)
-                     asserts)]
-    (make-clause pattern (reorder-assertions* asserts) v)))
+        can-be-bound (apply set/union
+                            (map (partial can-bind bound-names)
+                                 asserts))
+        asserts (reorder-assertions* asserts bound-names can-be-bound)]
+    (make-clause pattern asserts v)))
 ;;; ---------------------------------------------------------------------------
 
 (defn transform-comprehension
