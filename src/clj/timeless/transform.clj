@@ -142,38 +142,39 @@
         (f b)))
     assert))
 
-;; TODO
 (defn update-can-bind!
   "TODO"
   [newly-bound-names assert]
-  (let [f #(set/difference % newly-bound-names)
-        assert (vary-meta assert update-in [:free] (f assert))]
-    (if (op-isa? '= assert)
-      (let [[_ a b] assert
-            g (fn [side]
-                (if (or (op? side)
-                        (symbol? side))
-                  (vary-meta side update-in [:can-bind] (f side))
-                  side))]
-        (make-= (g a) (g b)))
-      ;; must be a symbol or list
-      assert)))
+  (let [f (fn [side]
+            (when (or (op? side)
+                      (symbol? side))
+              (vary-meta side update-in [:can-bind]
+                         #(set/difference % newly-bound-names))))]
+    (when (op-isa? '= assert)
+      (let [[_ a b] assert]
+        (f a)
+        (f b)))
+    assert))
 
-;; TODO
 (defn unset-can-bind!
   "Remove temporary metadata for :can-bind, but leave e.g. :row and :column."
   [assert]
-  (let [assert (vary-meta assert dissoc :free)]
-    (if (op-isa? #{'= :=} assert)
-      (let [[op-name a b] assert
-            g (fn [side]
-                (if (or (op? side)
-                        (symbol? side))
-                  (vary-meta side dissoc :can-bind)
-                  side))]
-        (make-op op-name (g a) (g b)))
-      ;; must be a symbol or list
-      assert)))
+  (let [f (fn [side]
+            (when (or (op? side)
+                      (symbol? side))
+              (vary-meta side dissoc :can-bind)))]
+    (when (op-isa? '= assert)
+      (let [[_ a b] assert]
+        (f a)
+        (f b)))
+    assert))
+
+(defn binds
+  "TODO"
+  [assert]
+  (if (op-isa? := assert)
+    (let [[_ a _]]
+      (:can-bind (meta a)))))
 ;;; ---------------------------------------------------------------------------
 
 ;;; ---------------------------------------------------------------------------
@@ -225,8 +226,7 @@
                   [assert-no-free?
                    assert-binds-one-side?])]
         (if assert
-          (let [m (meta assert)
-                newly-bound-names (:bound m)]
+          (let [newly-bound-names (binds assert)]
             (recur (map (partial update-can-bind! newly-bound-names) remaining-asserts)
                    (into bound-names newly-bound-names)
                    (conj reordered-asserts (unset-can-bind! assert))))

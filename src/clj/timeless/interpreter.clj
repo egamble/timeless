@@ -5,7 +5,8 @@
              [transform :refer [transform-comprehension]]]))
 
 (defn set-all-names-in-tree
-  "Throughout an expression, convert (:name <name str>) to a symbol, make gensyms for underscores, and tag all subexpressions with the set of all names used within."
+  "Throughout an expression, convert (:name <name str>) to a symbol, make gensyms for underscores, and tag all subexpressions with the set of all names used within.
+  More names will be generated during comprehension transformations, but those won't need to be visible outside of the comprehension."
   [expr]
   (cond (op-isa? :name expr)
         (let [nam (symbol (second expr))]
