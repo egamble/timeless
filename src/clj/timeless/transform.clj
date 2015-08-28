@@ -126,99 +126,87 @@
 ;;; ---------------------------------------------------------------------------
 
 ;;; ---------------------------------------------------------------------------
-;;; assertion tests
+;;; reorder assertions
 ;;;
-;;; reverse if necessary, and convert = to := if necessary
-;;;
-;; TODO
-(defn assert-no-free?
-  [assert bound-names can-be-bound]
-  (when (empty? (:free (meta assert)))
+(defn local-bindables
+  [assert bindables]
+  (set/intersection bindables (:all-names (meta assert))))
+
+(defn test-no-bindables
+  [assert bindables]
+  (when (empty? (local-bindables assert bindables))
     assert))
 
-;; TODO
-(defn assert-binds-one-side?
-  [assert bound-names can-be-bound]
+(defn test-bindables-on-one-side
+  [assert bindables]
   (when (op-isa? '= assert)
     (let [[_ a b] assert
-          f (fn [side] (-> side meta :can-bind seq))
-          left-binds? (f a)
-          right-binds? (f b)]
+          left-binds? (seq (local-bindables a bindables))
+          right-binds? (seq (local-bindables b bindables))]
       (cond (and left-binds?
                  (not right-binds?))
             (make-op := a b)
 
             (and right-binds?
                  (not left-binds?))
-            (make-op := b a)
+            (make-op := b a)))))
 
-            ;; otherwise nil
-            ))))
+(defn test-assert-singly-recursive
+  [assert bindables]
+  (when (op-isa? '= assert)
+    (let [[_ a b] assert]
+      (cond (and (symbol? a)
+                 (= #{a} (local-bindables b bindables)))
+            (make-op := a b)
 
-;; TODO
-(defn assert-singly-recursive?
-  [assert bound-names can-be-bound]
-  nil)
-;;; ---------------------------------------------------------------------------
+            (and (symbol? b)
+                 (= #{b} (local-bindables a bindables)))
+            (make-op := b a)))))
 
-;;; ---------------------------------------------------------------------------
-;;; reorder assertions
-;;;
-(defn free-names
-  [bound-names expr]
-  (set/difference (:all-names (meta expr)) bound-names))
-
-(defn can-bind
+(defn new-bindables
   [bound-names assert]
   (let [f (fn [side]
             (when (or (symbol? side)
                       (destructuring-op? side))
-              (free-names bound-names side)))]
+              (set/difference (:all-names (meta side)) bound-names)))]
     (when (op-isa? '= assert)
       (let [[_ a b] assert]
         (set/union (f a) (f b))))))
 
-(defn does-bind
-  [bound-names assert]
-  (if (op-isa? := assert)
-    (let [[_ a _] assert]
-      (free-names bound-names a))))
-
 (defn reorder-assertions*
-  [asserts bound-names can-be-bound]
+  [asserts bindables]
   (loop [asserts asserts
          reordered-asserts []
-         bound-names bound-names
-         can-be-bound can-be-bound]
+         bindables bindables]
     (if (seq asserts)
       (let [[assert remaining-asserts]
             (some (fn [assert-test]
                     (some-rest (fn [assert]
-                                 (assert-test assert bound-names can-be-bound))
+                                 (assert-test assert bindables))
                                asserts))
-                  [assert-no-free?
-                   assert-binds-one-side?])]
+                  [test-no-bindables
+                   test-bindables-on-one-side
+                   test-assert-singly-recursive])]
         (if assert
-          (let [newly-bound (does-bind bound-names assert)]
-            (recur remaining-asserts
-                   (conj reordered-asserts assert)
-                   (set/union bound-names newly-bound)
-                   (set/difference can-be-bound newly-bound)))
+          (recur remaining-asserts
+                 (conj reordered-asserts assert)
+                 (set/difference bindables (when (op-isa? := assert)
+                                             (:all-names (meta (second assert))))))
           (throw (Exception. "can't reorder assertions"))))
       (sequence reordered-asserts))))
 
 (defn reorder-assertions
   "Reorders the assertions in a clause."
   [[pattern asserts v] bound-names]
-  (let [;; add a pattern name to the bound names if the pattern hasn't been tagged :const
+  (let [ ;; add the pattern name to the bound names if the pattern hasn't been tagged :const
         bound-names (if (and (symbol? pattern)
                              (not (:const (meta pattern))))
                       (set/union bound-names #{pattern})
                       bound-names)
-        can-be-bound (apply set/union
-                            (map (partial can-bind bound-names)
-                                 asserts))
-        asserts (reorder-assertions* asserts bound-names can-be-bound)]
+        bindables (apply set/union
+                         (map (partial new-bindables bound-names)
+                              asserts))
+        asserts (reorder-assertions* asserts bindables)]
     (make-clause pattern asserts v)))
 ;;; ---------------------------------------------------------------------------
 
