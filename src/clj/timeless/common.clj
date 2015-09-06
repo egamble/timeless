@@ -72,7 +72,7 @@
           exprs))
 
 (defn make-op
-  [op-name &rest exprs]
+  [op-name & exprs]
   (when (symbol? op-name) ; as opposed to a keyword such as :=
     (tag-name op-name))
   (let [op (apply list op-name exprs)

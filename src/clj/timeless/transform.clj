@@ -3,6 +3,78 @@
   (:require [timeless.common :refer :all]
             [clojure.set :as set]))
 
+;;; ---------------------------------------------------------------------------
+;;; transformations unrelated to comprehensions
+;;;
+(defn transform-names
+  "Convert (:name <name str>) to a symbol, make a gensym for an underscore, and tag the expression with the set of all names used within.
+  More names will be generated during comprehension transformations, but those won't need to be visible outside of the comprehension."
+  [expr]
+  (cond (op-isa? :name expr)
+        (let [nam (symbol (second expr))]
+          (tag-name nam))
+
+        (= '_ expr)
+        (new-name) ; also sets :all-names tag
+
+        (symbol? expr)
+        (tag-name expr)
+
+        (op? expr)
+        (set-all-names expr (collect-all-names expr))
+        
+        :else expr))
+
+(defn transform-nested-applies
+  [expr]
+  (if (and (op? expr)
+           (op? (first expr)))
+    (let [[[opr & args1] & args2] expr]
+      (if (keyword? opr)
+        expr
+        (apply make-op opr (concat args1 args2))))
+    expr))
+
+(defn transform-nested-ops
+  [expr]
+  (cond (and (op-isa? #{'/ '-} expr)
+             (op? (second expr)))
+        (let [[opr2 [opr1 & args1] & args2] expr]
+          (if (= opr1 opr2)
+            (apply make-op opr1 (concat args1 args2))
+            expr))
+
+        (op-isa? (symbol ":") expr)
+        (let [[opr2 & args2] expr]
+          (if (op-isa? (symbol ":") (last args2))
+            (let [[opr1 & args1] (last args2)]
+              (apply make-op opr1 (concat (butlast args2) args1)))
+            expr))
+
+        (op-isa? #{'* '+ '++ '∩ '∪ '∧ '∨} expr)
+        (let [[opr & args] expr
+              args (mapcat (fn [sub-expr]
+                             (if (op-isa? opr sub-expr)
+                               (rest sub-expr)
+                               (list sub-expr)))
+                           args)]
+          (apply make-op opr args))
+
+        :else expr))
+
+(defn misc-transforms
+  "Make various transformations unrelated to comprehensions."
+  [expr]
+  (-> (if (op? expr)
+        (map misc-transforms expr)
+        expr)
+      transform-names
+      transform-nested-applies
+      transform-nested-ops
+;      transform-chains
+      ))
+;;; ---------------------------------------------------------------------------
+
 (defn make-clause
   [pattern asserts v]
   (list pattern asserts v))

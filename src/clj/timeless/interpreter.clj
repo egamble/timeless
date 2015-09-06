@@ -1,29 +1,8 @@
 (ns timeless.interpreter
   "Interpreter for an S-expression form of Timeless."
   (:require [timeless
-             [common :refer :all]
-             [transform :refer [transform-comprehension]]]))
-
-(defn set-all-names-in-tree
-  "Throughout an expression, convert (:name <name str>) to a symbol, make gensyms for underscores, and tag all subexpressions with the set of all names used within.
-  More names will be generated during comprehension transformations, but those won't need to be visible outside of the comprehension."
-  [expr]
-  (cond (op-isa? :name expr)
-        (let [nam (symbol (second expr))]
-          (tag-name nam))
-
-        (= '_ expr)
-        (new-name) ; also sets :all-names tag
-
-        (symbol? expr)
-        (tag-name expr)
-
-        (op? expr)
-        (let [expr (map set-all-names-in-tree expr)
-              names (collect-all-names expr)]
-          (set-all-names expr names))
-        
-        :else expr))
+             [common :refer [op-isa? not-nil?]]
+             [transform :refer [transform-comprehension misc-transforms]]]))
 
 (defn read-top-level
   "Reads top-level assertions from stream, which defaults to *in*.
@@ -36,7 +15,7 @@
    (let [asserts (->> (repeatedly #(read stream false nil))
                       (take-while not-nil?)
                       (filter (partial op-isa? '=)) ;; keep only equality assertions
-                      (map set-all-names-in-tree)
+                      (map misc-transforms)
                       (doall))
          context (into {}
                        (map (fn [[_ nam expr]]
