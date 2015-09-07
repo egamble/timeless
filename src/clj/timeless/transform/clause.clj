@@ -1,83 +1,7 @@
-(ns timeless.transform
-  "Transform set and fn comprehensions for the Timeless interpreter."
+(ns timeless.transform.clause
+  "Various transformations of Timeless clauses."
   (:require [timeless.common :refer :all]
             [clojure.set :as set]))
-
-;;; ---------------------------------------------------------------------------
-;;; transformations unrelated to comprehensions
-;;;
-(defn transform-names
-  "Convert (:name <name str>) to a symbol, make a gensym for an underscore, and tag the expression with the set of all names used within.
-  More names will be generated during comprehension transformations, but those won't need to be visible outside of the comprehension."
-  [expr]
-  (cond (op-isa? :name expr)
-        (let [nam (symbol (second expr))]
-          (tag-name nam))
-
-        (= '_ expr)
-        (new-name) ; also sets :all-names tag
-
-        (symbol? expr)
-        (tag-name expr)
-
-        (op? expr)
-        (set-all-names expr (collect-all-names expr))
-        
-        :else expr))
-
-(defn transform-nested-applies
-  [expr]
-  (if (and (op? expr)
-           (op? (first expr)))
-    (let [[[opr & args1] & args2] expr]
-      (if (keyword? opr)
-        expr
-        (apply make-op opr (concat args1 args2))))
-    expr))
-
-(defn transform-nested-ops
-  [expr]
-  (cond (and (op-isa? #{'/ '-} expr)
-             (op? (second expr)))
-        (let [[opr2 [opr1 & args1] & args2] expr]
-          (if (= opr1 opr2)
-            (apply make-op opr1 (concat args1 args2))
-            expr))
-
-        (op-isa? (symbol ":") expr)
-        (let [[opr2 & args2] expr]
-          (if (op-isa? (symbol ":") (last args2))
-            (let [[opr1 & args1] (last args2)]
-              (apply make-op opr1 (concat (butlast args2) args1)))
-            expr))
-
-        (op-isa? #{'* '+ '++ '∩ '∪ '∧ '∨} expr)
-        (let [[opr & args] expr
-              args (mapcat (fn [sub-expr]
-                             (if (op-isa? opr sub-expr)
-                               (rest sub-expr)
-                               (list sub-expr)))
-                           args)]
-          (apply make-op opr args))
-
-        :else expr))
-
-(defn misc-transforms
-  "Make various transformations unrelated to comprehensions."
-  [expr]
-  (-> (if (op? expr)
-        (map misc-transforms expr)
-        expr)
-      transform-names
-      transform-nested-applies
-      transform-nested-ops
-;      transform-chains
-      ))
-;;; ---------------------------------------------------------------------------
-
-(defn make-clause
-  [pattern asserts v]
-  (list pattern asserts v))
 
 ;;; ---------------------------------------------------------------------------
 (defn split-assertions
@@ -88,7 +12,7 @@
                   (rest guard)
                   ;; the guard is just one assertion
                   (list guard))]
-    (make-clause pattern asserts v)))
+    (list pattern asserts v)))
 ;;; ---------------------------------------------------------------------------
 
 ;;; ---------------------------------------------------------------------------
@@ -124,7 +48,7 @@
   [[pattern asserts v]]
   (let [[pattern new-asserts] (extract-embedded-assertions* pattern)
         asserts (concat new-asserts asserts)]
-    (make-clause pattern asserts v)))
+    (list pattern asserts v)))
 ;;; ---------------------------------------------------------------------------
 
 ;;; ---------------------------------------------------------------------------
@@ -143,7 +67,7 @@
             (let [nam (new-name)]
               [nam (cons (make-= pattern nam)
                          asserts)])))]
-    (make-clause pattern asserts v)))
+    (list pattern asserts v)))
 ;;; ---------------------------------------------------------------------------
 
 ;;; ---------------------------------------------------------------------------
@@ -194,7 +118,7 @@
   The destructuring operators are :seq, :tup, :, and ++."
   [[pattern asserts v]]
   (let [asserts (mapcat decompose-assertion asserts)]
-    (make-clause pattern asserts v)))
+    (list pattern asserts v)))
 ;;; ---------------------------------------------------------------------------
 
 ;;; ---------------------------------------------------------------------------
@@ -270,28 +194,27 @@
 (defn reorder-assertions
   "Reorders the assertions in a clause."
   [[pattern asserts v] bound-names]
-  (let [ ;; add the pattern name to the bound names if the pattern hasn't been tagged :const
+  (let [;; add the pattern name to the bound names if the pattern hasn't been tagged :const
         bound-names (if (and (symbol? pattern)
                              (not (:const (meta pattern))))
                       (set/union bound-names #{pattern})
                       bound-names)
         bindables (apply set/union
-                         (map (partial new-bindables bound-names)
+                         (map (par new-bindables bound-names)
                               asserts))
         asserts (reorder-assertions* asserts bindables)]
-    (make-clause pattern asserts v)))
+    (list pattern asserts v)))
 ;;; ---------------------------------------------------------------------------
 
-(defn transform-comprehension
-  "Transforms a :fn or :set comprehension."
-  [comprehension context]
+(defn transform-clause
+  "Transforms a :fn_ or :set_ clause"
+  [clause context]
   (let [bound-names (set/union (keys context) predefined)
-        clauses (map (fn [clause]
-                       (-> clause
-                           (split-assertions)
-                           (extract-embedded-assertions)
-                           (normalize-clause bound-names)
-                           (decompose-assertions)
-                           (reorder-assertions bound-names)))
-                     (rest comprehension))]
-    (cons (first comprehension) clauses)))
+        [opr & parts] clause
+        parts (-> parts
+                  (split-assertions)
+                  (extract-embedded-assertions)
+                  (normalize-clause bound-names)
+                  (decompose-assertions)
+                  (reorder-assertions bound-names))]
+    (apply make-op opr parts)))

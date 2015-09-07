@@ -19,6 +19,8 @@
 ;; because some? is an awful name for this function
 (def not-nil? some?)
 
+(def par partial)
+
 (defn some-rest
   "Similar to some, but also returns the rest of the elements.
   When pred x is truthy for some x in s, returns [<pred x> <all of s other than x>].
@@ -41,7 +43,7 @@
     'true 'false '∞})
 
 (def op?
-  "Is an expr an operation, rather than a name, an atomic constant, or nil (for the value of a :set clause)?"
+  "Is an expr an operation, rather than a name, an atomic constant, or nil (for the value of a :set_ clause)?"
   list?)
 
 (defn op-isa?
