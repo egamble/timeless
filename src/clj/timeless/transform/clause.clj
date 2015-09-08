@@ -40,9 +40,11 @@
 
         (op? pattern)
         ;; pattern is an op, so recursively search for embedded assertions
-        (let [r (map extract-embedded-assertions* pattern)]
-          [(map first r)
-           (mapcat second r)])
+        (let [r (map extract-embedded-assertions* pattern)
+              pattern (map first r)
+              pattern (set-all-names pattern (collect-all-names pattern))
+              new-asserts (mapcat second r)]
+          [pattern new-asserts])
 
         :else [pattern '()]))
 
@@ -58,7 +60,6 @@
 (defn normalize-clause
   "Ensure the clause pattern is a free name or a constant w.r.t. bound names."
   [[pattern asserts v] bound-names]
-  (prn (str ">>" pattern (:all-names (meta pattern))))
   (let [[pattern asserts]
         (if (empty? (set/difference (:all-names (meta pattern))
                                     bound-names))

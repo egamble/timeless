@@ -36,8 +36,7 @@
       (eval-fn expr)
       (condp = opr
         '+ (apply + args)
-        (error "can't apply"))
-      )))
+        (error "can't apply")))))
 
 (defn eval-expr
   ([expr]
