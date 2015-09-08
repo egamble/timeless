@@ -25,21 +25,58 @@
   (with-in-str s
     (read-top-level)))
 
-(defn eval-expr
+(defn eval-fn
+  [expr]
+  nil)
+
+(defn eval-apply
   [expr context]
-  (condf expr
-   (par op-isa? #{:fn_ :set_})
-   (or (:transformed (meta expr))
-       (let [clause (transform-clause expr context)]
-         (do (vary-meta expr assoc :transformed clause)
-             clause)))
+  (let [[opr & args] expr]
+    (if (op-isa? #{:fn '∪} opr)
+      (eval-fn expr)
+      (condp = opr
+        '+ (apply + args)
+        (error "can't apply"))
+      )))
 
-   symbol?
-   (if (context expr)
-     (eval-expr (context expr) context)
-     expr)
+(defn eval-expr
+  ([expr]
+   (eval-expr expr {}))
+  ([expr context]
+   (condf expr
+          (par op-isa? #{:fn :set})
+          (or (:transformed (meta expr))
+              (let [clause (transform-clause expr context)]
+                (do (vary-meta expr assoc :transformed clause)
+                    clause)))
 
-   expr))
+          (par op-isa? #{:seq :tup})
+          (apply make-op (first expr)
+                 (map #(eval-expr % context) (rest expr)))
+
+          op?
+          (eval-apply (apply make-op (map #(eval-expr % context) expr))
+                      context)
+
+          name?
+          (cond
+            (context expr)
+            (eval-expr (context expr) context)
+
+            (predefined expr)
+            expr
+
+            :else (error "undefined name"))
+
+          expr)))
+
+(defn transform-and-eval
+  ([expr]
+   (transform-and-eval expr {}))
+  ([expr context]
+   (eval-expr (misc-transforms expr) context)))
 
 (def e eval-expr)
+(def t misc-transforms)
+(def te transform-and-eval)
 

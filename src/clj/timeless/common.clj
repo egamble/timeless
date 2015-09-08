@@ -43,8 +43,8 @@
     'true 'false '∞})
 
 (def op?
-  "Is an expr an operation, rather than a name, an atomic constant, or nil (for the value of a :set_ clause)?"
-  list?)
+  "Is an expr an operation, rather than a name, an atomic constant, or nil (for an empty guard or the value of a :set_ clause)?"
+  seq?)
 
 (defn op-isa?
   "Returns true if expr is a list and the first element is either equal to op-name or a member of op-name when op-name is a set."
@@ -53,6 +53,18 @@
        (if (set? op-name)
          (not-nil? (op-name (first expr)))
          (= op-name (first expr)))))
+
+(defn op-not-section?
+  [expr]
+  (and (op? expr)
+       (second (rest expr))))
+
+(defn op-isa-not-section?
+  [op-name expr]
+  (and (op-isa? op-name expr)
+       (second (rest expr))))
+
+(def name? symbol?)
 
 (defn set-all-names
   [expr name-set]
@@ -75,12 +87,16 @@
 
 (defn make-op
   [op-name & exprs]
-  (when (symbol? op-name) ; as opposed to a keyword such as :=
+  (when (name? op-name) ; as opposed to a keyword such as :=
     (tag-name op-name))
   (let [op (apply list op-name exprs)
         names (collect-all-names op)]
-    (set-all-names op)))
+    (set-all-names op names)))
 
 (defn make-=
   [a b]
   (make-op '= a b))
+
+(defn error
+  [msg]
+  (throw (Exception. msg)))

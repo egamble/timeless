@@ -7,11 +7,14 @@
 (defn split-assertions
   "The guard of a clause is split into a list of assertions."
   [[pattern guard v]]
-  (let [asserts (if (op-isa? '∧ guard)
-                  ;; multiple assertions; assumes nested ∧ ops have already been collapsed into one
-                  (rest guard)
-                  ;; the guard is just one assertion
-                  (list guard))]
+  (let [asserts (cond (nil? guard)
+                      '()
+
+                      (op-isa? '∧ guard) ; multiple assertions; assumes nested ∧ ops have already been collapsed into one
+                      (rest guard)
+
+                      :else (list guard) ; the guard is just one assertion
+                      )]
     (list pattern asserts v)))
 ;;; ---------------------------------------------------------------------------
 
@@ -27,7 +30,7 @@
                 (let [nam (new-name)]
                   [nam (list (make-op op-name nam a))])
 
-                (symbol? a) ; left side is a name; extract the assertion but don't generate a new name
+                (name? a) ; left side is a name; extract the assertion but don't generate a new name
                 [a (list pattern)]
 
                 :else ; left side is an op or atomic constant; generate a new name and add assertions for the left and right sides
@@ -55,14 +58,15 @@
 (defn normalize-clause
   "Ensure the clause pattern is a free name or a constant w.r.t. bound names."
   [[pattern asserts v] bound-names]
+  (prn (str ">>" pattern (:all-names (meta pattern))))
   (let [[pattern asserts]
         (if (empty? (set/difference (:all-names (meta pattern))
                                     bound-names))
-          (if (or (symbol? pattern) (op? pattern))
+          (if (or (name? pattern) (op? pattern))
             [(vary-meta pattern assoc :const true) asserts]
             [pattern asserts])
 
-          (if (symbol? pattern)
+          (if (name? pattern)
             [pattern asserts]
             (let [nam (new-name)]
               [nam (cons (make-= pattern nam)
@@ -151,18 +155,18 @@
   [assert bindables]
   (when (op-isa? '= assert)
     (let [[_ a b] assert]
-      (cond (and (symbol? a)
+      (cond (and (name? a)
                  (= #{a} (local-bindables b bindables)))
             (make-op := a b)
 
-            (and (symbol? b)
+            (and (name? b)
                  (= #{b} (local-bindables a bindables)))
             (make-op := b a)))))
 
 (defn new-bindables
   [bound-names assert]
   (let [f (fn [side]
-            (when (or (symbol? side)
+            (when (or (name? side)
                       (destructuring-op? side))
               (set/difference (:all-names (meta side)) bound-names)))]
     (when (op-isa? '= assert)
@@ -188,14 +192,14 @@
                  (conj reordered-asserts assert)
                  (set/difference bindables (when (op-isa? := assert)
                                              (:all-names (meta (second assert))))))
-          (throw (Exception. "can't reorder assertions"))))
+          (error "can't reorder assertions")))
       (sequence reordered-asserts))))
 
 (defn reorder-assertions
   "Reorders the assertions in a clause."
   [[pattern asserts v] bound-names]
   (let [;; add the pattern name to the bound names if the pattern hasn't been tagged :const
-        bound-names (if (and (symbol? pattern)
+        bound-names (if (and (name? pattern)
                              (not (:const (meta pattern))))
                       (set/union bound-names #{pattern})
                       bound-names)
@@ -207,7 +211,7 @@
 ;;; ---------------------------------------------------------------------------
 
 (defn transform-clause
-  "Transforms a :fn_ or :set_ clause"
+  "Transforms a :fn or :set clause"
   [clause context]
   (let [bound-names (set/union (keys context) predefined)
         [opr & parts] clause
