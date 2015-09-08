@@ -18,10 +18,15 @@
                       (filter (par op-isa? '=)) ;; keep only equality assertions
                       (map misc-transforms)
                       (doall))
-         bound-names (set/union predefined
-                                (into #{} (map second asserts)))]
+         bound-names (into #{} (map second asserts))
+         bound-names (set/union predefined bound-names)
+         asserts (map (par transform-clauses bound-names) asserts)]
      (into {} (map (fn [[_ nam expr]]
-                     [nam (transform-clauses bound-names expr)])
+                     [nam (if (taggable? expr)
+                            ;; Tag expr with the bound names, so at evaluation time it will be clear
+                            ;; which names are free in the original context, rather than the evaluation context.
+                            (vary-meta expr assoc :bound-names bound-names)
+                            expr)])
                    asserts)))))
 
 (defn read-top-level-string
@@ -75,7 +80,8 @@
   ([expr]
    (transform-and-eval expr {}))
   ([expr context]
-   (eval-expr (transform-clauses (keys context) (misc-transforms expr))
+   (eval-expr (transform-clauses (set/union predefined (keys context))
+                                 (misc-transforms expr))
               context)))
 
 (def e transform-and-eval)

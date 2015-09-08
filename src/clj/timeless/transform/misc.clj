@@ -9,18 +9,12 @@
   (condf expr
    (par op-isa? :name)
    (let [nam (symbol (second expr))]
-     (tag-name nam))
+     (set-all-names nam))
 
    (par = '_)
    (new-name)                           ; also sets :all-names tag
 
-   symbol?
-   (tag-name expr)
-
-   op?
-   (set-all-names expr (collect-all-names expr))
-        
-   expr))
+   (set-all-names expr)))
 
 (defn transform-nested-applies
   [expr]

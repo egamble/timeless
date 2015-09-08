@@ -66,18 +66,9 @@
 
 (def name? symbol?)
 
-(defn set-all-names
-  [expr name-set]
-  (vary-meta expr assoc :all-names name-set))
-
-(defn tag-name
-  [nam]
-  (set-all-names nam #{nam}))
-
-(defn new-name
-  []
-  (let [nam (gensym "__")]
-    (tag-name nam)))
+(defn taggable?
+  [expr]
+  (or (name? expr) (op? expr)))
 
 (defn collect-all-names
   [exprs]
@@ -85,13 +76,22 @@
           #{}
           exprs))
 
+(defn set-all-names
+  ([expr]
+   (condf expr
+          name? (set-all-names expr #{expr})
+          op? (set-all-names (collect-all-names expr))
+          expr))
+  ([expr name-set]
+   (vary-meta expr assoc :all-names name-set)))
+
+(defn new-name
+  []
+  (set-all-names (gensym "__")))
+
 (defn make-op
   [op-name & exprs]
-  (when (name? op-name) ; as opposed to a keyword such as :=
-    (tag-name op-name))
-  (let [op (apply list op-name exprs)
-        names (collect-all-names op)]
-    (set-all-names op names)))
+  (set-all-names (apply list (set-all-names op-name) exprs)))
 
 (defn make-=
   [a b]

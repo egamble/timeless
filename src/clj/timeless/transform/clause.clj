@@ -40,8 +40,7 @@
         (op? pattern)
         ;; pattern is an op, so recursively search for embedded assertions
         (let [r (map extract-embedded-assertions* pattern)
-              pattern (map first r)
-              pattern (set-all-names pattern (collect-all-names pattern))
+              pattern (set-all-names (map first r))
               new-asserts (mapcat second r)]
           [pattern new-asserts])
 
@@ -61,7 +60,7 @@
   [[pattern asserts] bound-names]
   (if (empty? (set/difference (:all-names (meta pattern))
                               bound-names))
-    (if (or (name? pattern) (op? pattern))
+    (if (taggable? pattern)
       [(vary-meta pattern assoc :const true) asserts]
       [pattern asserts])
 
@@ -218,21 +217,21 @@
    (let [[opr pattern & r] expr
          [v guard] (if (= opr :fn)
                      r
-                     [nil (first r)] ; :set has no return value
+                     [nil (first r)]    ; :set has no return value
                      )
-         [[pattern asserts] bound-names]
+         [[pattern asserts] new-bound-names]
          (-> [pattern (split-assertions guard)]
              (extract-embedded-assertions)
              (normalize-clause bound-names)
              (decompose-assertions)
              (reorder-assertions bound-names))]
-     (apply make-op opr (map (par transform-clauses bound-names)
+     (apply make-op opr (map (par transform-clauses new-bound-names)
                              (if (= opr :fn)
                                (apply list pattern v asserts)
                                (apply list pattern asserts)))))
 
    op?
    (let [expr (map (par transform-clauses bound-names) expr)]
-     (set-all-names expr (collect-all-names expr)))
+     (set-all-names expr))
 
    expr))
