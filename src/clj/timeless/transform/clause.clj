@@ -6,16 +6,15 @@
 ;;; ---------------------------------------------------------------------------
 (defn split-assertions
   "The guard of a clause is split into a list of assertions."
-  [[pattern guard v]]
-  (let [asserts (cond (nil? guard)
-                      '()
+  [guard]
+  (cond (nil? guard)
+        '()
 
-                      (op-isa? '∧ guard) ; multiple assertions; assumes nested ∧ ops have already been collapsed into one
-                      (rest guard)
+        (op-isa? '∧ guard) ; multiple assertions; assumes nested ∧ ops have already been collapsed into one
+        (rest guard)
 
-                      :else (list guard) ; the guard is just one assertion
-                      )]
-    (list pattern asserts v)))
+        :else (list guard)           ; the guard is just one assertion
+        ))
 ;;; ---------------------------------------------------------------------------
 
 ;;; ---------------------------------------------------------------------------
@@ -50,29 +49,27 @@
 
 (defn extract-embedded-assertions
   "Extract embedded assertions from a clause pattern."
-  [[pattern asserts v]]
+  [[pattern asserts]]
   (let [[pattern new-asserts] (extract-embedded-assertions* pattern)
         asserts (concat new-asserts asserts)]
-    (list pattern asserts v)))
+    [pattern asserts]))
 ;;; ---------------------------------------------------------------------------
 
 ;;; ---------------------------------------------------------------------------
 (defn normalize-clause
   "Ensure the clause pattern is a free name or a constant w.r.t. bound names."
-  [[pattern asserts v] bound-names]
-  (let [[pattern asserts]
-        (if (empty? (set/difference (:all-names (meta pattern))
-                                    bound-names))
-          (if (or (name? pattern) (op? pattern))
-            [(vary-meta pattern assoc :const true) asserts]
-            [pattern asserts])
+  [[pattern asserts] bound-names]
+  (if (empty? (set/difference (:all-names (meta pattern))
+                              bound-names))
+    (if (or (name? pattern) (op? pattern))
+      [(vary-meta pattern assoc :const true) asserts]
+      [pattern asserts])
 
-          (if (name? pattern)
-            [pattern asserts]
-            (let [nam (new-name)]
-              [nam (cons (make-= pattern nam)
-                         asserts)])))]
-    (list pattern asserts v)))
+    (if (name? pattern)
+      [pattern asserts]
+      (let [nam (new-name)]
+        [nam (cons (make-= pattern nam)
+                   asserts)]))))
 ;;; ---------------------------------------------------------------------------
 
 ;;; ---------------------------------------------------------------------------
@@ -123,7 +120,7 @@
   The destructuring operators are :seq, :tup, :, and ++."
   [[pattern asserts v]]
   (let [asserts (mapcat decompose-assertion asserts)]
-    (list pattern asserts v)))
+    [pattern asserts]))
 ;;; ---------------------------------------------------------------------------
 
 ;;; ---------------------------------------------------------------------------
@@ -197,8 +194,9 @@
       (sequence reordered-asserts))))
 
 (defn reorder-assertions
-  "Reorders the assertions in a clause."
-  [[pattern asserts v] bound-names]
+  "Reorders the assertions in a clause.
+  Returns the new clause parts and the augmented bound names."
+  [[pattern asserts] bound-names]
   (let [;; add the pattern name to the bound names if the pattern hasn't been tagged :const
         bound-names (if (and (name? pattern)
                              (not (:const (meta pattern))))
@@ -207,19 +205,34 @@
         bindables (apply set/union
                          (map (par new-bindables bound-names)
                               asserts))
-        asserts (reorder-assertions* asserts bindables)]
-    (list pattern asserts v)))
+        asserts (reorder-assertions* asserts bindables)
+        bound-names (set/union bound-names bindables)]
+    [[pattern asserts] bound-names]))
 ;;; ---------------------------------------------------------------------------
 
-(defn transform-clause
-  "Transforms a :fn or :set clause"
-  [clause context]
-  (let [bound-names (set/union (keys context) predefined)
-        [opr & parts] clause
-        parts (-> parts
-                  (split-assertions)
-                  (extract-embedded-assertions)
-                  (normalize-clause bound-names)
-                  (decompose-assertions)
-                  (reorder-assertions bound-names))]
-    (apply make-op opr parts)))
+(defn transform-clauses
+  "Transforms :fn and :set clauses."
+  [bound-names expr]
+  (condf expr
+   (par op-isa? #{:fn :set})
+   (let [[opr pattern & r] expr
+         [v guard] (if (= opr :fn)
+                     r
+                     [nil (first r)] ; :set has no return value
+                     )
+         [[pattern asserts] bound-names]
+         (-> [pattern (split-assertions guard)]
+             (extract-embedded-assertions)
+             (normalize-clause bound-names)
+             (decompose-assertions)
+             (reorder-assertions bound-names))]
+     (apply make-op opr (map (par transform-clauses bound-names)
+                             (if (= opr :fn)
+                               (apply list pattern v asserts)
+                               (apply list pattern asserts)))))
+
+   op?
+   (let [expr (map (par transform-clauses bound-names) expr)]
+     (set-all-names expr (collect-all-names expr)))
+
+   expr))

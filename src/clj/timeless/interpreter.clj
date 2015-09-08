@@ -3,7 +3,8 @@
   (:require [timeless.common :refer :all]
             [timeless.transform
              [misc   :refer [misc-transforms]]
-             [clause :refer [transform-clause]]]))
+             [clause :refer [transform-clauses]]]
+            [clojure.set :as set]))
 
 (defn read-top-level
   "Reads top-level assertions from stream, which defaults to *in*.
@@ -16,8 +17,12 @@
                       (take-while not-nil?)
                       (filter (par op-isa? '=)) ;; keep only equality assertions
                       (map misc-transforms)
-                      (doall))]
-     (into {} (map rest asserts)))))
+                      (doall))
+         bound-names (set/union predefined
+                                (into #{} (map second asserts)))]
+     (into {} (map (fn [[_ nam expr]]
+                     [nam (transform-clauses bound-names expr)])
+                   asserts)))))
 
 (defn read-top-level-string
   "Same as read-top-level, except reads from a string."
@@ -44,10 +49,7 @@
   ([expr context]
    (condf expr
           (par op-isa? #{:fn :set})
-          (or (:transformed (meta expr))
-              (let [clause (transform-clause expr context)]
-                (do (vary-meta expr assoc :transformed clause)
-                    clause)))
+          expr
 
           (par op-isa? #{:seq :tup})
           (apply make-op (first expr)
@@ -73,9 +75,8 @@
   ([expr]
    (transform-and-eval expr {}))
   ([expr context]
-   (eval-expr (misc-transforms expr) context)))
+   (eval-expr (transform-clauses (keys context) (misc-transforms expr))
+              context)))
 
-(def e eval-expr)
-(def t misc-transforms)
-(def te transform-and-eval)
+(def e transform-and-eval)
 
