@@ -220,7 +220,7 @@
                                  (if (= opr :fn)
                                    (apply list pattern v asserts)
                                    (apply list pattern asserts))))]
-     (vary-meta expr assoc :free-names free-names))
+     (set-free-names expr free-names))
 
    op?
    (apply make-op

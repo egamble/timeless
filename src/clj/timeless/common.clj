@@ -36,6 +36,10 @@
                  r))))))
 ;;; ---------------------------------------------------------------------------
 
+(defn error
+  [msg]
+  (throw (Exception. msg)))
+
 (def predefined
   #{'Obj 'Num 'Int 'Bool 'Char 'Str 'Set 'Seq 'Fn
     '* '/ '+ '- (symbol ":") '++ '∩ '∪ '= '≠ '< '> '≤ '≥ '∈ '∉ '⊂ '∧ '∨
@@ -105,6 +109,10 @@
   [a b]
   (make-op '= a b))
 
-(defn error
-  [msg]
-  (throw (Exception. msg)))
+(defn get-free-names
+  [expr]
+  (:free-names (meta expr)))
+
+(defn set-free-names
+  [expr name-set]
+  (vary-meta expr assoc :free-names name-set))

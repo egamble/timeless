@@ -33,13 +33,14 @@
     (read-top-level)))
 
 (defn eval-fn
-  [clause & args]
+  [[clause & args] context]
   (if (second args)
     (eval-fn
      (apply make-op
             (eval-fn (make-op clause (first args)))
             (rest args)))
-    (let [[_ pattern v & asserts] clause]
+    (let [[_ pattern v & asserts] clause
+          free-names (get-free-names clause)]
       nil)))
 
 (defn concat-seqs
@@ -54,19 +55,21 @@
 
 ;; TODO refactor
 (defn eval-apply
-  [expr]
+  [expr context]
   (let [[opr & args] expr]
     (cond
       (op-isa? :fn opr)
-      (eval-fn expr)
+      (eval-fn expr context)
 
       (op-isa? '∪ opr)
-      (some #(eval-apply (apply make-op % args))
+      (some #(eval-apply (apply make-op % args)
+                         context)
             (rest opr))
 
       (op-isa? #{'+ '- '* '/ '++} opr)
       ;; must be a section
-      (eval-apply (apply make-op (concat opr args)))
+      (eval-apply (apply make-op (concat opr args))
+                  context)
 
       (#{'+ '- '* '/ '++} opr)
       (if (second args) ; if not a section
@@ -110,7 +113,8 @@
         (apply make-op :seq elts)))
 
     op?
-    (eval-apply (apply make-op (map #(eval-expr % context) expr)))
+    (eval-apply (apply make-op (map #(eval-expr % context) expr))
+                context)
 
     name?
     (cond
