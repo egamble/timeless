@@ -1,33 +1,20 @@
 (ns timeless.transform.misc
   "Various transformations of Timeless S-expressions."
-  (:require [timeless.common :refer :all]))
+  (:require [timeless.common :refer :all]
+            [timeless.transform.clause :refer [transform-clauses]]))
 
 (defn transform-names
-  "Convert (:name <name str>) to a symbol, make a gensym for an underscore, and tag the expression with the set of all names used within.
-  More names will be generated during comprehension transformations, but those won't need to be visible outside of the comprehension."
+  "Convert (:name <name str>) to a symbol, make a gensym for an underscore, and tag the expression with the set of all names within the expression except those in comprehensions."
   [expr]
   (condf expr
    (par op-isa? :name)
    (let [nam (symbol (second expr))]
-     (set-all-names nam))
+     (set-maybe-free-names nam))
 
    (par = '_)
-   (new-name)                           ; also sets :all-names tag
+   (new-name)                           ; also sets :maybe-free-names tag
 
-   (set-all-names expr)))
-
-(defn transform-nested-applies
-  [expr]
-  (if (and (op? expr)
-           (op? (first expr)))
-    (let [[[opr & args1] & args2] expr]
-      (if (or (keyword? opr)
-              ;; don't collapse unary -
-              (and (= opr '-)
-                   (not (second args1))))
-        expr
-        (apply make-op opr (concat args1 args2))))
-    expr))
+   (set-maybe-free-names expr)))
 
 (defn transform-nested-ops
   [expr]
@@ -82,12 +69,12 @@
           :else expr))
       expr)))
 
-(defn misc-transforms
+(defn transform-recursively
   [expr]
   (-> (if (op? expr)
-        (map misc-transforms expr)
+        (apply make-op (map transform-recursively expr))
         expr)
       transform-names
-      transform-nested-applies
       transform-nested-ops
-      transform-chains))
+      transform-chains
+      transform-clauses))

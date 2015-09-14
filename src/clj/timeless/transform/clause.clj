@@ -40,7 +40,7 @@
         (op? pattern)
         ;; pattern is an op, so recursively search for embedded assertions
         (let [r (map extract-embedded-assertions* pattern)
-              pattern (set-all-names (map first r))
+              pattern (set-maybe-free-names (map first r))
               new-asserts (mapcat second r)]
           [pattern new-asserts])
 
@@ -56,19 +56,13 @@
 
 ;;; ---------------------------------------------------------------------------
 (defn normalize-clause
-  "Ensure the clause pattern is a free name or a constant w.r.t. bound names."
-  [[pattern asserts] bound-names]
-  (if (empty? (set/difference (:all-names (meta pattern))
-                              bound-names))
-    (if (taggable? pattern)
-      [(vary-meta pattern assoc :const true) asserts]
-      [pattern asserts])
-
-    (if (name? pattern)
-      [pattern asserts]
-      (let [nam (new-name)]
-        [nam (cons (make-= pattern nam)
-                   asserts)]))))
+  "Ensure the clause pattern is a name (free or bound) or an atomic constant."
+  [[pattern asserts]]
+  (if (op? pattern)
+    (let [nam (new-name)]
+      [nam (cons (make-= nam pattern)
+                 asserts)])
+    [pattern asserts]))
 ;;; ---------------------------------------------------------------------------
 
 ;;; ---------------------------------------------------------------------------
@@ -117,29 +111,51 @@
   "Decompose the equality assertions (of clause) that contain destructuring ops,
   so that destructuring ops don't contain ops, and the other side is also not an op.
   The destructuring operators are :seq, :tup, :, and ++."
-  [[pattern asserts v]]
+  [[pattern asserts]]
   (let [asserts (mapcat decompose-assertion asserts)]
     [pattern asserts]))
 ;;; ---------------------------------------------------------------------------
 
 ;;; ---------------------------------------------------------------------------
+(defn transform-clauses
+  "Transforms :fn and :set clauses, except for reordering assertions which is done
+  in a second pass using the finalized :maybe-free-names tags."
+  [expr]
+  (if (op-isa? #{:fn :set} expr)
+   (let [[opr pattern & r] expr
+         [v guard] (if (= opr :fn)
+                     r
+                     [nil (first r)]    ; :set has no return value
+                     )
+         [pattern asserts]
+         (-> [pattern (split-assertions guard)]
+             (extract-embedded-assertions)
+             (normalize-clause)
+             (decompose-assertions))]
+     (apply make-op opr (if (= opr :fn)
+                          (apply list pattern v asserts)
+                          (apply list pattern asserts))))
+   expr))
+;;; ---------------------------------------------------------------------------
+
+;;; ---------------------------------------------------------------------------
 ;;; reorder assertions
 ;;;
-(defn local-bindables
-  [assert bindables]
-  (set/intersection bindables (:all-names (meta assert))))
+(defn local-free-names
+  [assert free-names]
+  (set/intersection free-names (get-maybe-free-names assert)))
 
-(defn test-no-bindables
-  [assert bindables]
-  (when (empty? (local-bindables assert bindables))
+(defn test-no-free-names
+  [assert free-names]
+  (when (empty? (local-free-names assert free-names))
     assert))
 
-(defn test-bindables-on-one-side
-  [assert bindables]
+(defn test-free-names-on-one-side
+  [assert free-names]
   (when (op-isa? '= assert)
     (let [[_ a b] assert
-          left-binds? (seq (local-bindables a bindables))
-          right-binds? (seq (local-bindables b bindables))]
+          left-binds? (seq (local-free-names a free-names))
+          right-binds? (seq (local-free-names b free-names))]
       (cond (and left-binds?
                  (not right-binds?))
             (make-op := a b)
@@ -149,89 +165,67 @@
             (make-op := b a)))))
 
 (defn test-assert-singly-recursive
-  [assert bindables]
+  [assert free-names]
   (when (op-isa? '= assert)
     (let [[_ a b] assert]
       (cond (and (name? a)
-                 (= #{a} (local-bindables b bindables)))
+                 (= #{a} (local-free-names b free-names)))
             (make-op := a b)
 
             (and (name? b)
-                 (= #{b} (local-bindables a bindables)))
+                 (= #{b} (local-free-names a free-names)))
             (make-op := b a)))))
 
-(defn new-bindables
-  [bound-names assert]
-  (let [f (fn [side]
-            (when (or (name? side)
-                      (destructuring-op? side))
-              (set/difference (:all-names (meta side)) bound-names)))]
-    (when (op-isa? '= assert)
-      (let [[_ a b] assert]
-        (set/union (f a) (f b))))))
-
-(defn reorder-assertions*
-  [asserts bindables]
+(defn reorder-assertions
+  [asserts free-names]
   (loop [asserts asserts
          reordered-asserts []
-         bindables bindables]
+         free-names free-names]
     (if (seq asserts)
       (let [[assert remaining-asserts]
             (some (fn [assert-test]
                     (some-rest (fn [assert]
-                                 (assert-test assert bindables))
+                                 (assert-test assert free-names))
                                asserts))
-                  [test-no-bindables
-                   test-bindables-on-one-side
+                  [test-no-free-names
+                   test-free-names-on-one-side
                    test-assert-singly-recursive])]
         (if assert
           (recur remaining-asserts
                  (conj reordered-asserts assert)
-                 (set/difference bindables (when (op-isa? := assert)
-                                             (:all-names (meta (second assert))))))
+                 (set/difference free-names (when (op-isa? := assert)
+                                              (get-maybe-free-names (second assert)))))
           (error "can't reorder assertions")))
       (sequence reordered-asserts))))
 
-(defn reorder-assertions
-  "Reorders the assertions in a clause.
-  Returns the new clause parts and the augmented bound names."
-  [[pattern asserts] bound-names]
-  (let [;; add the pattern name to the bound names if the pattern hasn't been tagged :const
-        bound-names (if (and (name? pattern)
-                             (not (:const (meta pattern))))
-                      (set/union bound-names #{pattern})
-                      bound-names)
-        bindables (apply set/union
-                         (map (par new-bindables bound-names)
-                              asserts))
-        asserts (reorder-assertions* asserts bindables)
-        bound-names (set/union bound-names bindables)]
-    [[pattern asserts] bound-names]))
-;;; ---------------------------------------------------------------------------
-
-(defn transform-clauses
-  "Transforms :fn and :set clauses."
+(defn reorder-assertions-recursively
   [bound-names expr]
   (condf expr
    (par op-isa? #{:fn :set})
-   (let [[opr pattern & r] expr
-         [v guard] (if (= opr :fn)
-                     r
-                     [nil (first r)]    ; :set has no return value
-                     )
-         [[pattern asserts] new-bound-names]
-         (-> [pattern (split-assertions guard)]
-             (extract-embedded-assertions)
-             (normalize-clause bound-names)
-             (decompose-assertions)
-             (reorder-assertions bound-names))]
-     (apply make-op opr (map (par transform-clauses new-bound-names)
-                             (if (= opr :fn)
-                               (apply list pattern v asserts)
-                               (apply list pattern asserts)))))
+   (let [free-names (set/difference (get-maybe-free-names expr)
+                                    bound-names)
+         [opr pattern & r] expr
+         [v & asserts] (if (= opr :fn)
+                         r
+                         (cons nil r)   ; :set has no return value
+                         )
+         asserts (reorder-assertions asserts
+                                     (if (name? pattern)
+                                       (set/difference free-names #{pattern})
+                                       free-names))
+         bound-names (set/union bound-names free-names)
+
+         expr
+         (apply make-op opr (map (par reorder-assertions-recursively bound-names)
+                                 (if (= opr :fn)
+                                   (apply list pattern v asserts)
+                                   (apply list pattern asserts))))]
+     (vary-meta expr assoc :free-names free-names))
 
    op?
-   (let [expr (map (par transform-clauses bound-names) expr)]
-     (set-all-names expr))
+   (apply make-op
+    (map (par reorder-assertions-recursively bound-names)
+         expr))
 
    expr))
+;;; ---------------------------------------------------------------------------
