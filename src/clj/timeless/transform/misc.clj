@@ -4,17 +4,16 @@
             [timeless.transform.clause :refer [transform-clauses]]))
 
 (defn transform-names
-  "Convert (:name <name str>) to a symbol, make a gensym for an underscore, and tag the expression with the set of all names within the expression except those in comprehensions."
+  "Convert (:name <name str>) to a symbol and make a gensym for an underscore."
   [expr]
   (condf expr
    (par op-isa? :name)
-   (let [nam (symbol (second expr))]
-     (set-maybe-free-names nam))
+   (symbol (second expr))
 
    (par = '_)
-   (new-name)                           ; also sets :maybe-free-names tag
+   (new-name)
 
-   (set-maybe-free-names expr)))
+   expr))
 
 (defn transform-nested-ops
   [expr]

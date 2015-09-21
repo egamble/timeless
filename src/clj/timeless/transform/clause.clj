@@ -56,13 +56,11 @@
 
 ;;; ---------------------------------------------------------------------------
 (defn normalize-clause
-  "Ensure the clause pattern is a name (free or bound) or an atomic constant."
+  "Make the clause pattern a new name."
   [[pattern asserts]]
-  (if (op? pattern)
-    (let [nam (new-name)]
-      [nam (cons (make-= nam pattern)
-                 asserts)])
-    [pattern asserts]))
+  (let [nam (new-name)]
+    [nam (cons (make-= nam pattern)
+               asserts)]))
 ;;; ---------------------------------------------------------------------------
 
 ;;; ---------------------------------------------------------------------------
@@ -74,7 +72,7 @@
   (op-isa? #{:seq :tup (symbol ":") '++} expr))
 
 (defn decompose-assertion
-  "See the description of decompose-assertions.
+  "Decompose assertions so that any equality op containing a destructuring operator consists of the destructuring op on the left side, containing only free names, and a single name or an atomic literal on the right side.
   Returns a list of assertions."
   [assert]
   (if (op-isa? '= assert)
@@ -89,10 +87,8 @@
                                                   (make-= nam b))))
               ;; right side is not an op; now pull out any ops from the left-side destructuring op into separate assertions
               (let [f (fn [expr]
-                        (if (op? expr)
-                          (let [nam (new-name)]
-                            [nam (decompose-assertion (make-= nam expr))])
-                          [expr '()]))
+                        (let [nam (new-name)]
+                          [nam (decompose-assertion (make-= nam expr))]))
                     r (map f (rest a))]
                 (cons (make-= (apply make-op (first a) (map first r))
                               b)
@@ -214,18 +210,16 @@
                                        (set/difference free-names #{pattern})
                                        free-names))
          bound-names (set/union bound-names free-names)
-
-         expr
-         (apply make-op opr (map (par reorder-assertions-recursively bound-names)
-                                 (if (= opr :fn)
-                                   (apply list pattern v asserts)
-                                   (apply list pattern asserts))))]
-     (set-free-names expr free-names))
+         asserts (map (par reorder-assertions-recursively bound-names)
+                      asserts)]
+     (apply make-op opr pattern (if (= opr :fn)
+                                  (cons v asserts)
+                                  asserts)))
 
    op?
    (apply make-op
-    (map (par reorder-assertions-recursively bound-names)
-         expr))
+          (map (par reorder-assertions-recursively bound-names)
+               expr))
 
    expr))
 ;;; ---------------------------------------------------------------------------

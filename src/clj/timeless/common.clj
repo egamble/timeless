@@ -75,44 +75,29 @@
   (or (name? expr) (op? expr)))
 
 (defn get-maybe-free-names
-  [expr]
-  (:maybe-free-names (meta expr)))
-
-(defn collect-maybe-free-names
   "Collect all names except those in contained comprehensions."
-  [exprs]
-  (reduce (fn [name-set expr]
-            (if (op-isa? #{:fn :set} expr)
-              name-set
-              (set/union name-set (get-maybe-free-names expr))) )
-          #{}
-          exprs))
+  [expr]
+  (condf expr
+   op? 
+   (reduce (fn [name-set sub-expr]
+             (if (op-isa? #{:fn :set} sub-expr)
+               name-set
+               (set/union name-set (get-maybe-free-names sub-expr))) )
+           #{}
+           expr)
 
-(defn set-maybe-free-names
-  ([expr]
-   (condf expr
-          name? (set-maybe-free-names expr #{expr})
-          op? (set-maybe-free-names expr (collect-maybe-free-names expr))
-          expr))
-  ([expr name-set]
-   (vary-meta expr assoc :maybe-free-names name-set)))
+   name? #{expr}
+
+   nil))
 
 (defn new-name
   []
-  (set-maybe-free-names (gensym "__")))
+  (gensym "__"))
 
 (defn make-op
   [opr & exprs]
-  (set-maybe-free-names (apply list (set-maybe-free-names opr) exprs)))
+  (apply list opr exprs))
 
 (defn make-=
   [a b]
-  (make-op '= a b))
-
-(defn get-free-names
-  [expr]
-  (:free-names (meta expr)))
-
-(defn set-free-names
-  [expr name-set]
-  (vary-meta expr assoc :free-names name-set))
+  (make-op' '= a b))
