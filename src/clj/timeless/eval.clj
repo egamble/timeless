@@ -7,11 +7,17 @@
 
 (declare eval-expr)
 
+(defn all-n-splits*
+  [s n]
+  )
+
 (defn all-n-splits
   [v n]
   (if (string? v)
-    nil
-    nil))
+    (map #(map (par apply str) %)
+         (all-n-splits* (seq v) n))
+    (map #(map (par cons :seq) %)
+         (all-n-splits* (rest v) n))))
 
 (defn get-pattern-contexts
   "Returns one context (in a list for mapcatting) for v if pattern is a name, or a cons, :seq, or :tup op.
