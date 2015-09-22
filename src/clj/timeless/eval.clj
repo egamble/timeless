@@ -2,12 +2,68 @@
   "Eval the S-expression form of Timeless expressions."
   (:require [timeless.common :refer :all]))
 
+;; In most cases where an expression can't be evaluated, fail by returning nil rather than throwing an error,
+;; because the failure could be an implicit type failure that is an intentional part of the program control flow.
+
 (declare eval-expr)
+
+(defn all-n-splits
+  [v n]
+  (if (string? v)
+    nil
+    nil))
+
+(defn get-pattern-contexts
+  "Returns one context (in a list for mapcatting) for v if pattern is a name, or a cons, :seq, or :tup op.
+  Returns a list of contexts for each split of v if pattern is a '++ op."
+  [pattern v context]
+  (if (name? pattern)
+    (list (assoc context pattern v))
+
+    ;; must be destructuring op
+    (let [[opr & names] pattern
+          n (count names)
+          k (dec n)]
+      (if (= opr cons-op)
+        (if (and (op-isa? :seq v)
+                 (>= (count (rest v)) k))
+          (list (merge context
+                       (zipmap names (concat (take k (rest v))
+                                             (list (apply make-op :seq (drop k (rest v))))))))
+          '())
+        (case opr
+          (:seq :tup) (if (and (op-isa? opr v)
+                               (= (count (rest v)) n))
+                        (list (merge context (zipmap names (rest v))))
+                        '())
+          '++ (if (or (string? v)
+                      (op-isa? :seq v))
+                (map #(merge context (zipmap names %))
+                     (all-n-splits v (count names)))
+                '()))))))
+
+(defn get-assignment-contexts
+  [assignment context]
+  (let [[_ a b] assignment
+        v (eval-expr b context)]
+    (if (op-isa? :multi v)
+      (mapcat #(get-pattern-contexts a % context) (rest v))
+      (get-pattern-contexts a v context))))
 
 (defn eval-asserts
   [v asserts context]
   (if (seq asserts)
-    
+    (let [[assert & r] asserts]
+      (if (op-isa? := assert)
+        (let [contexts (get-assignment-contexts assert context)
+              vs (map #(eval-asserts v r %) contexts)
+              vs (remove nil? vs)]
+          (when (seq vs)
+            (if (second vs)
+              (cons :multi vs)
+              (first vs))))
+        (when (eval-expr assert context)
+          (eval-asserts v r context))))
     (eval-expr v context)))
 
 (declare eval-apply)
@@ -28,12 +84,10 @@
 (defn concat-seqs
   [& seqs]
   (if (some string? seqs)
-    (if (every? string? seqs)
-      (apply str seqs)
-      (error "can only concat strings with other strings"))
-    (if (every? (par op-isa? :seq) seqs)
-      (apply make-op :seq (mapcat rest seqs))
-      (error "can only concat sequences"))))
+    (when (every? string? seqs) ; fail if string is concatenated with non-string
+      (apply str seqs))
+    (if (every? (par op-isa? :seq) seqs) ; fail if seq is concatenated with non-seq
+      (apply make-op :seq (mapcat rest seqs)))))
 
 ;; TODO refactor
 (defn eval-apply
@@ -77,7 +131,8 @@
       expr
 
       :else
-      (error "can't apply"))))
+      nil ; fail if impossible to apply
+      )))
 
 (defn eval-expr
   ([expr]

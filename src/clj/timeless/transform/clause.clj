@@ -40,7 +40,7 @@
         (op? pattern)
         ;; pattern is an op, so recursively search for embedded assertions
         (let [r (map extract-embedded-assertions* pattern)
-              pattern (set-maybe-free-names (map first r))
+              pattern (map first r)
               new-asserts (mapcat second r)]
           [pattern new-asserts])
 
@@ -48,7 +48,7 @@
 
 (defn extract-embedded-assertions
   "Extract embedded assertions from a clause pattern."
-  [[pattern asserts]]
+  [pattern asserts]
   (let [[pattern new-asserts] (extract-embedded-assertions* pattern)
         asserts (concat new-asserts asserts)]
     [pattern asserts]))
@@ -57,7 +57,7 @@
 ;;; ---------------------------------------------------------------------------
 (defn normalize-clause
   "Make the clause pattern a new name."
-  [[pattern asserts]]
+  [pattern asserts]
   (let [nam (new-name)]
     [nam (cons (make-= nam pattern)
                asserts)]))
@@ -107,9 +107,8 @@
   "Decompose the equality assertions (of clause) that contain destructuring ops,
   so that destructuring ops don't contain ops, and the other side is also not an op.
   The destructuring operators are :seq, :tup, :, and ++."
-  [[pattern asserts]]
-  (let [asserts (mapcat decompose-assertion asserts)]
-    [pattern asserts]))
+  [asserts]
+  (mapcat decompose-assertion asserts))
 ;;; ---------------------------------------------------------------------------
 
 ;;; ---------------------------------------------------------------------------
@@ -123,14 +122,12 @@
                      r
                      [nil (first r)]    ; :set has no return value
                      )
-         [pattern asserts]
-         (-> [pattern (split-assertions guard)]
-             (extract-embedded-assertions)
-             (normalize-clause)
-             (decompose-assertions))]
+         [pattern asserts] (extract-embedded-assertions pattern (split-assertions guard))
+         [nam asserts] (normalize-clause pattern asserts)
+         asserts (decompose-assertions asserts)]
      (apply make-op opr (if (= opr :fn)
-                          (apply list pattern v asserts)
-                          (apply list pattern asserts))))
+                          (apply list nam v asserts)
+                          (apply list nam asserts))))
    expr))
 ;;; ---------------------------------------------------------------------------
 
@@ -200,21 +197,19 @@
    (par op-isa? #{:fn :set})
    (let [free-names (set/difference (get-maybe-free-names expr)
                                     bound-names)
-         [opr pattern & r] expr
+         [opr nam & r] expr
          [v & asserts] (if (= opr :fn)
                          r
                          (cons nil r)   ; :set has no return value
                          )
          asserts (reorder-assertions asserts
-                                     (if (name? pattern)
-                                       (set/difference free-names #{pattern})
-                                       free-names))
+                                     (set/difference free-names #{nam}))
          bound-names (set/union bound-names free-names)
          asserts (map (par reorder-assertions-recursively bound-names)
                       asserts)]
-     (apply make-op opr pattern (if (= opr :fn)
-                                  (cons v asserts)
-                                  asserts)))
+     (apply make-op opr nam (if (= opr :fn)
+                              (cons v asserts)
+                              asserts)))
 
    op?
    (apply make-op

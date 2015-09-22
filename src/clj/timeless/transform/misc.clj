@@ -4,7 +4,7 @@
             [timeless.transform.clause :refer [transform-clauses]]))
 
 (defn transform-names
-  "Convert (:name <name str>) to a symbol and make a gensym for an underscore."
+  "Convert (:name <name str>) to a symbol and make gensyms for underscores."
   [expr]
   (condf expr
    (par op-isa? :name)
@@ -25,9 +25,9 @@
         (apply make-op opr1 (concat args2 args1))
         expr))
 
-    (op-isa-not-section? (symbol ":") expr)         ; right associative
+    (op-isa-not-section? cons-op expr)         ; right associative
     (let [[opr1 & args1] expr]
-      (if (op-isa-not-section? (symbol ":") (last args1))
+      (if (op-isa-not-section? cons-op (last args1))
         (let [[opr2 & args2] (last args1)]
           (apply make-op opr1 (concat (butlast args1) args2)))
         expr))

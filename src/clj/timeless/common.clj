@@ -40,9 +40,11 @@
   [msg]
   (throw (Exception. msg)))
 
+(def cons-op (symbol ":"))
+
 (def predefined
   #{'Obj 'Num 'Int 'Bool 'Char 'Str 'Set 'Seq 'Fn
-    '* '/ '+ '- (symbol ":") '++ '∩ '∪ '= '≠ '< '> '≤ '≥ '∈ '∉ '⊂ '∧ '∨
+    '* '/ '+ '- cons-op '++ '∩ '∪ '= '≠ '< '> '≤ '≥ '∈ '∉ '⊂ '∧ '∨
     'Dom 'Img 'card 'charInt 'stdin
     'true 'false '∞})
 
@@ -100,4 +102,4 @@
 
 (defn make-=
   [a b]
-  (make-op' '= a b))
+  (make-op '= a b))
