@@ -7,30 +7,23 @@
 
 (declare eval-expr)
 
+;; This isn't actually lazy, but it won't matter until the rest of the interpreter is lazy.
 (defn splits
   [n coll]
   (if (= n 1)
     (list (list coll))
-    (let [[x & xs] coll]
-      (concat (for [ss (splits (dec n) coll)]
-                (cons '() ss))
-              (when-let [[x & xs] coll]
-                (concat
-                 (for [ys (splits (dec n) xs)]
-                   (cons (list x) ys))
-                 (for [[y & ys] (splits n xs)]
-                   (cons (cons x y) ys))))))))
+    (concat (for [ss (splits (dec n) coll)]
+              (cons '() ss))
+            (when (seq coll)
+              (let [x (first coll)]
+                (for [[s & ss] (splits n (rest coll))]
+                  (cons (cons x s) ss)))))))
 
-#_(defn splits
-  [n s]
-  (cond (= n 1) (list (list s))
-        (= n 2) (if (empty? s)
-                  (list '() '())
-                  (list ))
-        :else (mapcat (fn [[s1 s2]]
-                        (for [xs (splits (dec n) s2)]
-                          (cons s1 xs)))
-                      (splits 2 s))))
+;; An ordering over all the tuples of monotonically increasing indices, where the max of indices is mx.
+;; Takes such a tuple and returns the next one.
+;; Increment the leftmost possible index, i.e. the leftmost index such that it's less than the index to its right.
+(defn inc-split-indices [indices n mx]
+  )
 
 (defn splits-str-or-seq
   [n v]
