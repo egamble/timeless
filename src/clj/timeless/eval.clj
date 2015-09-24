@@ -7,17 +7,38 @@
 
 (declare eval-expr)
 
-(defn all-n-splits*
-  [s n]
-  )
+(defn splits
+  [n coll]
+  (if (= n 1)
+    (list (list coll))
+    (let [[x & xs] coll]
+      (concat (for [ss (splits (dec n) coll)]
+                (cons '() ss))
+              (when-let [[x & xs] coll]
+                (concat
+                 (for [ys (splits (dec n) xs)]
+                   (cons (list x) ys))
+                 (for [[y & ys] (splits n xs)]
+                   (cons (cons x y) ys))))))))
 
-(defn all-n-splits
-  [v n]
+#_(defn splits
+  [n s]
+  (cond (= n 1) (list (list s))
+        (= n 2) (if (empty? s)
+                  (list '() '())
+                  (list ))
+        :else (mapcat (fn [[s1 s2]]
+                        (for [xs (splits (dec n) s2)]
+                          (cons s1 xs)))
+                      (splits 2 s))))
+
+(defn splits-str-or-seq
+  [n v]
   (if (string? v)
     (map #(map (par apply str) %)
-         (all-n-splits* (seq v) n))
+         (splits n (seq v)))
     (map #(map (par cons :seq) %)
-         (all-n-splits* (rest v) n))))
+         (splits n (rest v)))))
 
 (defn get-pattern-contexts
   "Returns one context (in a list for mapcatting) for v if pattern is a name, or a cons, :seq, or :tup op.
@@ -45,7 +66,7 @@
           '++ (if (or (string? v)
                       (op-isa? :seq v))
                 (map #(merge context (zipmap names %))
-                     (all-n-splits v (count names)))
+                     (splits-str-or-seq (count names) v))
                 '()))))))
 
 (defn get-assignment-contexts
