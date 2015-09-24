@@ -19,11 +19,17 @@
                 (for [[s & ss] (splits n (rest coll))]
                   (cons (cons x s) ss)))))))
 
-;; An ordering over all the tuples of monotonically increasing indices, where the max of indices is mx.
-;; Takes such a tuple and returns the next one.
-;; Increment the leftmost possible index, i.e. the leftmost index such that it's less than the index to its right.
-(defn inc-split-indices [indices n mx]
-  )
+(defn inc-indices
+  "An ordering over all the tuples of monotonically increasing indices, where the max of indices is mx.
+  Takes such a tuple and returns the next one."
+  [[i & is] mx]
+  (when (< i mx)
+    (if is
+      (if (= i (first is))
+        (when-let [is (inc-indices is mx)]
+          (cons 0 is))
+        (cons (inc i) is))
+      (list (inc i)))))
 
 (defn splits-str-or-seq
   [n v]
