@@ -19,14 +19,17 @@
                 (for [[s & ss] (splits n (rest coll))]
                   (cons (cons x s) ss)))))))
 
-(defn inc-indices
-  "An ordering over all the tuples of monotonically increasing indices, where the max of indices is mx.
-  Takes such a tuple and returns the next one."
-  [[i & is] mx]
-  (when (< i mx)
+(defn inc-split
+  "Creates an ordering over all the tuples of monotonically increasing indices,
+  by taking such a tuple and returning the next one.
+  mx is the maximum index value. Eventually the interpreter may work with lazy sequences,
+  both in and out, in which case mx can be omitted. The ordering of tuples is chosen so that will work."
+  [[i & is] & [mx]]
+  (when (or (nil? mx)
+            (< i mx))
     (if is
       (if (= i (first is))
-        (when-let [is (inc-indices is mx)]
+        (when-let [is (inc-split is mx)]
           (cons 0 is))
         (cons (inc i) is))
       (list (inc i)))))
