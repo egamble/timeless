@@ -7,32 +7,17 @@
 
 (declare eval-expr)
 
-;; This isn't actually lazy, but it won't matter until the rest of the interpreter is lazy.
+;; This produces a lazy sequence of splits (into n pieces), even when coll is lazy and indefinitely long.
 (defn splits
   [n coll]
   (if (= n 1)
     (list (list coll))
-    (concat (for [ss (splits (dec n) coll)]
-              (cons '() ss))
-            (when (seq coll)
-              (let [x (first coll)]
-                (for [[s & ss] (splits n (rest coll))]
-                  (cons (cons x s) ss)))))))
-
-(defn inc-split
-  "Creates an ordering over all the tuples of monotonically increasing indices,
-  by taking such a tuple and returning the next one.
-  mx is the maximum index value. Eventually the interpreter may work with lazy sequences,
-  both in and out, in which case mx can be omitted. The ordering of tuples is chosen so that will work."
-  [[i & is] & [mx]]
-  (when (or (nil? mx)
-            (< i mx))
-    (if is
-      (if (= i (first is))
-        (when-let [is (inc-split is mx)]
-          (cons 0 is))
-        (cons (inc i) is))
-      (list (inc i)))))
+    (lazy-cat (for [ss (splits (dec n) coll)]
+                (cons '() ss))
+              (when (seq coll)
+                (let [x (first coll)]
+                  (for [[s & ss] (splits n (rest coll))]
+                    (cons (cons x s) ss)))))))
 
 (defn splits-str-or-seq
   [n v]
