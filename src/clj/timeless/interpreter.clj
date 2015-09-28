@@ -4,7 +4,7 @@
             [timeless.transform
              [misc   :refer [transform-recursively]]
              [clause :refer [reorder-assertions-recursively]]]
-            [timeless.eval :refer [eval-expr]]
+            [timeless.eval :refer [eval']]
             [clojure.set :as set]))
 
 (defn read-top-level
@@ -46,6 +46,6 @@
   ([expr]
    (transform-and-eval expr {}))
   ([expr context]
-   (eval-expr (transform expr context) context)))
+   (eval' (transform expr context) context)))
 
 (def e transform-and-eval)

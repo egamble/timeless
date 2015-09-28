@@ -5,16 +5,12 @@
 
 ;;; ---------------------------------------------------------------------------
 (defn split-assertions
-  "The guard of a clause is split into a list of assertions."
-  [guard]
-  (cond (nil? guard)
-        '()
-
-        (op-isa? '∧ guard) ; multiple assertions; assumes nested ∧ ops have already been collapsed into one
-        (rest guard)
-
-        :else (list guard)           ; the guard is just one assertion
-        ))
+  "The guard of a clause is split into a list of assertions, if it isn't already."
+  [asserts]
+  (mapcat #(if (op-isa? '∧ %)
+             (rest %)
+             (list %))
+          asserts))
 ;;; ---------------------------------------------------------------------------
 
 ;;; ---------------------------------------------------------------------------
@@ -114,15 +110,16 @@
 ;;; ---------------------------------------------------------------------------
 (defn transform-clauses
   "Transforms :fn and :set clauses, except for reordering assertions which is done
-  in a second pass using the finalized :maybe-free-names tags."
+  in a second pass using the finalized :maybe-free-names tags.
+  The guard is split into assertions, if it isn't split already."
   [expr]
   (if (op-isa? #{:fn :set} expr)
    (let [[opr pattern & r] expr
-         [v guard] (if (= opr :fn)
-                     r
-                     [nil (first r)]    ; :set has no return value
-                     )
-         [pattern asserts] (extract-embedded-assertions pattern (split-assertions guard))
+         [v & asserts] (if (= opr :fn)
+                         r
+                         (cons nil r)             ; :set has no return value
+                         )
+         [pattern asserts] (extract-embedded-assertions pattern (split-assertions asserts))
          [nam asserts] (normalize-clause pattern asserts)
          asserts (decompose-assertions asserts)]
      (apply make-op opr (if (= opr :fn)

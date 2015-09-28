@@ -5,27 +5,25 @@
 ;; In most cases where an expression can't be evaluated, fail by returning nil rather than throwing an error,
 ;; because the failure could be an implicit type failure that is an intentional part of the program control flow.
 
-(declare eval-expr)
+(declare eval')
 
 ;; This produces a lazy sequence of splits (into n pieces), even when coll is lazy and indefinitely long.
-(defn splits
+(defn splits*
   [n coll]
   (if (= n 1)
     (list (list coll))
-    (lazy-cat (for [ss (splits (dec n) coll)]
+    (lazy-cat (for [ss (splits* (dec n) coll)]
                 (cons '() ss))
               (when (seq coll)
                 (let [x (first coll)]
-                  (for [[s & ss] (splits n (rest coll))]
+                  (for [[s & ss] (splits* n (rest coll))]
                     (cons (cons x s) ss)))))))
 
-(defn splits-str-or-seq
+(defn splits
   [n v]
-  (if (string? v)
-    (map #(map (par apply str) %)
-         (splits n (seq v)))
-    (map #(map (par cons :seq) %)
-         (splits n (rest v)))))
+  (for [ss (splits* n (rest v))]
+    (for [s ss]
+      (cons :seq s))))
 
 (defn get-pattern-contexts
   "Returns one context (in a list for mapcatting) for v if pattern is a name, or a cons, :seq, or :tup op.
@@ -38,7 +36,7 @@
     (let [[opr & names] pattern
           n (count names)
           k (dec n)]
-      (if (= opr cons-op)
+      (if (= :cons opr)
         (if (and (op-isa? :seq v)
                  (>= (count (rest v)) k))
           (list (merge context
@@ -50,16 +48,15 @@
                                (= (count (rest v)) n))
                         (list (merge context (zipmap names (rest v))))
                         '())
-          '++ (if (or (string? v)
-                      (op-isa? :seq v))
+          '++ (if (op-isa? :seq v)
                 (map #(merge context (zipmap names %))
-                     (splits-str-or-seq (count names) v))
+                     (splits (count names) v))
                 '()))))))
 
 (defn get-assignment-contexts
   [assignment context]
   (let [[_ a b] assignment
-        v (eval-expr b context)]
+        v (eval' b context)]
     (if (op-isa? :multi v)
       (mapcat #(get-pattern-contexts a % context) (rest v))
       (get-pattern-contexts a v context))))
@@ -73,69 +70,106 @@
               vs (map #(eval-asserts v r %) contexts)
               vs (remove nil? vs)]
           (when (seq vs)
-            (if (second vs)
+            (if (seq (rest vs))
               (cons :multi vs)
               (first vs))))
-        (when (eval-expr assert context)
+        (when (eval' assert context)
           (eval-asserts v r context))))
-    (eval-expr v context)))
+    (eval' v context)))
 
-(declare eval-apply)
+(declare apply')
 
-(defn eval-fn
+(defn apply-fn
   [[clause & args] context]
-  (if (second args)
+  (if (seq (rest args))
     ;; repeated eval if multiple args
-    (eval-apply
+    (apply'
      (apply make-op
-            (eval-fn (make-op clause (first args))
-                     context)
+            (apply-fn (make-op clause (first args))
+                      context)
             (rest args))
      context)
     (let [[_ nam v & asserts] clause]
       (eval-asserts v asserts (assoc context nam (first args))))))
 
-(defn concat-seqs
-  [& seqs]
-  (if (some string? seqs)
-    (when (every? string? seqs) ; fail if string is concatenated with non-string
-      (apply str seqs))
-    (if (every? (par op-isa? :seq) seqs) ; fail if seq is concatenated with non-seq
-      (apply make-op :seq (mapcat rest seqs)))))
+(defn seq-str?
+  [s]
+  (boolean ; coerce nil to false so result can be equality tested
+   (when (char? (second s))
+     (every? char? (rest s)))))
 
-;; TODO refactor
-(defn eval-apply
+(defn cons'
+  [x y & xs]
+  (if (seq xs)
+    (cons' x (apply cons' y xs))
+    (when (and (op-isa? :seq y) ; fail if y isn't a seq
+               (or (not (seq-str? y)) ; fail if y is a string and x isn't a char
+                   (char? x)))
+      (apply make-op :seq x (rest y)))))
+
+(defn concat'
+  [s1 s2 & ss]
+  ;; fail if either arg is not a seq
+  (when (and (op-isa? :seq s1)
+             (op-isa? :seq s2))
+    (let [cat
+          ;; fail if string is concatenated with non-string
+          (when (= (seq-str? s1)
+                   (seq-str? s2))
+            (apply make-op :seq (concat (rest s1) (rest s2))))]
+      (when cat
+        (if (seq ss)
+          (apply concat' cat ss)
+          cat)))))
+
+(defn bool?
+  [x]
+  (or (true? x) (false? x)))
+
+(defn and'
+  [& xs]
+  (when (every? bool? xs) ; fail if not all booleans
+    (every? true? xs)))
+
+(defn or'
+  [& xs]
+  (when (every? bool? xs) ; fail if not all booleans
+    (boolean (some true? xs))))
+
+(defn apply'
   [expr context]
-  (let [[opr & args] expr]
+  (let [[opr & args] expr
+        ]
     (cond
       (op-isa? :fn opr)
-      (eval-fn expr context)
+      (apply-fn expr context)
 
       (op-isa? '∪ opr)
-      (some #(eval-apply (apply make-op % args)
-                         context)
+      (some #(apply' (apply make-op % args)
+                     context)
             (rest opr))
 
-      (op-isa? #{'+ '- '* '/ '++} opr)
-      ;; must be a section
-      (eval-apply (apply make-op (concat opr args))
-                  context)
+      (op-isa? predefined-ops opr)
+      ;; must be a section, otherwise opr would already be eval'ed
+      (apply' (apply make-op (concat opr args))
+              context)
 
-      (#{'+ '- '* '/ '++} opr)
-      (if (second args) ; if not a section
-        (apply (case opr
-                 + +
-                 - -
-                 * *
-                 / /
-                 ++ concat-seqs
-                 )
-               args)
-        expr)
-
-      (= '* opr)
-      (if (second args) ; if not a section
-        (apply * args)
+      ;; TODO fail on type failure for arithmetic, boolean, and set ops rather than throwing error or silently succeeding
+      (predefined-ops opr)
+      (if (seq (rest args))                ; if not a section
+        (let [f 
+              (case opr
+                + +, - -, / /
+                :cons cons'
+                ++ concat'
+                = =, ≠ not=
+                < <, > >, ≤ <=, ≥ >=
+                ∧ and', ∨ or'
+                nil                ; TODO should never be nil
+                )]
+          (if f
+            (apply f args)
+            expr))
         expr)
 
       (= :neg opr)
@@ -148,33 +182,35 @@
       nil ; fail if impossible to apply
       )))
 
-(defn eval-expr
+(defn eval'
   ([expr]
-   (eval-expr expr {}))
+   (eval' expr {}))
   ([expr context]
    (condf expr
     (par op-isa? #{:fn :set})
     expr
 
-    (par op-isa? :seq)
-    (let [elts (map #(eval-expr % context)
-                    (rest expr))]
-      (if (every? char? elts)
-        (apply str elts)
-        (apply make-op :seq elts)))
+    (par op-isa? #{:seq :tup})
+    (apply make-op (map #(eval' % context) expr))
 
     op?
-    (eval-apply (apply make-op (map #(eval-expr % context) expr))
-                context)
+    (apply' (apply make-op (map #(eval' % context) expr))
+            context)
 
     name?
     (cond
       (context expr)
-      (eval-expr (context expr) context)
+      (eval' (context expr) context)
+
+      (= expr 'true) true
+      (= expr 'false) false
 
       (predefined expr)
       expr
 
       :else (error "undefined name"))
+
+    string?
+    (cons :seq expr)
 
     expr)))

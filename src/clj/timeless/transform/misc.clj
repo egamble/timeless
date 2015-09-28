@@ -25,9 +25,9 @@
         (apply make-op opr1 (concat args2 args1))
         expr))
 
-    (op-isa-not-section? cons-op expr)         ; right associative
+    (op-isa-not-section? :cons expr)         ; right associative
     (let [[opr1 & args1] expr]
-      (if (op-isa-not-section? cons-op (last args1))
+      (if (op-isa-not-section? :cons (last args1))
         (let [[opr2 & args2] (last args1)]
           (apply make-op opr1 (concat (butlast args1) args2)))
         expr))

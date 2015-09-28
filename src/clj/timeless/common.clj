@@ -40,13 +40,15 @@
   [msg]
   (throw (Exception. msg)))
 
-(def cons-op (symbol ":"))
+(def predefined-ops
+  #{'* '/ '+ '- :cons '++ '∩ '∪ '= '≠ '< '> '≤ '≥ '∈ '∉ '⊂ '∧ '∨})
 
 (def predefined
-  #{'Obj 'Num 'Int 'Bool 'Char 'Str 'Set 'Seq 'Fn
-    '* '/ '+ '- cons-op '++ '∩ '∪ '= '≠ '< '> '≤ '≥ '∈ '∉ '⊂ '∧ '∨
-    'Dom 'Img 'card 'charInt 'stdin
-    'true 'false '∞})
+  (set/union
+   predefined-ops
+   #{'Obj 'Num 'Int 'Bool 'Char 'Str 'Set 'Seq 'Fn 'Dom 'Img
+     'card 'charInt 'stdin
+     'true 'false '∞}))
 
 (def op?
   "Is an expr an operation, rather than a name, an atomic constant, or nil (for an empty guard or the value of a :set_ clause)?"
@@ -63,18 +65,14 @@
 (defn op-not-section?
   [expr]
   (and (op? expr)
-       (second (rest expr))))
+       (seq (rest (rest expr)))))
 
 (defn op-isa-not-section?
   [op-name expr]
   (and (op-isa? op-name expr)
-       (second (rest expr))))
+       (seq (rest (rest expr)))))
 
 (def name? symbol?)
-
-(defn taggable?
-  [expr]
-  (or (name? expr) (op? expr)))
 
 (defn get-maybe-free-names
   "Collect all names except those in contained comprehensions."
