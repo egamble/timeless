@@ -154,7 +154,7 @@
       (apply' (apply make-op (concat opr args))
               context)
 
-      ;; TODO fail on type failure for arithmetic, boolean, and set ops rather than throwing error or silently succeeding
+      ;; TODO fail on type failure for arithmetic and set ops rather than throwing error
       (predefined-ops opr)
       (if (seq (rest args))                ; if not a section
         (let [f 
