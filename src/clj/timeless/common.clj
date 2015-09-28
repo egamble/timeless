@@ -94,9 +94,7 @@
   []
   (gensym "__"))
 
-(defn make-op
-  [opr & exprs]
-  (apply list opr exprs))
+(def make-op list)
 
 (defn make-=
   [a b]

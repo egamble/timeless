@@ -36,22 +36,18 @@
     (let [[opr & names] pattern
           n (count names)
           k (dec n)]
-      (if (= :cons opr)
-        (if (and (op-isa? :seq v)
-                 (>= (count (rest v)) k))
-          (list (merge context
-                       (zipmap names (concat (take k (rest v))
-                                             (list (apply make-op :seq (drop k (rest v))))))))
-          '())
-        (case opr
-          (:seq :tup) (if (and (op-isa? opr v)
+      (case opr
+        '++ (when (op-isa? :seq v)
+              (map #(merge context (zipmap names %))
+                   (splits (count names) v)))
+        :cons (when (and (op-isa? :seq v)
+                         (>= (count (rest v)) k))
+                (list (merge context
+                             (zipmap names (concat (take k (rest v))
+                                                   (list (apply make-op :seq (drop k (rest v)))))))))
+        (:seq :tup) (when (and (op-isa? opr v)
                                (= (count (rest v)) n))
-                        (list (merge context (zipmap names (rest v))))
-                        '())
-          '++ (if (op-isa? :seq v)
-                (map #(merge context (zipmap names %))
-                     (splits (count names) v))
-                '()))))))
+                      (list (merge context (zipmap names (rest v)))))))))
 
 (defn get-assignment-contexts
   [assignment context]
@@ -151,7 +147,7 @@
 
       (op-isa? predefined-ops opr)
       ;; opr must be a section, otherwise it would already be eval'ed
-      (apply' (apply make-op (concat opr args))
+      (apply' (concat opr args)
               context)
 
       ;; TODO fail on type failure for arithmetic and set ops rather than throwing error
