@@ -150,7 +150,7 @@
             (rest opr))
 
       (op-isa? predefined-ops opr)
-      ;; must be a section, otherwise opr would already be eval'ed
+      ;; opr must be a section, otherwise it would already be eval'ed
       (apply' (apply make-op (concat opr args))
               context)
 
