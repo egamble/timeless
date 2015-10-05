@@ -12,11 +12,10 @@
 
 (= Token (∪ Symbol Paren_str))
 
-(= lex
+(= lex_split_paren
    (∪ (:fn (:seq) (:seq))
       (:fn (:cons c cs)
-           ((∪ (:fn (∈ _ WS_char) r)
-               (:fn (∈ _ Paren_char) r')
+           ((∪ (:fn (∈ _ Paren_char) r')
                (:fn _ ((∪ (:fn (:seq) r')
                           (:fn (:cons s ss)
                                ((∪ (:fn (∈ _ Paren_str) r')
@@ -24,8 +23,10 @@
                                 s)))
                        r)))
             c)
-           (= r (lex cs))
+           (= r (lex_split_paren cs))
            (= r' (:cons (:cons c "") r)))))
+
+(= lex_split_ws)
 
 (= lex_check
    (∪ (:fn (:seq) (:seq))
