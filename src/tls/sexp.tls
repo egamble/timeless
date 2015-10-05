@@ -1,40 +1,40 @@
 ;; An S-expression lexer and parser
 
 (= WS_char (∪ (:set \space) (:set \tab) (:set \newline) (:set :nospace)))
-(= WS (:set (:cons (∈ _ WS_char) "")))
-
-(= Paren (∪ (:set "(") (:set ")")))
+(= Paren_char (∪ (:set \() (:set \))))
+(= Paren_str (:set (:cons (∈ _ Paren_char) "")))
 
 ;; TODO change range to (:name "..")
 (= Alpha_char (Img (++ (range \a \z) (range \A \Z))))
 (= Alphanum_char (∪ Alpha_char (Img (range \0 \9))))
-(= Alphanum (∪ (:set "") (:set (:cons (∈ _ Alphanum_char) (∈ _ Alphanum)))))
-(= Symbol (:set (:cons (∈ _ Alpha_char) (∈ _ Alphanum))))
+(= Alphanum_str (∪ (:set "") (:set (:cons (∈ _ Alphanum_char) (∈ _ Alphanum_str)))))
+(= Symbol (:set (:cons (∈ _ Alpha_char) (∈ _ Alphanum_str))))
+
+(= Token (∪ Symbol Paren_str))
 
 (= lex
-   (∪ (:fn (∈ _ WS) (:seq))
-      (:fn (∈ p Paren) (:seq p))
-      (:fn (++ (∈ sym Symbol) s)
-           ((∪ (:fn (∈ _ WS) (:seq sym))
-                (:fn (∈ p Paren) (:seq sym p)))
-            s))))
+   (∪ (:fn (:seq) (:seq))
+      (:fn (:cons c cs)
+           ((∪ (:fn (∈ _ WS_char) r)
+               (:fn (∈ _ Paren_char) r')
+               (:fn _ ((∪ (:fn (:seq) r')
+                          (:fn (:cons s ss)
+                               ((∪ (:fn (∈ _ Paren_str) r')
+                                   (:fn _ (:cons (:cons c s) ss)))
+                                s)))
+                       r)))
+            c)
+           (= r (lex cs))
+           (= r' (:cons (:cons c "") r)))))
 
-(= lex+
-   (∪ (:fn "" (:seq))
-      (:fn (++ (≠ s1 "") s2)
-           (++ (lex s1)
-               (lex+ s2)))))
+(= lex_check
+   (∪ (:fn (:seq) (:seq))
+      (:fn (:cons (∈ s Token) ss) (:cons s (lex_check ss)))))
 
 (= parse
-   (∪ (:fn (:seq (∉ sym Paren)) (:seq sym))
-      (:fn (++ (:seq "(") body (:seq ")"))
-           (:seq (:seq (parse+ body))))))
-
-(= parse+
    (∪ (:fn (:seq) (:seq))
-      (:fn (++ (≠ s1 (:seq)) s2)
-           (++ (parse s1)
-               (parse+ s2)))))
+      (:fn (:cons (∉ s Paren_str) ss) (:cons s (parse ss)))
+      (:fn (++ (:seq "(") body (:seq ")") ss)
+           (:cons (:seq (parse body)) (parse ss)))))
 
-(= lexparse
-   (∘ parse+ lex+))
+(= lex_parse (∘ parse lex_check lex))

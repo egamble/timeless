@@ -7,6 +7,8 @@
 ;; Throw an error when the evaluation could never succeed, e.g. when the expression is an unbound name.
 ;; Also throw an error when the interpreter doesn't yet know how to evaluate the expression.
 
+;; TODO: Figure out when eval results can be cached. Should they be only cached in context maps?
+
 (declare eval')
 
 ;; This produces a lazy sequence of splits (into n pieces), even when coll is lazy and indefinitely long.
