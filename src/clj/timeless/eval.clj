@@ -2,8 +2,10 @@
   "Eval the S-expression form of Timeless expressions."
   (:require [timeless.common :refer :all]))
 
-;; In most cases where an expression can't be evaluated, fail by returning nil rather than throwing an error,
+;; In most cases where an expression can't be evaluated, fail by returning nil rather than throw an error,
 ;; because the failure could be an implicit type failure that is an intentional part of the program control flow.
+;; Throw an error when the evaluation could never succeed, e.g. when the expression is an unbound name.
+;; Also throw an error when the interpreter doesn't yet know how to evaluate the expression.
 
 (declare eval')
 
@@ -75,21 +77,19 @@
 
 (declare apply')
 
-(defn apply-fn
+(defn apply-fn-clause
   [[clause & args] context]
   (if (seq (rest args))
     ;; repeated eval if multiple args
     (apply'
      (apply make-op
-            (apply-fn (make-op clause (first args))
-                      context)
-            (rest args))
-     context)
+            (apply-fn-clause (make-op clause (first args))
+                             context)
+            (rest args)))
     (let [[_ nam v & asserts] clause]
       (eval-asserts v asserts (assoc context nam (first args))))))
 
-(defn seq-str?
-  [s]
+(defn seq-str? [s]
   (boolean ; coerce nil to false so result can be equality tested
    (when (char? (second s))
      (every? char? (rest s)))))
@@ -118,80 +118,133 @@
           (apply concat' cat ss)
           cat)))))
 
-(defn bool?
-  [x]
+(defn bool? [x]
   (or (true? x) (false? x)))
 
-(defn and'
-  [& xs]
+(defn and' [& xs]
   (when (every? bool? xs) ; fail if not all booleans
     (every? true? xs)))
 
-(defn or'
-  [& xs]
+(defn or' [& xs]
   (when (every? bool? xs) ; fail if not all booleans
     (boolean (some true? xs))))
 
+(defn member?
+  [x S]
+  (let [efn #(error (str "Can't check member of: " S))]
+    (if (op? S)
+      (let [[opr & ys] S]
+        (cond
+          (= :set opr)
+          (let [[_ nam & asserts] S]
+            (boolean
+             (eval-asserts true asserts (assoc (:context (meta S))
+                                               nam x))))
+
+          (= '∩ opr) (every? (par member? x) ys)
+          (= '∪ opr) (boolean (some (par member? x) ys))
+
+          (and (= 'Img opr)
+               (op-isa? :seq (first ys)))
+          (boolean (some #{x} (rest (first ys))))
+
+          :else (efn)))
+
+      ;; so S is not itself an op
+      (condp = S
+        'Int (or (integer? x) (= '∞ x)) ; TODO: check doubles too
+        'Char (char? x)
+        (efn)))))
+
+(defn not-member?
+  [x S]
+  (let [v (member? x S)]
+    (when (bool? v)
+      (not v))))
+
+(defn intChar [x]
+  (when (integer? x) ; TODO: check doubles too
+    (char x)))
+
+(defn charInt [x]
+  (when (char? x)
+    (int x)))
+
 (defn apply'
-  [expr context]
-  (let [[opr & args] expr
-        ]
-    (cond
-      (op-isa? :fn opr)
-      (apply-fn expr context)
+  [expr]
+  (let [[opr & r] expr
+        [x & xs] r
+        efn #(error (str "Can't apply: " opr))]
+    (if (op? opr)
+      (let [[opr' & r'] opr]
+        (cond
+          (= :fn opr')
+          (apply-fn-clause expr (:context (meta opr)))
 
-      (op-isa? '∪ opr)
-      (some #(apply' (apply make-op % args)
-                     context)
-            (rest opr))
+          (= '∪ opr')
+          (when-let [v (some #(apply' (make-op % x))
+                             r')]
+            (if (seq xs)
+              (apply' (apply make-op v xs))
+              v))
 
-      (op-isa? predefined-ops opr)
-      ;; opr must be a section, otherwise it would already be eval'ed
-      (apply' (concat opr args)
-              context)
+          (= :right opr')
+          (apply' (apply make-op (first r') x (second r') xs))
 
-      ;; TODO fail on type failure for arithmetic and set ops rather than throwing error
-      (predefined-ops opr)
-      (if (seq (rest args))                ; if not a section
-        (let [f 
-              (case opr
-                + +, - -, / /
-                :cons cons'
-                ++ concat'
-                = =, ≠ not=
-                < <, > >, ≤ <=, ≥ >=
-                ∧ and', ∨ or'
-                nil                ; TODO should never be nil
-                )]
-          (if f
-            (apply f args)
-            expr))
-        expr)
+          (predefined-ops opr')
+          ;; opr must be a section, otherwise it would already be eval'ed
+          (apply' (concat opr r))
 
-      (= :neg opr)
-      (- (first args))
+          :else (efn)))
 
-      (predefined opr)
-      expr
+      ;; so opr is not itself an op
+      (cond
+        (predefined-ops opr)
+        (if (and (seq xs)
+                 (not (#{'∩ '∪} opr)))
+          
+          ;; so not a section or ∩ ∪
+          (let [n? (fn [g]
+                     (fn [& ys]
+                       (when (every? number? ys) ; fail if args aren't numbers
+                         (apply g ys))))
+                f (case opr
+                    = =, ≠ not=
+                    :cons cons'
+                    ++ concat'
+                    + (n? +), - (n? -)
+                    * (n? *), / (n? /)
+                    < (n? <), > (n? >)
+                    ≤ (n? <=), ≥ (n? >=)
+                    ∧ and', ∨ or'
+                    ∈ member? ∉ not-member?
+                    (efn))]
+            (apply f r))
 
-      :else
-      nil ; fail if impossible to apply
-      )))
+          expr)
+
+        (= :neg opr) (- x)
+
+        (= 'intChar opr) (intChar x)
+        (= 'charInt opr) (charInt x)
+
+        (predefined opr) expr
+
+        :else (efn)))))
 
 (defn eval'
   ([expr]
    (eval' expr {}))
+
   ([expr context]
    (condf expr
     (par op-isa? #{:fn :set})
-    expr
+    (with-meta expr {:context context})
 
     (par op-isa? #{:seq :tup})
     (apply make-op (map #(eval' % context) expr))
 
-    op?
-    (apply' (apply make-op (map #(eval' % context) expr))
-            context)
+    op? (apply' (apply make-op (map #(eval' % context) expr)))
 
     name?
     (cond
@@ -204,9 +257,10 @@
       (predefined expr)
       expr
 
-      :else (error "undefined name"))
+      :else (error (str "Undefined name: " expr)))
 
-    string?
-    (cons :seq expr)
+    string? (cons :seq expr)
+
+    (par = :nospace) \u200B
 
     expr)))

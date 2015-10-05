@@ -1,0 +1,40 @@
+;; An S-expression lexer and parser
+
+(= WS_char (∪ (:set \space) (:set \tab) (:set \newline) (:set :nospace)))
+(= WS (:set (:cons (∈ _ WS_char) "")))
+
+(= Paren (∪ (:set "(") (:set ")")))
+
+;; TODO change range to (:name "..")
+(= Alpha_char (Img (++ (range \a \z) (range \A \Z))))
+(= Alphanum_char (∪ Alpha_char (Img (range \0 \9))))
+(= Alphanum (∪ (:set "") (:set (:cons (∈ _ Alphanum_char) (∈ _ Alphanum)))))
+(= Symbol (:set (:cons (∈ _ Alpha_char) (∈ _ Alphanum))))
+
+(= lex
+   (∪ (:fn (∈ _ WS) (:seq))
+      (:fn (∈ p Paren) (:seq p))
+      (:fn (++ (∈ sym Symbol) s)
+           ((∪ (:fn (∈ _ WS) (:seq sym))
+                (:fn (∈ p Paren) (:seq sym p)))
+            s))))
+
+(= lex+
+   (∪ (:fn "" (:seq))
+      (:fn (++ (≠ s1 "") s2)
+           (++ (lex s1)
+               (lex+ s2)))))
+
+(= parse
+   (∪ (:fn (:seq (∉ sym Paren)) (:seq sym))
+      (:fn (++ (:seq "(") body (:seq ")"))
+           (:seq (:seq (parse+ body))))))
+
+(= parse+
+   (∪ (:fn (:seq) (:seq))
+      (:fn (++ (≠ s1 (:seq)) s2)
+           (++ (parse s1)
+               (parse+ s2)))))
+
+(= lexparse
+   (∘ parse+ lex+))

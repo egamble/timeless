@@ -1,0 +1,19 @@
+;; Library functions
+
+(= ∘ (:fn f (:fn g (:fn x (f (g x))))))
+
+(= inc (:fn x (+ x 1)))
+(= dec (:fn x (- x 1)))
+
+;; TODO: change the name to (:name "..")
+(= range
+ (∪ (:fn (∈ a Int)
+         (∪ (:fn a (:seq))
+            (:fn (∈ b Int)
+                 (:cons a (range (inc a) b))
+                 (< a b))))
+    (:fn (∈ c Char)
+         (∪ (:fn c "")
+            (:fn (∈ d Char)
+                 (:cons c (range (intChar (inc a)) d))
+                 (= a (charInt c)) (= b (charInt d)) (< a b))))))

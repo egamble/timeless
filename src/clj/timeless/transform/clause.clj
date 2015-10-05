@@ -185,7 +185,7 @@
                  (conj reordered-asserts assert)
                  (set/difference free-names (when (op-isa? := assert)
                                               (get-maybe-free-names (second assert)))))
-          (error "can't reorder assertions")))
+          (error "Can't reorder assertions")))
       (sequence reordered-asserts))))
 
 (defn reorder-assertions-recursively
@@ -201,12 +201,12 @@
                          )
          asserts (reorder-assertions asserts
                                      (set/difference free-names #{nam}))
-         bound-names (set/union bound-names free-names)
-         asserts (map (par reorder-assertions-recursively bound-names)
-                      asserts)]
-     (apply make-op opr nam (if (= opr :fn)
-                              (cons v asserts)
-                              asserts)))
+         bound-names (set/union bound-names free-names)]
+     (apply make-op opr nam
+            (map (par reorder-assertions-recursively bound-names)
+                 (if (= opr :fn)
+                   (cons v asserts)
+                   asserts))))
 
    op?
    (apply make-op
