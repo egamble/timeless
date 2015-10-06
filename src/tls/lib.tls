@@ -1,5 +1,6 @@
 ;; Library functions
 
+;; TODO: applying (∘ inc inc inc) produces error
 (= ∘ (:fn f (:fn g (:fn x (f (g x))))))
 
 (= inc (:fn x (+ x 1)))
@@ -17,3 +18,37 @@
             (:fn (∈ d Char)
                  (:cons c (range (intChar (inc a)) d))
                  (= a (charInt c)) (= b (charInt d)) (< a b))))))
+
+(= map
+   (:fn f
+        (∪ (:fn (:seq) (:seq))
+           (:fn (:cons x xs) (:cons (f x) (map f xs))))))
+
+(= filter
+   (:fn S
+        (∪ (:fn (:seq) (:seq))
+           (:fn (:cons x xs) (:cons x (filter S xs))
+                (∈ x S))
+           (:fn (:cons _ xs) (filter S xs)))))
+
+(= remove
+   (:fn S
+        (∪ (:fn (:seq) (:seq))
+           (:fn (:cons (∈ _ S) xs) (remove S xs))
+           (:fn (:cons x xs) (:cons x (remove S xs))))))
+
+;; TODO: doesn't work if x evaluates to false
+(= identity
+   (:fn x x))
+
+;; TODO: doesn't work if cond evals to false
+;; Experiment with this. Should this work in a non-strict language?
+;; Should it be predefined?
+;; If so, rewrite lex_split with if.
+(= if
+   (:fn cond
+        (:fn then
+             (:fn else
+                  ((∪ (:fn _ then cond)
+                      (:fn _ else))
+                   0)))))

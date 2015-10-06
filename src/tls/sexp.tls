@@ -1,36 +1,44 @@
 ;; An S-expression lexer and parser
 
-(= WS_char (∪ (:set \space) (:set \tab) (:set \newline) (:set :nospace)))
-(= Paren_char (∪ (:set \() (:set \))))
-(= Paren_str (:set (:cons (∈ _ Paren_char) "")))
+(= WS (∪ (:set \space) (:set \tab) (:set \newline) (:set :nospace)))
+(= Paren (∪ (:set \() (:set \))))
+(= Paren_str (:set (:cons (∈ _ Paren) "")))
 
 ;; TODO change range to (:name "..")
-(= Alpha_char (Img (++ (range \a \z) (range \A \Z))))
-(= Alphanum_char (∪ Alpha_char (Img (range \0 \9))))
-(= Alphanum_str (∪ (:set "") (:set (:cons (∈ _ Alphanum_char) (∈ _ Alphanum_str)))))
-(= Symbol (:set (:cons (∈ _ Alpha_char) (∈ _ Alphanum_str))))
+(= Alpha (Img (++ (range \a \z) (range \A \Z))))
+(= Alphanum (∪ Alpha_char (Img (range \0 \9))))
+(= Alphanum_str (∪ (:set "") (:set (:cons (∈ _ Alphanum) (∈ _ Alphanum_str)))))
+(= Symbol (:set (:cons (∈ _ Alpha) (∈ _ Alphanum_str))))
 
-(= Token (∪ Symbol Paren_str))
+(= lex_split
+   (:fn S
+        (∪ (:fn "" (:seq))
+           (:fn (:cons c cs)
+                ((∪ (:fn (∈ _ S) r')
+                    (:fn _ ((∪ (:fn (:seq) r')
+                               (:fn (:cons s ss)
+                                    ((∪ (:fn (∈ _ S) r')
+                                        (:fn _ (:cons (:cons c s) ss)))
+                                     s)))
+                            r)))
+                 c)
+                (= r (lex_split S cs))
+                (= r' (:cons c r))))))
 
-(= lex_split_paren
-   (∪ (:fn (:seq) (:seq))
-      (:fn (:cons c cs)
-           ((∪ (:fn (∈ _ Paren_char) r')
-               (:fn _ ((∪ (:fn (:seq) r')
-                          (:fn (:cons s ss)
-                               ((∪ (:fn (∈ _ Paren_str) r')
-                                   (:fn _ (:cons (:cons c s) ss)))
-                                s)))
-                       r)))
-            c)
-           (= r (lex_split_paren cs))
-           (= r' (:cons (:cons c "") r)))))
+(= lex_remove_ws
+   (remove WS))
 
-(= lex_split_ws)
+(= lex_paren_str
+   (map (∪ (:fn (∈ c Paren) (:cons c ""))
+           identity)))
 
 (= lex_check
-   (∪ (:fn (:seq) (:seq))
-      (:fn (:cons (∈ s Token) ss) (:cons s (lex_check ss)))))
+   (map (:fn (∈ s (∪ Symbol Paren_str)) s)))
+
+(= lex
+   (∘ lex_check
+      lex_remove_ws
+      (lex_split (∪ WS Paren))))
 
 (= parse
    (∪ (:fn (:seq) (:seq))
@@ -38,4 +46,5 @@
       (:fn (++ (:seq "(") body (:seq ")") ss)
            (:cons (:seq (parse body)) (parse ss)))))
 
-(= lex_parse (∘ parse lex_check lex))
+(= lex_parse
+   (∘ parse lex))
