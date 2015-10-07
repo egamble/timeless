@@ -14,14 +14,12 @@
    (:fn S
         (∪ (:fn "" (:seq))
            (:fn (:cons c cs)
-                ((∪ (:fn (∈ _ S) r')
-                    (:fn _ ((∪ (:fn (:seq) r')
-                               (:fn (:cons s ss)
-                                    ((∪ (:fn (∈ _ S) r')
-                                        (:fn _ (:cons (:cons c s) ss)))
-                                     s)))
-                            r)))
-                 c)
+                (if (∈ c S) r'
+                  ((∪ (:fn (:seq) r')
+                      (:fn (:cons s ss)
+                           (if (∈ s S) r'
+                             (:cons (:cons c s) ss))))
+                   r))
                 (= r (lex_split S cs))
                 (= r' (:cons c r))))))
 

@@ -24,6 +24,8 @@
         (∪ (:fn (:seq) (:seq))
            (:fn (:cons x xs) (:cons (f x) (map f xs))))))
 
+;; TODO: implement multiple guards, then rewrite filter and remove to use them
+
 (= filter
    (:fn S
         (∪ (:fn (:seq) (:seq))
@@ -41,14 +43,13 @@
 (= identity
    (:fn x x))
 
-;; TODO: doesn't work if cond evals to false
-;; Experiment with this. Should this work in a non-strict language?
-;; Should it be predefined?
-;; If so, rewrite lex_split with if.
+;; TODO: doesn't work if cond evals to false.
+;; TODO: make sure <then> and <else> are lazily evaluated.
+;; TODO: rewrite with multiple guards.
 (= if
    (:fn cond
         (:fn then
              (:fn else
                   ((∪ (:fn _ then cond)
                       (:fn _ else))
-                   0)))))
+                   :emptyfn)))))
