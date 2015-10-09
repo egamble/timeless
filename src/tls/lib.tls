@@ -24,26 +24,28 @@
         (∪ (:fn (:seq) (:seq))
            (:fn (:cons x xs) (:cons (f x) (map f xs))))))
 
-;; TODO: implement multiple guards, then rewrite filter and remove to use them
-
 (= filter
    (:fn S
         (∪ (:fn (:seq) (:seq))
-           (:fn (:cons x xs) (:cons x (filter S xs))
-                (∈ x S))
-           (:fn (:cons _ xs) (filter S xs)))))
+           (:fn (:cons x xs)
+                ((∪ (:fn _ (:cons x r) (∈ x S))
+                    (:fn _ r))
+                 :emptyfn)
+                (= r (filter S xs))))))
 
 (= remove
    (:fn S
         (∪ (:fn (:seq) (:seq))
-           (:fn (:cons (∈ _ S) xs) (remove S xs))
-           (:fn (:cons x xs) (:cons x (remove S xs))))))
+           (:fn (:cons x xs)
+                ((∪ (:fn _ r (∈ x S))
+                    (:fn _ (:cons x r)))
+                 :emptyfn)
+                (= r (remove S xs))))))
 
 (= identity
    (:fn x x))
 
 ;; TODO: make sure <then> and <else> are lazily evaluated.
-;; TODO: rewrite with multiple guards.
 (= if
    (:fn cond
         (:fn then

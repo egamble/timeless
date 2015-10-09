@@ -2,7 +2,6 @@
 
 (= WS (∪ (:set \space) (:set \tab) (:set \newline) (:set :nospace)))
 (= Paren (∪ (:set \() (:set \))))
-(= Paren_str (∪ (:set "(") (:set ")")))
 
 ;; TODO change range to (:name "..")
 (= Alpha (Img (++ (range \a \z) (range \A \Z))))
@@ -11,27 +10,25 @@
 (= Symbol (:set (:cons (∈ _ Alpha) (∈ _ Alphanum_str))))
 
 (= lex_split
-   (:fn S
+   (:fn Sep
         (∪ (:fn "" (:seq))
            (:fn (:cons c cs)
-                (if (∈ c S) r'
-                  ((∪ (:fn (:seq) r')
-                      (:fn (:cons s ss)
-                           (if (∈ s S) r'
-                             (:cons (:cons c s) ss))))
-                   r))
-                (= r (lex_split S cs))
-                (= r' (:cons c r))))))
+                ((∪ (:fn _ r' (∈ c Sep))
+                    (:fn _ ((∪ (:fn (:seq) r')
+                               (:fn (:cons t ts)
+                                    ((∪ (:fn _ r' (∈ t Sep))
+                                        (:fn _ (:cons (:cons c t) ts)))
+                                     :emptyfn)))
+                            r)))
+                 :emptyfn)
+                (= r' (:cons c r))
+                (= r (lex_split Sep cs))))))
 
 (= lex_remove_ws
    (remove WS))
 
-(= lex_paren_str
-   (map (∪ (:fn (∈ c Paren) (:cons c ""))
-           identity)))
-
 (= lex_check
-   (map (:fn (∈ s (∪ Symbol Paren_str)) s)))
+   (map (:fn (∈ s (∪ Symbol Paren)) s)))
 
 (= lex
    (∘ lex_check
@@ -40,9 +37,9 @@
 
 (= parse
    (∪ (:fn (:seq) (:seq))
-      (:fn (:cons (∉ s Paren_str) ss) (:cons s (parse ss)))
-      (:fn (++ (:seq "(") body (:seq ")") ss)
-           (:cons (:seq (parse body)) (parse ss)))))
+      (:fn (:cons (∉ t Paren) ts) (:cons t (parse ts)))
+      (:fn (++ "(" body ")" ts)
+           (:cons (:seq (parse body)) (parse ts)))))
 
 (= lex_parse
    (∘ parse lex))
