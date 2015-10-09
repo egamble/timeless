@@ -39,11 +39,9 @@
            (:fn (:cons (∈ _ S) xs) (remove S xs))
            (:fn (:cons x xs) (:cons x (remove S xs))))))
 
-;; TODO: doesn't work if x evaluates to false
 (= identity
    (:fn x x))
 
-;; TODO: doesn't work if cond evals to false.
 ;; TODO: make sure <then> and <else> are lazily evaluated.
 ;; TODO: rewrite with multiple guards.
 (= if

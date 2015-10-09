@@ -250,7 +250,7 @@
 
     name?
     (cond
-      (context expr)
+      (not-nil? (context expr))
       (eval' (context expr) context)
 
       (= expr 'true) true
