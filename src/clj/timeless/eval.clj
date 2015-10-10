@@ -91,18 +91,11 @@
     (let [[_ nam v & asserts] clause]
       (eval-asserts v asserts (assoc context nam (first args))))))
 
-(defn seq-str? [s]
-  (boolean ; coerce nil to false so result can be equality tested
-   (when (char? (second s))
-     (every? char? (rest s)))))
-
 (defn cons'
   [x y & xs]
   (if (seq xs)
     (cons' x (apply cons' y xs))
-    (when (and (op-isa? :seq y) ; fail if y isn't a seq
-               (or (not (seq-str? y)) ; fail if y is a string and x isn't a char
-                   (char? x)))
+    (when (op-isa? :seq y) ; fail if y isn't a seq
       (apply make-op :seq x (rest y)))))
 
 (defn concat'
@@ -110,11 +103,7 @@
   ;; fail if either arg is not a seq
   (when (and (op-isa? :seq s1)
              (op-isa? :seq s2))
-    (let [cat
-          ;; fail if string is concatenated with non-string
-          (when (= (seq-str? s1)
-                   (seq-str? s2))
-            (apply make-op :seq (concat (rest s1) (rest s2))))]
+    (let [cat (apply make-op :seq (concat (rest s1) (rest s2)))]
       (when cat
         (if (seq ss)
           (apply concat' cat ss)

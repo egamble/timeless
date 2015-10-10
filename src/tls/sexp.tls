@@ -31,8 +31,8 @@
    (map (:fn (∈ s (∪ Symbol Paren)) s)))
 
 (= lex
-   (∘ lex_check
-      lex_remove_ws
+   (∘ (∘ lex_check
+         lex_remove_ws)
       (lex_split (∪ WS Paren))))
 
 (= parse

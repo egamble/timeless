@@ -1,6 +1,5 @@
 ;; Library functions
 
-;; TODO: applying (∘ inc inc inc) produces error
 (= ∘ (:fn f (:fn g (:fn x (f (g x))))))
 
 (= inc (:fn x (+ x 1)))
