@@ -13,15 +13,14 @@
    (:fn Sep
         (∪ (:fn "" (:seq))
            (:fn (:cons c cs)
-                ((∪ (:fn _ r' (∈ c Sep))
-                    (:fn _ ((∪ (:fn (:seq) r')
+                ((∪ (:fn _ (:cons c r) (∈ c Sep))
+                    (:fn _ ((∪ (:fn (:seq) (:seq (:seq c)))
                                (:fn (:cons t ts)
-                                    ((∪ (:fn _ r' (∈ t Sep))
+                                    ((∪ (:fn _ (:cons (:seq c) r) (∈ t Sep))
                                         (:fn _ (:cons (:cons c t) ts)))
                                      :emptyfn)))
                             r)))
                  :emptyfn)
-                (= r' (:cons c r))
                 (= r (lex_split Sep cs))))))
 
 (= lex_remove_ws

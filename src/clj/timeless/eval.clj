@@ -228,30 +228,35 @@
    (eval' expr {}))
 
   ([expr context]
-   (condf expr
-    (par op-isa? #{:fn :set})
-    (with-meta expr {:context context})
+   (let [f (fn []
+             (let [s (map #(eval' % context) expr)]
+               (when (every? not-nil? s)
+                 (apply make-op s))))]
+     (condf expr
+            (par op-isa? #{:fn :set})
+            (with-meta expr {:context context})
 
-    (par op-isa? #{:seq :tup})
-    (apply make-op (map #(eval' % context) expr))
+            (par op-isa? #{:seq :tup}) (f)
 
-    op? (apply' (apply make-op (map #(eval' % context) expr)))
+            op?
+            (let [s (f)]
+              (when s (apply' s)))
 
-    name?
-    (cond
-      (not-nil? (context expr))
-      (eval' (context expr) context)
+            name?
+            (cond
+              (not-nil? (context expr))
+              (eval' (context expr) context)
 
-      (= expr 'true) true
-      (= expr 'false) false
+              (= expr 'true) true
+              (= expr 'false) false
 
-      (predefined expr)
-      expr
+              (predefined expr)
+              expr
 
-      :else (error (str "Undefined name: " expr)))
+              :else (error (str "Undefined name: " expr)))
 
-    string? (cons :seq expr)
+            string? (cons :seq expr)
 
-    (par = :nospace) \u200B
+            (par = :nospace) \u200B
 
-    expr)))
+            expr))))
