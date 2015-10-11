@@ -108,8 +108,8 @@
 ;;; ---------------------------------------------------------------------------
 
 ;;; ---------------------------------------------------------------------------
-(defn transform-clauses
-  "Transforms :fn and :set clauses, except for reordering assertions which is done
+(defn transform-clause
+  "Transforms a :fn or :set clause, except for reordering assertions which is done
   in a second pass using the finalized :maybe-free-names tags.
   The guard is split into assertions, if it isn't split already."
   [expr]
@@ -188,7 +188,7 @@
           (error "Can't reorder assertions")))
       (sequence reordered-asserts))))
 
-(defn reorder-assertions-recursively
+(defn reorder-assertions-walk
   [bound-names expr]
   (condf expr
    (par op-isa? #{:fn :set})
@@ -203,14 +203,14 @@
                                      (set/difference free-names #{nam}))
          bound-names (set/union bound-names free-names)]
      (apply make-op opr nam
-            (map (par reorder-assertions-recursively bound-names)
+            (map (par reorder-assertions-walk bound-names)
                  (if (= opr :fn)
                    (cons v asserts)
                    asserts))))
 
    op?
    (apply make-op
-          (map (par reorder-assertions-recursively bound-names)
+          (map (par reorder-assertions-walk bound-names)
                expr))
 
    expr))

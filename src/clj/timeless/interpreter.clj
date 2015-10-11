@@ -2,43 +2,51 @@
   "Interpreter for an S-expression form of Timeless."
   (:require [timeless.common :refer :all]
             [timeless.transform
-             [misc   :refer [transform-recursively]]
-             [clause :refer [reorder-assertions-recursively]]]
+             [misc   :refer [pre-eval-walk post-eval-walk]]
+             [clause :refer [reorder-assertions-walk]]]
             [timeless.eval :refer [eval']]
             [clojure.set :as set]))
 
-(defn read-top-level
+(defn read-tl
   "Reads top-level assertions from stream, which defaults to *in*.
   Ignores assertions other than equality assertions, because this interpreter can't use them.
   Returns a context map."
   ([]
-   (read-top-level *in*))
+   (read-tl *in*))
   ([stream]
    (let [asserts (->> (repeatedly #(read stream false nil))
                       (take-while not-nil?)
                       (filter (par op-isa? '=)) ;; keep only equality assertions
-                      (map transform-recursively)
+                      (map pre-eval-walk)
                       (doall))
          names (into #{} (map second asserts))
-         asserts (map (par reorder-assertions-recursively
+         asserts (map (par reorder-assertions-walk
                            (set/union predefined names))
                       asserts)]
      (into {} (map (fn [[_ nam expr]]
                      [nam expr])
                    asserts)))))
 
-(defn read-top-level-string
-  "Same as read-top-level, except reads from a string."
+(defn read-tl-str
   [s]
   (with-in-str s
-    (read-top-level)))
+    (read-tl)))
+
+(defn read-tl-file
+  [file]
+  (with-open [r (java.io.PushbackReader. (clojure.java.io/reader file))]
+    (read-tl r)))
+
+(defn read-tl-files
+  [& files]
+  (apply merge (map read-tl-file files)))
 
 (defn transform
   ([expr]
    (transform expr {}))
   ([expr context]
-   (reorder-assertions-recursively (set/union predefined (keys context))
-                                   (transform-recursively expr))))
+   (reorder-assertions-walk (set/union predefined (keys context))
+                            (pre-eval-walk expr))))
 
 (def t transform)
 
@@ -46,6 +54,7 @@
   ([expr]
    (transform-and-eval expr {}))
   ([expr context]
-   (eval' (transform expr context) context)))
+   (post-eval-walk
+    (eval' (transform expr context) context))))
 
 (def e transform-and-eval)

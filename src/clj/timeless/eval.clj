@@ -7,7 +7,7 @@
 ;; Throw an error when the evaluation could never succeed, e.g. when the expression is an unbound name.
 ;; Also throw an error when the interpreter doesn't yet know how to evaluate the expression.
 
-;; TODO: Figure out when eval results can be cached. Should they be only cached in context maps?
+;; TODO: Modify interpreter to use Haskell-style thunks for all fn applications, and go back to atoms in context maps to cache values.
 
 (declare eval')
 
@@ -80,16 +80,16 @@
 (declare apply')
 
 (defn apply-fn-clause
-  [[clause & args] context]
+  [[clause & args]]
   (if (seq (rest args))
     ;; repeated eval if multiple args
     (apply'
      (apply make-op
-            (apply-fn-clause (make-op clause (first args))
-                             context)
+            (apply-fn-clause (make-op clause (first args)))
             (rest args)))
     (let [[_ nam v & asserts] clause]
-      (eval-asserts v asserts (assoc context nam (first args))))))
+      (eval-asserts v asserts (assoc (:context (meta clause))
+                                     nam (first args))))))
 
 (defn cons'
   [x y & xs]
@@ -170,7 +170,7 @@
       (let [[opr' & r'] opr]
         (cond
           (= :fn opr')
-          (apply-fn-clause expr (:context (meta opr)))
+          (apply-fn-clause expr)
 
           (= '∪ opr')
           (when-let [v (some #(apply' (make-op % x))
@@ -234,9 +234,11 @@
                  (apply make-op s))))]
      (condf expr
             (par op-isa? #{:fn :set})
-            (with-meta expr {:context context})
+            (if (:context (meta expr))
+              expr
+              (with-meta expr {:context context}))
 
-            (par op-isa? #{:seq :tup}) (f)
+            (par op-isa? #{:seq :tup :right}) (f)
 
             op?
             (let [s (f)]

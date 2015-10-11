@@ -38,7 +38,7 @@
    (∪ (:fn (:seq) (:seq))
       (:fn (:cons (∉ t Paren) ts) (:cons t (parse ts)))
       (:fn (++ "(" body ")" ts)
-           (:cons (:seq (parse body)) (parse ts)))))
+           (:cons (parse body) (parse ts)))))
 
 (= lex_parse
    (∘ parse lex))

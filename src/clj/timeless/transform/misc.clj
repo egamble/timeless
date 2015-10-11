@@ -1,9 +1,9 @@
 (ns timeless.transform.misc
   "Various transformations of Timeless S-expressions."
   (:require [timeless.common :refer :all]
-            [timeless.transform.clause :refer [transform-clauses]]))
+            [timeless.transform.clause :refer [transform-clause]]))
 
-(defn transform-names
+(defn transform-name
   "Convert (:name <name str>) to a symbol and make gensyms for underscores."
   [expr]
   (condf expr
@@ -15,7 +15,7 @@
 
    expr))
 
-(defn transform-nested-ops
+(defn transform-nested-op
   [expr]
   (cond
     (and (op-isa-not-section? #{'/ '-} expr)        ; left associative
@@ -43,7 +43,7 @@
 
     :else expr))
 
-(defn transform-chains
+(defn transform-chain
   [expr]
   (let [chain-oprs #{'= '≠ '< '> '≤ '≥}]
     (if (op-isa-not-section? chain-oprs expr)
@@ -68,12 +68,26 @@
           :else expr))
       expr)))
 
-(defn transform-recursively
+(defn restore-string
+  [expr]
+  (if (and (op-isa? :seq expr)
+           (every? char? (rest expr)))
+    (apply str (rest expr))
+    expr))
+
+(defn pre-eval-walk
   [expr]
   (-> (if (op? expr)
-        (apply make-op (map transform-recursively expr))
+        (apply make-op (map pre-eval-walk expr))
         expr)
-      transform-names
-      transform-nested-ops
-      transform-chains
-      transform-clauses))
+      transform-name
+      transform-nested-op
+      transform-chain
+      transform-clause))
+
+(defn post-eval-walk
+  [expr]
+  (-> (if (op? expr)
+        (apply make-op (map post-eval-walk expr))
+        expr)
+      restore-string))
