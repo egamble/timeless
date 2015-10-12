@@ -5,17 +5,16 @@
 (= inc (:fn x (+ x 1)))
 (= dec (:fn x (- x 1)))
 
-;; TODO: change the name to (:name "..")
-(= range
+(= (:name "..")
  (∪ (:fn (∈ a Int)
          (∪ (:fn a (:seq a))
             (:fn (∈ b Int)
-                 (:cons a (range (inc a) b))
+                 (:cons a ((:name "..") (inc a) b))
                  (< a b))))
     (:fn (∈ c Char)
          (∪ (:fn c (:seq c))
             (:fn (∈ d Char)
-                 (:cons c (range (intChar (inc a)) d))
+                 (:cons c ((:name "..") (intChar (inc a)) d))
                  (= a (charInt c)) (= b (charInt d)) (< a b))))))
 
 (= map
@@ -44,7 +43,6 @@
 (= identity
    (:fn x x))
 
-;; TODO: make sure <then> and <else> are lazily evaluated.
 (= if
    (:fn cond
         (:fn then

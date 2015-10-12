@@ -3,9 +3,8 @@
 (= WS (∪ (:set \space) (:set \tab) (:set \newline) (:set :nospace)))
 (= Paren (∪ (:set \() (:set \))))
 
-;; TODO change range to (:name "..")
-(= Alpha (Img (++ (range \a \z) (range \A \Z))))
-(= Alphanum (∪ Alpha (Img (range \0 \9))))
+(= Alpha (Img (++ ((:name "..") \a \z) ((:name "..") \A \Z))))
+(= Alphanum (∪ Alpha (Img ((:name "..") \0 \9))))
 (= Alphanum_str (∪ (:set "") (:set (:cons (∈ _ Alphanum) (∈ _ Alphanum_str)))))
 (= Symbol (:set (:cons (∈ _ Alpha) (∈ _ Alphanum_str))))
 
