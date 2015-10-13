@@ -7,6 +7,8 @@
 ;; Throw an error when the evaluation could never succeed, e.g. when the expression is an unbound name.
 ;; Also throw an error when the interpreter doesn't yet know how to evaluate the expression.
 
+;; TODO: Figure out why 0 .. ∞ is not lazy.
+
 ;; TODO: Modify interpreter to use Haskell-style thunks for all fn applications, and go back to atoms in context maps to cache values.
 
 (declare eval')
