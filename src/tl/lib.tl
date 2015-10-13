@@ -53,7 +53,7 @@ remove =
 }
 
 zip =
-{[] ↦ {_ ∈ Seq ↦ []},
+{[] ↦ {∈ Seq ↦ []},
  x1 : xs1 ↦
   {[] ↦ [],
    x2 : xs2 ↦ (x1, x2) : zip xs1 xs2}}
