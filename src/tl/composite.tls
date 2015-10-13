@@ -1,0 +1,24 @@
+;; A parser that recognizes composite-length strings
+
+;; This works on strings whose length is composite (i.e. not prime) where all the characters are the same
+;; and, more generally, on strings that are the concatenation of a composite number of identical strings.
+
+;; TODO: not working
+
+(= repeat*
+   (:fn s
+        (∪ (:set "")
+           (:set (++ s (repeat+ s))))))
+
+(= repeat+
+   (:fn s
+        (∪ (:set "")
+           (:set (++ s (repeat* s))))))
+
+(= Composite1
+   (:set (++ s (∈ _ (repeat+ s))) (> (len s) 1)))
+
+;; Equivalently:
+
+(= Composite2
+   (:set (++ s (++ s (∈ _ (repeat* s))) (> (len s) 1))))

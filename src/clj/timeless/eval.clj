@@ -145,6 +145,7 @@
       (condp = S
         'Int (or (integer? x) (= '∞ x)) ; TODO: check doubles too
         'Char (char? x)
+        'Seq (op-isa? :seq x)
         (efn)))))
 
 (defn not-member?
@@ -160,6 +161,10 @@
 (defn charInt [x]
   (when (char? x)
     (int x)))
+
+(defn len [s]
+  (when (op-isa? :seq s)
+    (count (rest s))))
 
 (defn apply'
   [expr]
@@ -218,6 +223,7 @@
 
         (= 'intChar opr) (intChar x)
         (= 'charInt opr) (charInt x)
+        (= 'len opr) (len x)
 
         (predefined opr) expr
 

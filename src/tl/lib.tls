@@ -1,9 +1,8 @@
-;; Library functions
+;; Library operators
 
 (= ∘ (:fn f (:fn g (:fn x (f (g x))))))
 
-(= inc (:fn x (+ x 1)))
-(= dec (:fn x (- x 1)))
+;; TODO: make this lazy, so 0 .. ∞ works
 
 (= (:name "..")
  (∪ (:fn (∈ a Int)
@@ -16,6 +15,22 @@
             (:fn (∈ d Char)
                  (:cons c ((:name "..") (intChar (inc a)) d))
                  (= a (charInt c)) (= b (charInt d)) (< a b))))))
+
+;; Library prefix functions
+
+(= identity
+   (:fn x x))
+
+(= inc (:fn x (+ x 1)))
+(= dec (:fn x (- x 1)))
+
+(= if
+   (:fn cond
+        (:fn then
+             (:fn else
+                  ((∪ (:fn _ then cond)
+                      (:fn _ else))
+                   :emptyfn)))))
 
 (= map
    (:fn f
@@ -40,13 +55,10 @@
                  :emptyfn)
                 (= r (remove S xs))))))
 
-(= identity
-   (:fn x x))
-
-(= if
-   (:fn cond
-        (:fn then
-             (:fn else
-                  ((∪ (:fn _ then cond)
-                      (:fn _ else))
-                   :emptyfn)))))
+(= zip
+   (∪ (:fn (:seq) (:fn (∈ _ Seq) (:seq)))
+      (:fn (:cons x1 xs1)
+           (∪ (:fn (:seq) (:seq))
+              (:fn (:cons x2 xs2)
+                   (:cons (:tup x1 x2)
+                          (zip xs1 xs2)))))))

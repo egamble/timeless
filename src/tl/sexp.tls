@@ -1,4 +1,4 @@
-;; An S-expression lexer and parser
+;; A parser that recognizes S-expressions and builds an AST
 
 (= WS (∪ (:set \space) (:set \tab) (:set \newline) (:set :nospace)))
 (= Paren (∪ (:set \() (:set \))))
@@ -7,6 +7,10 @@
 (= Alphanum (∪ Alpha (Img ((:name "..") \0 \9))))
 (= Alphanum_str (∪ (:set "") (:set (:cons (∈ _ Alphanum) (∈ _ Alphanum_str)))))
 (= Symbol (:set (:cons (∈ _ Alpha) (∈ _ Alphanum_str))))
+
+;; Sep is the set of separator characters on which to split.
+;; The separator characters are left in the output sequence, while
+;; the characters in between the separators are collected into strings.
 
 (= lex_split
    (:fn Sep
@@ -24,6 +28,8 @@
 
 (= lex_remove_ws
    (remove WS))
+
+;; Check that all tokens are either parenthesis characters or symbol strings.
 
 (= lex_check
    (map (:fn (∈ s (∪ Symbol Paren)) s)))

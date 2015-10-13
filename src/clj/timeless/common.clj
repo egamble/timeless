@@ -47,7 +47,7 @@
   (set/union
    predefined-ops
    #{'Obj 'Num 'Int 'Bool 'Char 'Str 'Set 'Seq 'Fn 'Dom 'Img
-     'card 'charInt 'intChar 'stdin
+     'card 'len 'charInt 'intChar 'stdin
      'true 'false '∞}))
 
 (def op?
