@@ -46,7 +46,7 @@
 (def predefined
   (set/union
    predefined-ops
-   #{'Obj 'Num 'Int 'Bool 'Char 'Str 'Set 'Seq 'Fn 'Dom 'Img
+   #{'Obj 'Num 'Int 'Bool 'Char 'Str 'Set 'Seq 'Fn 'Dm 'Im
      'card 'len 'charInt 'intChar 'stdin
      'true 'false '∞}))
 

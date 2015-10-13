@@ -137,7 +137,7 @@
           (= '∩ opr) (every? (par member? x) ys)
           (= '∪ opr) (boolean (some (par member? x) ys))
 
-          (and (= 'Img opr)
+          (and (= 'Im opr)
                (op-isa? :seq (first ys)))
           (boolean (some #{x} (rest (first ys))))
 

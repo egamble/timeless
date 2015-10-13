@@ -3,8 +3,8 @@
 WS             = {\space, \tab, \newline, \nospace}
 Paren          = {\(, \)}
 
-Alpha          = Img(\a .. \z ++ \A .. \Z)
-Alphanum       = Alpha ∪ Img(\0 .. \9)
+Alpha          = Im(\a .. \z ++ \A .. \Z)
+Alphanum       = Alpha ∪ Im(\0 .. \9)
 Alphanum_str   = {'', (∈ Alphanum) : (∈ Alphanum_str)}
 Symbol         = {(∈ Alpha) : (∈ Alphanum_str)}
 
@@ -52,7 +52,7 @@ stdin
 # This is an equivalent definition of stdout.
 
 # stdout =
-# {∈ Dom lex_parse  ↦ "match",
+# {∈ Dm lex_parse  ↦ "match",
 #  _                ↦ "no match"
 # }
 # stdin
