@@ -5,20 +5,19 @@
 
 ;; TODO: not working
 
-(= repeat*
+(= Repeat*
    (:fn s
         (∪ (:set "")
-           (:set (++ s (repeat+ s))))))
+           (:set (Repeat+ s)))))
 
-(= repeat+
+(= Repeat+
    (:fn s
-        (∪ (:set "")
-           (:set (++ s (repeat* s))))))
+        (:set (++ s (Repeat* s)))))
 
 (= Composite1
-   (:set (++ s (∈ _ (repeat+ s))) (> (len s) 1)))
+   (:set (++ s (∈ _ (Repeat+ s))) (> (len s) 1)))
 
 ;; Equivalently:
 
 (= Composite2
-   (:set (++ s (++ s (∈ _ (repeat* s))) (> (len s) 1))))
+   (:set (++ s (++ s (∈ _ (Repeat* s))) (> (len s) 1))))

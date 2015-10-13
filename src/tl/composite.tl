@@ -3,17 +3,17 @@
 # This works on strings whose length is composite (i.e. not prime) where all the characters are the same
 # and, more generally, on strings that are the concatenation of a composite number of identical strings.
 
-repeat* = {s  ↦ {'',  repeat+ s}}
-repeat+ = {s  ↦ {s ++ repeat* s}}
+Repeat* = {s  ↦ {'',  Repeat+ s}}
+Repeat+ = {s  ↦ {s ++ Repeat* s}}
 
-Composite = {s ++ (∈ repeat+ s) | len s > 1}
+Composite1 = {s ++ (∈ Repeat+ s) | len s > 1}
 
 # Equivalently:
 
-# Composite = {s ++ s ++ (∈ repeat* s) | len s > 1}
+Composite2 = {s ++ s ++ (∈ Repeat* s) | len s > 1}
 
 stdout =
-{∈ Composite  ↦ "composite",
- _            ↦ "not composite"
+{∈ Composite1  ↦ "composite",
+ _             ↦ "not composite"
 }
 stdin
