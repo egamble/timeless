@@ -30,3 +30,4 @@ tag_with_line_col =
 {s ∈. Str ↦
  mapcat index_cols (index_lines s)}
 
+# TODO: add char index (including newlines)
