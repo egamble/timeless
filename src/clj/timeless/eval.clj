@@ -169,8 +169,8 @@
   [expr]
   (error (str "Can't apply: " expr)))
 
-(defn apply-section
-  [[opr x] y]
+(defn apply-binary
+  [opr x y]
   (let [n? (fn [g]
              (fn [x y]
                (when (and (number? x)
@@ -192,8 +192,8 @@
 
 (defn apply-op
   [expr]
-  (let [[[opr & xs] y] expr] 
-    (condf opr-isa? opr
+  (let [[[opr & xs] y] expr]
+    (condp opr-isa? opr
      :fn
      (apply-clause expr)
 
@@ -204,7 +204,8 @@
      (apply' (list (first xs) y (second xs)))
 
      predefined-ops
-     (apply-section expr)
+     ;; must be apply of section
+     (apply-binary opr (first xs) y)
 
      (error-apply (cons opr xs)))))
 
@@ -222,11 +223,14 @@
 
 (defn apply'
   [expr]
-  (let [[opr x] expr]
+  (let [[opr x & xs] expr]
     (if (op? opr)
       (apply-op expr)
       (condp opr-isa? opr
-             predefined-ops expr ; section
+             predefined-ops (if (seq xs)
+                              (apply-binary opr x (first xs))
+                              expr ; section
+                              )
              :neg (- x)
              'intChar (intChar x)
              'charInt (charInt x)

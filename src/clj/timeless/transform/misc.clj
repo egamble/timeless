@@ -25,7 +25,7 @@
 (defn pre-eval-walk
   [expr]
   (-> (if (op? expr)
-        (apply make-op (map pre-eval-walk expr))
+        (map pre-eval-walk expr)
         expr)
       transform-name
       transform-clause))
@@ -33,6 +33,6 @@
 (defn post-eval-walk
   [expr]
   (-> (if (op? expr)
-        (apply make-op (map post-eval-walk expr))
+        (map post-eval-walk expr)
         expr)
       restore-string))

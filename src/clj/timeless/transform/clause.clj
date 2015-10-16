@@ -8,7 +8,7 @@
   "The guard of a clause is split into a list of assertions, if it isn't already."
   [asserts]
   (mapcat #(if (op-isa? '∧ %)
-             (rest %)
+             (split-assertions (rest %))
              (list %))
           asserts))
 ;;; ---------------------------------------------------------------------------
@@ -23,7 +23,7 @@
         (let [[op-name a b] pattern]
           (cond (nil? b) ; pattern is a right section
                 (let [nam (new-name)]
-                  [nam (list (make-op op-name nam a))])
+                  [nam (list (list op-name nam a))])
 
                 (name? a) ; left side is a name; extract the assertion but don't generate a new name
                 [a (list pattern)]
@@ -31,7 +31,7 @@
                 :else ; left side is an op or atomic constant; generate a new name and add assertions for the left and right sides
                 (let [nam (new-name)]
                   [nam (list (make-= nam a)
-                             (make-op op-name nam b))])))
+                             (list op-name nam b))])))
 
         (op? pattern)
         ;; pattern is an op, so recursively search for embedded assertions
@@ -86,7 +86,7 @@
                         (let [nam (new-name)]
                           [nam (decompose-assertion (make-= nam expr))]))
                     r (map f (rest a))]
-                (cons (make-= (apply make-op (first a) (map first r))
+                (cons (make-= (apply list (first a) (map first r))
                               b)
                       (mapcat second r))))
 
@@ -118,7 +118,7 @@
          [pattern asserts] (extract-embedded-assertions pattern (split-assertions asserts))
          [nam asserts] (normalize-clause pattern asserts)
          asserts (decompose-assertions asserts)]
-     (apply make-op :fn nam v asserts))
+     (apply list :fn nam v asserts))
    expr))
 ;;; ---------------------------------------------------------------------------
 
@@ -142,11 +142,11 @@
           right-binds? (seq (local-free-names b free-names))]
       (cond (and left-binds?
                  (not right-binds?))
-            (make-op := a b)
+            (list := a b)
 
             (and right-binds?
                  (not left-binds?))
-            (make-op := b a)))))
+            (list := b a)))))
 
 (defn test-assert-singly-recursive
   [assert free-names]
@@ -192,14 +192,13 @@
          asserts (reorder-assertions asserts
                                      (set/difference free-names #{nam}))
          bound-names (set/union bound-names free-names)]
-     (apply make-op opr nam
+     (apply list opr nam
             (map (par reorder-assertions-walk bound-names)
                  (cons v asserts))))
 
    op?
-   (apply make-op
-          (map (par reorder-assertions-walk bound-names)
-               expr))
+   (map (par reorder-assertions-walk bound-names)
+        expr)
 
    expr))
 ;;; ---------------------------------------------------------------------------

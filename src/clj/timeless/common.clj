@@ -2,11 +2,6 @@
   "Generally useful defs for the Timeless interpreter."
   (:require [clojure.set :as set]))
 
-
-(defn error
-  [msg]
-  (throw (Exception. msg)))
-
 (def predefined-ops
   #{'* '/ '+ '- :cons '++ '∩ '∪ '= '≠ '< '> '≤ '≥ '∈ '∉ '⊂ '∧ '∨})
 
@@ -20,6 +15,8 @@
 (def op?
   "Is an expr an operation, rather than a name or an atomic constant?"
   seq?)
+
+(declare not-nil?)
 
 (defn opr-isa?
   "Returns true if opr is equal to op-name or a member of op-name when op-name is a set."
@@ -46,6 +43,8 @@
 
 (def name? symbol?)
 
+(declare condf)
+
 (defn get-maybe-free-names
   "Collect all names except those in contained comprehensions."
   [expr]
@@ -69,6 +68,7 @@
 (defn make-=
   [a b]
   (list '= a b))
+
 
 ;;; ---------------------------------------------------------------------------
 ;;; miscellany
@@ -102,4 +102,8 @@
           [v (concat before r)]
           (recur (conj before x)
                  r))))))
+
+(defn error
+  [msg]
+  (throw (Exception. msg)))
 ;;; ---------------------------------------------------------------------------
