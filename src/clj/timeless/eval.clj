@@ -31,8 +31,6 @@
     (for [s ss]
       (cons :seq s))))
 
-;; TODO: This is broken because (:cons a b) is now ((:cons a) b), etc.
-
 (defn get-pattern-contexts
   "Returns one context (in a list for mapcatting) for v if pattern is a name, or a cons, :seq, or :tup op.
   Returns a list of contexts for each split of v if pattern is a '++ op."

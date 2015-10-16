@@ -1,6 +1,6 @@
 ;; A parser that recognizes S-expressions and builds an AST
 
-(= WS (∪ (:fn \space true) (:fn \tab true) (:fn \newline true) (:fn :nospace true)))
+(= WS (∪ (∪ (∪ (:fn \space true) (:fn \tab true)) (:fn \newline true)) (:fn :nospace true)))
 (= Paren (∪ (:fn \( true) (:fn \) true)))
 
 (= Alpha (Im (++ ((:name "..") \a \z) ((:name "..") \A \Z))))
@@ -14,17 +14,17 @@
 
 (= lex_split
    (:fn Sep
-        ((∪ (:fn "" (:seq)))
-         (:fn ((:cons c) cs)
-              (((∪ (:fn _ ((:cons c) r) ((∈ c) Sep)))
-                (:fn _ (((∪ (:fn (:seq) (:seq (:seq c))))
-                         (:fn ((:cons t) ts)
-                              (((∪ (:fn _ ((:cons (:seq c)) r) ((∈ t) Sep)))
-                                (:fn _ ((:cons ((:cons c) t)) ts)))
-                               :emptyfn)))
-                        r)))
-               :emptyfn)
-              (= r (lex_split Sep cs))))))
+        (∪ (:fn "" (:seq))
+           (:fn (:cons c cs)
+                ((∪ (:fn _ (:cons c r) (∈ c Sep))
+                    (:fn _ ((∪ (:fn (:seq) (:seq (:seq c)))
+                               (:fn (:cons t ts)
+                                    ((∪ (:fn _ (:cons (:seq c) r) (∈ t Sep))
+                                        (:fn _ (:cons (:cons c t) ts)))
+                                     :emptyfn)))
+                            r)))
+                 :emptyfn)
+                (= r (lex_split Sep cs))))))
 
 (= lex_remove_ws
    (remove WS))
@@ -32,18 +32,18 @@
 ;; Check that all tokens are either parenthesis characters or symbol strings.
 
 (= lex_check
-   (map (:fn ((∈ t) ((∪ Symbol) Paren)) t)))
+   (map (:fn (∈ t (∪ Symbol Paren)) t)))
 
 (= lex
-   ((∘ ((∘ lex_check)
-        lex_remove_ws))
-      (lex_split ((∪ WS) Paren))))
+   (∘ (∘ lex_check
+         lex_remove_ws)
+      (lex_split (∪ WS Paren))))
 
 (= parse
-   ((∪ ((∪ (:fn (:seq) (:seq)))
-        (:fn ((:cons ((∉ t) Paren)) ts) ((:cons t) (parse ts)))))
-    (:fn ((++ ((++ ((++ "(") body)) ")")) ts)
-         ((:cons (parse body)) (parse ts)))))
+   (∪ (∪ (:fn (:seq) (:seq))
+         (:fn (:cons (∉ t Paren) ts) (:cons t (parse ts))))
+      (:fn (++ (++ (++ "(" body) ")") ts)
+           (:cons (parse body) (parse ts)))))
 
 (= lex_parse
-   ((∘ parse) lex))
+   (∘ parse lex))

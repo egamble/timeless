@@ -7,17 +7,17 @@
 
 (= Repeat*
    (:fn s
-        ((∪ (:fn "" true))
-         (:fn (Repeat+ s) true))))
+        (∪ (:fn "" true)
+           (:fn (Repeat+ s) true))))
 
 (= Repeat+
    (:fn s
-        (:fn ((++ s) (Repeat* s)) true)))
+        (:fn (++ s (Repeat* s)) true)))
 
 (= Composite1
-   (:fn ((++ s) ((∈ _) (Repeat+ s))) true ((> (len s)) 1)))
+   (:fn (++ s (∈ _ (Repeat+ s))) true (> (len s) 1)))
 
 ;; Equivalently:
 
 (= Composite2
-   (:fn ((++ s) ((++ s) ((∈ _) (Repeat* s)))) true ((> (len s)) 1)))
+   (:fn (++ s (++ s (∈ _ (Repeat* s)))) true (> (len s) 1)))

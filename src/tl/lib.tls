@@ -5,62 +5,62 @@
 ;; TODO: make this lazy, so 0 .. ∞ works
 
 (= (:name "..")
-   ((∪ (:fn ((∈ a) Int)
-            ((∪ (:fn a (:seq a)))
-             (:fn ((∈ b) Int)
-                  ((:cons a) (((:name "..") (inc a)) b))
-                  ((< a) b)))))
-    (:fn ((∈ c) Char)
-         ((∪ (:fn c (:seq c)))
-          (:fn ((∈ d) Char)
-               ((:cons c) (((:name "..") (intChar (inc a))) d))
-               ((= a) (charInt c))
-               ((= b) (charInt d))
-               ((< a) b))))))
+   (∪ (:fn (∈ a Int)
+           (∪ (:fn a (:seq a))
+              (:fn (∈ b Int)
+                   (:cons a ((:name "..") (inc a) b))
+                   (< a b))))
+      (:fn (∈ c Char)
+           (∪ (:fn c (:seq c))
+              (:fn (∈ d Char)
+                   (:cons c ((:name "..") (intChar (inc a)) d))
+                   (= a (charInt c))
+                   (= b (charInt d))
+                   (< a b))))))
 
 ;; Library prefix functions
 
 (= identity
    (:fn x x))
 
-(= inc (:fn x ((+ x) 1)))
-(= dec (:fn x ((- x) 1)))
+(= inc (:fn x (+ x 1)))
+(= dec (:fn x (- x 1)))
 
 (= if
    (:fn cond
         (:fn then
              (:fn else
-                  (((∪ (:fn _ then cond))
-                    (:fn _ else))
+                  ((∪ (:fn _ then cond)
+                      (:fn _ else))
                    :emptyfn)))))
 
 (= map
    (:fn f
-        ((∪ (:fn (:seq) (:seq)))
-         (:fn ((:cons x) xs) ((:cons (f x)) ((map f) xs))))))
+        (∪ (:fn (:seq) (:seq))
+           (:fn (:cons x xs) (:cons (f x) (map f xs))))))
 
 (= filter
    (:fn S
-        ((∪ (:fn (:seq) (:seq)))
-         (:fn ((:cons x) xs)
-              (((∪ (:fn _ ((:cons x) r) ((∈ x) S)))
-                (:fn _ r))
-               :emptyfn)
-              ((= r) ((filter S) xs))))))
+        (∪ (:fn (:seq) (:seq))
+           (:fn (:cons x xs)
+                ((∪ (:fn _ (:cons x r) (∈ x S))
+                    (:fn _ r))
+                 :emptyfn)
+                (= r (filter S xs))))))
 
 (= remove
    (:fn S
-        ((∪ (:fn (:seq) (:seq)))
-         (:fn ((:cons x) xs)
-              (((∪ (:fn _ r ((∈ x) S)))
-                (:fn _ ((:cons x) r)))
-               :emptyfn)
-              ((= r) ((remove S) xs))))))
+        (∪ (:fn (:seq) (:seq))
+           (:fn (:cons x xs)
+                ((∪ (:fn _ r (∈ x S))
+                    (:fn _ (:cons x r)))
+                 :emptyfn)
+                (= r (remove S xs))))))
 
 (= zip
-   ((∪ (:fn (:seq) (:fn ((∈ _) Seq) (:seq))))
-    (:fn ((:cons x1) xs1)
-         ((∪ (:fn (:seq) (:seq)))
-          (:fn ((:cons x2) xs2)
-               ((:cons (:tup x1 x2))
-                ((zip xs1) xs2)))))))
+   (∪ (:fn (:seq) (:fn (∈ _ Seq) (:seq)))
+      (:fn (:cons x1 xs1)
+           (∪ (:fn (:seq) (:seq))
+              (:fn (:cons x2 xs2)
+                   (:cons (:tup x1 x2)
+                          (zip xs1 xs2)))))))

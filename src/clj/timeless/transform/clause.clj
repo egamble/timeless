@@ -3,8 +3,6 @@
   (:require [timeless.common :refer :all]
             [clojure.set :as set]))
 
-;; TODO: most of this code is broken, because of new single argument syntax
-
 ;;; ---------------------------------------------------------------------------
 (defn split-assertions
   "The guard of a clause is split into a list of assertions, if it isn't already."
