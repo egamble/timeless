@@ -3,6 +3,8 @@
   (:require [timeless.common :refer :all]
             [clojure.set :as set]))
 
+;; TODO: most of this code is broken, because of new single argument syntax
+
 ;;; ---------------------------------------------------------------------------
 (defn split-assertions
   "The guard of a clause is split into a list of assertions, if it isn't already."
@@ -109,22 +111,16 @@
 
 ;;; ---------------------------------------------------------------------------
 (defn transform-clause
-  "Transforms a :fn or :set clause, except for reordering assertions which is done
+  "Transforms a clause, except for reordering assertions which is done
   in a second pass using the finalized :maybe-free-names tags.
   The guard is split into assertions, if it isn't split already."
   [expr]
-  (if (op-isa? #{:fn :set} expr)
-   (let [[opr pattern & r] expr
-         [v & asserts] (if (= opr :fn)
-                         r
-                         (cons nil r)             ; :set has no return value
-                         )
+  (if (op-isa? :fn expr)
+   (let [[_ pattern v & asserts] expr
          [pattern asserts] (extract-embedded-assertions pattern (split-assertions asserts))
          [nam asserts] (normalize-clause pattern asserts)
          asserts (decompose-assertions asserts)]
-     (apply make-op opr (if (= opr :fn)
-                          (apply list nam v asserts)
-                          (apply list nam asserts))))
+     (apply make-op :fn nam v asserts))
    expr))
 ;;; ---------------------------------------------------------------------------
 
@@ -160,11 +156,11 @@
     (let [[_ a b] assert]
       (cond (and (name? a)
                  (= #{a} (local-free-names b free-names)))
-            (make-op := a b)
+            (list := a b)
 
             (and (name? b)
                  (= #{b} (local-free-names a free-names)))
-            (make-op := b a)))))
+            (list := b a)))))
 
 (defn reorder-assertions
   [asserts free-names]
@@ -191,22 +187,16 @@
 (defn reorder-assertions-walk
   [bound-names expr]
   (condf expr
-   (par op-isa? #{:fn :set})
+   (par op-isa? :fn)
    (let [free-names (set/difference (get-maybe-free-names expr)
                                     bound-names)
-         [opr nam & r] expr
-         [v & asserts] (if (= opr :fn)
-                         r
-                         (cons nil r)   ; :set has no return value
-                         )
+         [opr nam v & asserts] expr
          asserts (reorder-assertions asserts
                                      (set/difference free-names #{nam}))
          bound-names (set/union bound-names free-names)]
      (apply make-op opr nam
             (map (par reorder-assertions-walk bound-names)
-                 (if (= opr :fn)
-                   (cons v asserts)
-                   asserts))))
+                 (cons v asserts))))
 
    op?
    (apply make-op
