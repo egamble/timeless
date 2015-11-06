@@ -3,6 +3,8 @@
 # This works on strings whose length is composite (i.e. not prime) where all the characters are the same
 # and, more generally, on strings that are the concatenation of a composite number of identical strings.
 
+#name Repeat* Repeat+
+
 Repeat* = {s  ↦ {'',  Repeat+ s}}
 Repeat+ = {s  ↦ {s ++ Repeat* s}}
 

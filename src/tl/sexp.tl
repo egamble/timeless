@@ -15,11 +15,11 @@ Symbol         = {(∈ Alpha) : (∈ Alphanum_str)}
 lex_split =
 {Sep ↦
  {'' ↦ [],
-  c : cs | r = lex_split Sep cs
-   (| c ∈ Sep  ↦ c : r
+  c:cs | r = lex_split Sep cs
+   (| c ∈ Sep  ↦ c:r
     |          ↦ {[] ↦ [[c]],
-                   t : ts | t ∈ Sep  ↦ [c] : r
-                          |          ↦ c : t : ts
+                   t:ts | t ∈ Sep  ↦ [c]:r
+                        |          ↦ c:t:ts
                   } r
    )
  }

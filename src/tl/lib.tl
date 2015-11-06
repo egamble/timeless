@@ -9,19 +9,21 @@
 (..) =
 {a ∈ Int ↦
  {a ↦ [a],
-  b ∈ Int | a < b ⟼ a : (inc a .. b)},
+  b ∈ Int | a < b ⟼ a : (inc a..b)},
 
  c ∈ Char ↦
  {c ↦ [c],
   d ∈ Char | (a = charInt c) ∧ (b = charInt d) ∧ a < b ⟼
-   c : (intChar(inc a) .. d)}}
+   c : (intChar(inc a)..d)}}
 
 # Library prefix functions
 
-identity = {x ↦ x}
+id = {x ↦ x}
 
-inc = {x ↦ x + 1}
-dec = {x ↦ x - 1}
+const = {x ↦ {y ↦ x}}
+
+inc = {x ↦ x+1}
+dec = {x ↦ x-1}
 
 if =
 {cond ↦
@@ -32,28 +34,27 @@ if =
 map =
 {f ↦
  {[] ↦ [],
-  x : xs  ↦ f x : map f xs}}
+  x:xs  ↦ f x : map f xs}}
 
 filter =
 {S ↦
  {[] ↦ [],
-  x : xs | r = filter S xs
-   (| x ∈ S  ↦ x : r
-    |        ↦ r)
+  x:xs | r = filter S xs
+   (| x ∈ S ↦ x:r
+    |       ↦ r)
  }
 }
 
 remove =
 {S ↦
  {[] ↦ [],
-  x : xs | r = remove S xs
-   (| x ∈ S  ↦ r
-    |        ↦ x : r)
+  x:xs | r = remove S xs
+   (| x ∈ S ↦ r
+    |       ↦ x:r)
  }
 }
 
 zip =
 {[] ↦ {∈ Seq ↦ []},
- x1 : xs1 ↦
-  {[] ↦ [],
-   x2 : xs2 ↦ (x1, x2) : zip xs1 xs2}}
+ x1:xs1 ↦ {[] ↦ [],
+            x2:xs2 ↦ (x1,x2) : zip xs1 xs2}}
