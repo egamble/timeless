@@ -2,7 +2,7 @@
 
 #infixa 10 ∘
 
-(∘) = {f ↦ {g ↦ {x ↦ f (g x)}}
+(∘) = {f g x ↦ f (g x)}
 
 #infix 8 ..
 
@@ -26,10 +26,9 @@ inc = {x ↦ x+1}
 dec = {x ↦ x-1}
 
 if =
-{cond ↦
- {then ↦
-  {else | cond ↦ then
-        |      ↦ else}}}
+{cond then else
+ | cond ↦ then
+ |      ↦ else}
 
 map =
 {f ↦
@@ -39,18 +38,18 @@ map =
 filter =
 {S ↦
  {[] ↦ [],
-  x:xs | r = filter S xs
-   (| x ∈ S ↦ x:r
-    |       ↦ r)
+  x:xs | r = filter S xs ↦
+   {| x ∈ S ↦ x:r
+    |       ↦ r}
  }
 }
 
 remove =
 {S ↦
  {[] ↦ [],
-  x:xs | r = remove S xs
-   (| x ∈ S ↦ r
-    |       ↦ x:r)
+  x:xs | r = remove S xs ↦
+   {| x ∈ S ↦ r
+    |       ↦ x:r}
  }
 }
 

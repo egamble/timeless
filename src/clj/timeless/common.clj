@@ -48,6 +48,7 @@
 (defn get-maybe-free-names
   "Collect all names except those in contained comprehensions."
   [expr]
+  (prn expr)
   (condf expr
    op? 
    (reduce (fn [name-set sub-expr]
