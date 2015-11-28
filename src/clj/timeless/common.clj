@@ -2,6 +2,12 @@
   "Generally useful defs for the Timeless interpreter."
   (:require [clojure.set :as set]))
 
+(defn get-context [expr]
+ (:context (meta expr)))
+
+(defn set-context [expr context]
+  (vary-meta expr assoc :context context))
+
 (def predefined-ops
   #{'* '/ '+ '- :cons '++ '∩ '∪ '= '≠ '< '> '≤ '≥ '∈ '∉ '⊂ '∧ '∨})
 

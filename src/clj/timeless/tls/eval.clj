@@ -1,6 +1,8 @@
-(ns timeless.eval
-  "Eval the S-expression form of Timeless expressions."
-  (:require [timeless.common :refer :all]))
+(ns timeless.tls.eval
+  "Eval TLS expressions."
+  (:require [timeless.common :refer :all])
+;  (:require [timeless.common :refer [condf get-context]])
+  )
 
 ;; In most cases where an expression can't be evaluated, fail by returning nil rather than throw an error,
 ;; because the failure could be an implicit type failure that is an intentional part of the program control flow.
@@ -8,8 +10,6 @@
 ;; Also throw an error when the interpreter doesn't yet know how to evaluate the expression.
 
 ;; TODO: Figure out why 0 .. ∞ is not lazy.
-
-;; TODO: Modify interpreter to use Haskell-style thunks for all fn applications, and go back to atoms in context maps to cache values.
 
 (declare eval')
 
@@ -222,57 +222,110 @@
     (count (rest s))))
 
 (defn apply'
-  [expr]
-  (let [[opr x & xs] expr]
-    (if (op? opr)
-      (apply-op expr)
-      (condp opr-isa? opr
-             predefined-ops (if (seq xs)
-                              (apply-binary opr x (first xs))
-                              expr ; section
-                              )
-             :neg (- x)
-             'intChar (intChar x)
-             'charInt (charInt x)
-             'len (len x)
-             (error-apply expr)))))
+  ([expr]
+   (apply' expr nil))
+
+  ;; TODO: use "head" rather than "opr"
+  ;; TODO: none of the arguments are evaled yet
+  ([expr context]
+   (let [[opr x & xs] expr]
+     (if (op? opr)
+       (apply-op expr)
+       (condp opr-isa? opr
+         predefined-ops (if (seq xs)
+                          (apply-binary opr x (first xs))
+                          expr ; section
+                          )
+         :neg (- x)
+         'intChar (intChar x)
+         'charInt (charInt x)
+         'len (len x)
+         (error-apply expr))))))
 
 (defn eval'
+  "Eval all expressions except atomic literals, predefined names, and :cons, ++, :seq, :map and :neg constructs.
+  The context argument is only used if the expr doesn't have a :context metatag."
   ([expr]
-   (eval' expr {}))
+   (eval' expr nil))
 
   ([expr context]
-   (let [f (fn []
-             (let [s (map #(eval' % context) expr)]
-               (when (every? not-nil? s)
-                 s)))]
-     (condf expr
-            (par op-isa? :fn)
-            (if (:context (meta expr))
-              expr
-              (with-meta expr {:context context}))
+   (let [context (or (get-context expr) context)]
+     (if (list? expr)
+       (let [head (first expr)]
+         (cond
+           (keyword? head)
+           (case head
+             :name (symbol (second expr))
+             :neg (apply' expr context)
 
-            (par op-isa? #{:seq :tup :right}) (f)
+             ;; TODO: :let, :guard, :alt, :tup
+             :let nil
+             :guard nil
+             :alt nil
+             :tup nil
 
-            op?
-            (let [s (f)]
-              (when s (apply' s)))
+             ;; Don't eval :cons, :seq, or :map constructs.
+             expr)
 
-            name?
-            (cond
-              (not-nil? (context expr))
-              (eval' (context expr) context)
+           (predefined head)
+           (if (= head '++)
+             ;; Don't eval ++ constructs.
+             expr
+             (apply' expr context))
 
-              (= expr 'true) true
-              (= expr 'false) false
+           :else
+           (let [head (eval' head context)
+                 expr (set-context (cons head (rest expr))
+                                   context)]
+             (if ((some-fn keyword? predefined) head)
+               (eval' expr)
+               (apply' expr)))))
 
-              (predefined expr)
-              expr
+       ;; expr now must be a name or atomic literal.
+       (if (and (name? expr)
+                (not (predefined expr)))
+         (let [a (context expr)
+               v @a]
+           (if (nil? v)
+             (error (str "Undefined name: " expr))
+             (if (and ((some-fn list? name?) v)
+                      (not (:evaled (meta v))))
+               (let [v (eval' v)]
+                 (reset! a (if ((some-fn list? name?) v)
+                             (vary-meta v assoc :evaled true)
+                             v))
+                 v)
+               v)))
+         
+         ;; No atomic literal or predefined name needs to change.
+         ;; true and false are already booleans rather than names.
+         expr)))))
 
-              :else (error (str "Undefined name: " expr)))
 
-            string? (cons :seq expr)
 
-            (par = :nospace) \u200B
 
-            expr))))
+
+
+
+
+
+
+
+
+#_(let [f (fn []
+          (let [s (map #(eval' % context) expr)]
+            (when (every? not-nil? s)
+              s)))]
+  (condf expr
+         (par op-isa? :fn)
+         (if (:context (meta expr))
+           expr
+           (with-meta expr {:context context}))
+
+         (par op-isa? #{:seq :tup :right}) (f)
+
+         op?
+         (let [s (f)]
+           (when s (apply' s)))
+
+         expr))
