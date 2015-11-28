@@ -243,8 +243,9 @@
          (error-apply expr))))))
 
 (defn eval'
-  "Eval all expressions except atomic literals, predefined names, and :cons, ++, :seq, :map, :fn, and :set constructs.
-  The context argument is only used if the expr doesn't have a :context metatag."
+  "Eval all expressions except atomic literals, predefined names,
+and :cons, ++, :seq, :map, :fn, :set, and :values constructs.
+The context argument is only used if the expr doesn't have a :context metatag."
   ([expr]
    (eval' expr nil))
 
@@ -264,7 +265,7 @@
              :alt nil
              :tup nil
 
-             ;; Don't eval :cons, :seq, :map, :fn, or :set constructs.
+             ;; Don't eval :cons, :seq, :map, :fn, :set, or :values constructs.
              expr)
 
            (predefined head)

@@ -1,7 +1,7 @@
 (ns timeless.tls.run
   "Run TLS code from the command line."
   (:require [timeless.tls.eval :refer [eval']]
-            [timeless.common :refer [error third]]))
+            [timeless.common :refer [third error get-context set-context]]))
 
 (defn lazy-input
   "Returns a lazy sequence of characters from an input stream or Reader."
@@ -11,20 +11,34 @@
      (when-not (== c -1)
        (cons (char c) (lazy-input in))))))
 
+(defn top-error []
+  (error "The TLS top-level expression must eval to a sequence of chars."))
+
+(defn eval1
+  "Eval expr. Use the given context if expr doesn't already have a :context metatag.
+  If multiple values are returned, use the first one. Error if there are no values."
+  [expr context]
+  (let [v (eval' expr context)]
+    (if (and (list? v) (= (first v) :values))
+      (if (seq (rest v))
+        (second v)
+        (top-error))
+      v)))
+
 (defn lazy-eval
   "Returns a lazy sequence of characters from evaluation of a TLS expression."
   [expr context]
   (lazy-seq
    (let [context (or (get-context expr) context)
-         s (eval' expr context)
-         msg "The TLS top-level expression must eval to a sequence of chars."]
-     (if (list? s)
+         s (eval1 expr context)]
+     (cond
+       (list? s)
        (case (first s)
          :cons
-         (let [c (eval' (second s) context)]
+         (let [c (eval1 (second s) context)]
            (if (char? c)
              (cons c (lazy-eval (third s) context))
-             (error msg)))
+             (top-error)))
 
          ++
          (concat (lazy-eval (first s) context)
@@ -35,10 +49,11 @@
            (when x
              (lazy-eval (list :cons x (cons :seq xs)) context)))
 
-         (error msg))
-       (if (string? s)
-         (seq s)
-         (error msg))))))
+         (top-error))
+
+       (string? s) (seq s)
+
+       :else (top-error)))))
 
 (defn run [expr in out]
   (let [context (or (get-context expr) {})
