@@ -1,10 +1,8 @@
 (ns timeless.tls.eval
   "Eval TLS expressions."
-  (:require [timeless.common :refer :all])
-;  (:require [timeless.common :refer [condf get-context]])
-  )
+  (:require [timeless.common :refer :all]))
 
-;; In most cases where an expression can't be evaluated, fail by returning nil rather than throw an error,
+;; In most cases where an expression can't be evaluated, fail (return nil) rather than throw an error,
 ;; because the failure could be an implicit type failure that is an intentional part of the program control flow.
 ;; Throw an error when the evaluation could never succeed, e.g. when the expression is an unbound name.
 ;; Also throw an error when the interpreter doesn't yet know how to evaluate the expression.
@@ -12,93 +10,278 @@
 ;; TODO: Figure out why 0 .. ∞ is not lazy.
 
 (declare eval')
+(declare eval-for-type)
 
-;; This produces a lazy sequence of splits (into n pieces), even when coll is lazy and indefinitely long.
-(defn splits*
-  [n coll]
-  (if (= n 1)
-    (list (list coll))
-    (lazy-cat (for [ss (splits* (dec n) coll)]
-                (cons '() ss))
-              (when (seq coll)
-                (let [x (first coll)]
-                  (for [[s & ss] (splits* n (rest coll))]
-                    (cons (cons x s) ss)))))))
-
-(defn splits
-  [n v]
-  (for [ss (splits* n (rest v))]
-    (for [s ss]
-      (cons :seq s))))
-
-(defn get-pattern-contexts
-  "Returns one context (in a list for mapcatting) for v if pattern is a name, or a cons, :seq, or :tup op.
-  Returns a list of contexts for each split of v if pattern is a '++ op."
-  [pattern v context]
+(defn make-binding
+  "Make a new context with names in pattern bound to functions of v.
+Multiple binding values, and ++ patterns, are not allowed if values? is false."
+  [pattern v context values?]
   (if (name? pattern)
-    (list (assoc context pattern v))
+    (let [a (atom nil)
+          context (assoc context pattern a)
+          v (set-context v context)]
+      (reset! a (if (taggable? v)
+                  (vary-meta v assoc :values? values?)
+                  v))
+      context)
+    (let [[head & xs] pattern]
+      (case head
+        ++ (if values?
+             nil ; TODO
+             (error (str "++ pattern for a let binding: " pattern)))
+        :cons nil ; TODO
+        :seq nil ; TODO
+        :tup nil ; TODO
+        :map nil ; TODO
+        ∪ nil ; TODO
+        (+ - * /) nil ; TODO
+        (error (str "Unknown destructuring pattern: " pattern))))))
 
-    ;; must be destructuring op
-    (let [[opr & names] pattern
-          n (count names)
-          k (dec n)]
-      (case opr
-        '++ (when (op-isa? :seq v)
-              (map #(merge context (zipmap names %))
-                   (splits (count names) v)))
-        :cons (when (and (op-isa? :seq v)
-                         (>= (count (rest v)) k))
-                (list (merge context
-                             (zipmap names (concat (take k (rest v))
-                                                   (list (cons :seq (drop k (rest v)))))))))
-        (:seq :tup) (when (and (op-isa? opr v)
-                               (= (count (rest v)) n))
-                      (list (merge context (zipmap names (rest v)))))))))
+(defn apply-fn [expr]
+  (let [context (get-context expr)
+        [f x & xs] expr
+        [_ pattern body] f]
+    (if (seq xs)
+      (eval' (apply list
+                    (apply-fn (set-context (list f x) context))
+                    xs)
+             context)
+      (let [v (eval' x context)]
+        (if (op-isa? :values v)
+          (let [rs (mapcat #(let [w (apply-fn (set-context (apply list f % xs)
+                                                           context))]
+                              (if (op-isa? :values w)
+                                (rest w)
+                                (list w)))
+                           (rest v))]
+            (when (seq rs)
+              (if (seq (rest rs))
+                (cons :values rs)
+                (first rs))))
+          (eval' body ; assumes body doesn't have a :context metatag
+                 (make-binding pattern v context true)))))))
 
-(defn get-assignment-contexts
-  [assignment context]
-  (let [[_ a b] assignment
-        v (eval' b context)]
-    (if (op-isa? :multi v)
-      (mapcat #(get-pattern-contexts a % context) (rest v))
-      (get-pattern-contexts a v context))))
+(defn apply-seq [expr]
+  (let [context (get-context expr)
+        [f n & xs] expr
+        [_ & ys] f]
+    (if (seq xs)
+      (eval' (apply list
+                    (apply-seq (set-context (list f n) context))
+                    xs)
+             context)
+      (when-let [n (eval-for-type n :int context)]
+        (when (and (>= n 0) (not= n '∞))
+          (try (nth ys n)
+               (catch java.lang.IndexOutOfBoundsException e)))))))
 
-(defn eval-asserts
-  [v asserts context]
-  (if (seq asserts)
-    (let [[assert & r] asserts]
-      (if (op-isa? := assert)
-        (let [contexts (get-assignment-contexts assert context)
-              vs (map #(eval-asserts v r %) contexts)
-              vs (remove nil? vs)]
-          (when (seq vs)
-            (if (seq (rest vs))
-              (cons :multi vs)
-              (first vs))))
-        (when (eval' assert context)
-          (eval-asserts v r context))))
-    (eval' v context)))
+(defn apply-cons [expr]
+  (let [context (get-context expr)
+        [f n & xs] expr
+        [_ y s] f]
+    (if (seq xs)
+      (eval' (apply list
+                    (apply-cons (set-context (list f n) context))
+                    xs)
+             context)
+      (when-let [n (eval-for-type n :int context)]
+        (if (= n 0)
+          (set-context y context)
+          (when (and (> n 0) (not= n '∞))
+            (when-let [s (eval-for-type s :seq context)]
+              (eval' (list s (dec n)) context))))))))
 
-(declare apply')
+(defn apply-map [expr]
+  (let [context (get-context expr)
+        [f x & xs] expr
+        [_ & clauses] f]
+    (if (seq xs)
+      (eval' (apply list
+                    (apply-map (set-context (list f x) context))
+                    xs)
+             context)
+      (when (seq clauses)
+        (let [[k v & kvs] clauses]
+          (eval' (list :alt
+                       (list :guard (list '= k x) v)
+                       (list (cons :map kvs) x))
+                 context))))))
 
-(defn apply-clause
-  [[clause x]]
-  (let [[_ nam v & asserts] clause]
-    (eval-asserts v asserts (assoc (:context (meta clause))
-                                   nam x))))
+(defn eval-let [expr]
+  (let [[_ bindings body] expr
+        context (get-context expr)]
+    (if (seq bindings)
+      (let [[pattern v & bs] bindings]
+        (eval-let
+         (set-context (list :let bs body) ; assumes body doesn't have a :context metatag
+                      (make-binding pattern v context false))))
+      (eval' body context))))
 
-(defn cons'
-  [x s]
-  (when (op-isa? :seq s) ; fail if s isn't a seq
-    (apply list :seq x (rest s))))
+(defn eval-guard [expr]
+  (let [context (get-context expr)
+        [_ guard body] expr]
+    (when (eval-for-type guard :bool context) ; fail if the eval'ed guard is nil or false
+      (eval' body context))))
 
-(defn concat'
-  [s1 s2]
-  ;; fail if either arg is not a seq
-  (when (and (op-isa? :seq s1)
-             (op-isa? :seq s2))
-    (when-let [cat (cons :seq (concat (rest s1) (rest s2)))]
-      cat)))
+(defn apply' [expr]
+  (let [[head & xs] expr
+        context (get-context expr)
+        head (eval' head context)
+        expr (set-context (cons head xs) context)]
+    (if (op? head)
+      (let [[op-head & op-xs] head]
+        (cond
+          (keyword? op-head)
+          (let [f (case op-head
+                    (:fn :set) apply-fn
+                    :map apply-map
+                    :seq apply-seq
+                    :cons apply-cons
+                    nil)]
+            (when f (f expr)))
+
+          ;; Collapse an applied section, but don't eval further, unless the collapsed applied section is itself applied.
+          (and (predefined-ops op-head)
+               (nil? (second op-xs)))
+          (let [op (list op-head (first op-xs) (first xs))]
+            (if (nil? (second xs)) ; check if the collapsed applied section is itself applied
+              (set-context op context)
+              (apply' (set-context (cons op (rest xs))
+                                   context))))
+
+          (= '∪ head)
+          (set-context (list :alt
+                             (cons (first op-xs) xs)
+                             (cons (second op-xs) xs)))))
+
+      (case head
+        :name (symbol (first xs))
+        :let (eval-let expr)
+        :guard (eval-guard expr)
+        ;; Everything else is uneval'ed.
+        expr))))
+
+(defn eval'
+  "Common eval regardless of what type is expected.
+The context argument is only used if the expr doesn't have a :context metatag.
+Returned expressions have a :context metatag if possible."
+  ([expr]
+   (eval' expr nil))
+
+  ([expr context]
+   (let [x (get-context expr)
+         [expr context] (if x
+                          [expr x]
+                          [(set-context expr context) context])]
+     (if (op? expr)
+       (apply' expr)
+       (if (and (name? expr)
+                (not (predefined expr)))
+         (let [a (context expr)
+               v @a]
+           (if (nil? v)
+             (error (str "Undefined name: " expr))
+             (if (and (taggable? v)
+                      (not (:evaled (meta v))))
+               (let [w (eval' v)]
+                 (if (and (op-isa? :values w)
+                          (not (:values? (meta v))))
+                   (error (str "Multiple values for a let binding: " expr))
+                   (reset! a (if (taggable? w)
+                               (vary-meta w assoc :evaled true)
+                               w)))
+                 w)
+               v)))
+         ;; Return atomic literals, predefined names, and keywords unchanged.
+         expr)))))
+
+(defn eval-for-seq [expr]
+  (let [context (get-context expr)]
+    (lazy-seq
+     (cond
+       (op? expr)
+       (let [f #(eval-for-type % :seq context)
+             [head & xs] expr]
+         (case head
+           :seq expr
+           :cons (if-let [[_ & s] (f (second xs))]
+                   (set-context (apply list :seq (first xs) s)
+                                context))
+           ++ (if-let [[_ & s1] (f (first xs))]
+                (if-let [[_ & s2] (f (second xs))]
+                  (set-context (cons :seq (concat s1 s2))
+                               context)))
+           nil))
+
+       (= :empty expr)
+       (list :seq)
+
+       (string? expr)
+       (cons :seq expr)
+
+       :else nil))))
+
+(defn eval-for-cons [expr]
+  (let [context (get-context expr)
+        f #(when (first %)
+             (set-context (list :cons (first %) (cons :seq (rest %)))
+                          context))]
+    (if (op? expr)
+      (let [[head & xs] expr]
+        (case head
+          :cons expr
+          :seq (f xs)
+          ++ (when-let [[_ x y] (eval-for-type (first xs) :cons context)]
+               (set-context (list :cons x (list '++ y (second xs)))
+                            context))
+          nil))
+      (when (string? expr)
+        (f (seq expr))))))
+
+(defn eval-for-empty [expr]
+  (if (= :empty expr)
+    :empty
+    (when (and (op-isa? :seq expr)
+               (nil? (second expr)))
+      :empty)))
+
+(defn eval-for-set [expr] nil)
+
+(defn eval-for-int [expr]
+  ;; TODO: call eval-for-num, check if it's an int or can be coerced to an int, o.w. fail
+  nil)
+
+(defn n? [f]
+  (fn [x y]
+    (when (and (number? x)
+               (number? y))
+      (f x y))))
+
+(defn charInt [x]
+  (when (char? x)
+    (int x)))
+
+(defn len [expr]
+  ;; TODO: make this work for other kinds of sets
+  (let [context (get-context expr)]
+    (condf expr
+      string? (count expr)
+      op? (let [[head xs] expr
+                f #(eval-for-type % :seq context)]
+            (case head
+              :seq (count xs)
+              ++ (when-let [[_ & s1] (f (first xs))]
+                   (when-let [[_ & s2] (f (second xs))]
+                     (+ (count s1) (count s2))))
+              :cons (when-let [[_ & s] (f (second xs))]
+                      (inc (count s)))
+              nil))
+      predefined-sets (set-context '∞ context))))
+
+(defn eval-for-num [expr]
+  ;; TODO: apply of :neg, len, charInt, arith ops
+  ;; TODO: return number literals and inf
+  nil)
 
 (defn bool? [x]
   (or (true? x) (false? x)))
@@ -111,22 +294,24 @@
   (when (and (bool? x) (bool? y))
     (or x y)))
 
+;; TODO: make it work with uneval'ed set ops and fns, including :set
+;; TODO: eval args of uneval'ed ops and fns
 (defn member?
   [x S]
   (let [efn #(error (str "Can't check member of: " S))]
     (if (op? S)
-      (let [[opr & ys] S]
+      (let [[head & ys] S]
         (cond
-          (and (= :fn opr) (= true (second ys)))
+          (and (= :fn head) (= true (second ys)))
           (let [[nam v & asserts] ys]
             (boolean
              (eval-asserts true asserts (assoc (:context (meta S))
                                                nam x))))
 
-          (= :intersection opr) (every? (par member? x) ys)
-          (= :union opr) (boolean (some (par member? x) ys))
+          (= '∩ head) (every? (par member? x) ys)
+          (= '∪ head) (boolean (some (par member? x) ys))
 
-          (and (= 'Im opr)
+          (and (= 'Im head)
                (op-isa? :seq (first ys)))
           (boolean (some #{x} (rest (first ys))))
 
@@ -139,194 +324,85 @@
         'Seq (op-isa? :seq x)
         (efn)))))
 
+;; TODO: make it work with uneval'ed set ops and fns, including :set
+;; TODO: eval args of uneval'ed ops and fns
 (defn not-member?
   [x S]
   (let [v (member? x S)]
     (when (bool? v)
       (not v))))
 
-(defn union
-  [S1 S2]
-  (cons :union
-   (concat (if (op-isa? :union S1)
-             (rest S1)
-             (list S1))
-           (if (op-isa? :union S2)
-             (rest S2)
-             (list S2)))))
+(defn eval-for-bool [expr]
+  ;; TODO: apply of sets and set-producing fns
+  ;; TODO: apply of bool ops
+  nil)
 
-(defn intersection
-  [S1 S2]
-  (cons :intersection
-   (concat (if (op-isa? :intersection S1)
-             (rest S1)
-             (list S1))
-           (if (op-isa? :intersection S2)
-             (rest S2)
-             (list S2)))))
+(defn eval-for-char [expr]
+  (if (char? expr)
+    expr
+    (let [context (get-context expr)]
+      (when (op? expr)
+        (let [f #(eval-for-type % :int context)
+              [x n] expr]
+          (cond
+            (= 'intChar x) (if-let [n (f n)]
+                             (char n))
+            (string? x) (if-let [n (f n)]
+                          (when (and (>= n 0) (not= n '∞))
+                            (try (nth x n)
+                                 (catch java.lang.IndexOutOfBoundsException e))))
+            :else nil))))))
 
-(defn error-apply
-  [expr]
-  (error (str "Can't apply: " expr)))
+(declare eval-for-type)
 
-(defn apply-binary
-  [opr x y]
-  (let [n? (fn [g]
-             (fn [x y]
-               (when (and (number? x)
-                          (number? y))
-                 (g x y))))
-        f (case opr
-            = =, ≠ not=
-            :cons cons'
-            ++ concat'
-            + (n? +), - (n? -)
-            * (n? *), / (n? /)
-            < (n? <), > (n? >)
-            ≤ (n? <=), ≥ (n? >=)
-            ∧ and', ∨ or'
-            ∈ member?, ∉ not-member?
-            ∩ intersection, ∪ union
-            (error-apply (list opr x y)))]
-    (f x y)))
+(defn eval-for-tuple [expr types]
+  (let [context (get-context expr)]
+    (when (and (op-isa? :tup expr)
+               (= (count (rest expr))
+                  (count types)))
+      (set-context (cons :tup (map #(eval-for-type %1 %2 context)
+                                   (rest expr)
+                                   types))
+                   context))))
 
-(defn apply-op
-  [expr]
-  (let [[[opr & xs] y] expr]
-    (condp opr-isa? opr
-     :fn
-     (apply-clause expr)
+(defn eval-for-type
+  "Eval for a particular type. The type argument is a keyword describing the type, or a list of types for a tuple.
+The context argument is only used if the expr doesn't have a :context metatag.
+Returned expressions have a :context metatag if possible."
+  ([expr type]
+   (eval-for-type expr type nil))
+  
+  ([expr type context]
+   (let [expr (eval' expr context)]
+     (cond
+       (op-isa? :alt expr)
+       (some #(eval-for-type % type context) (rest expr))
 
-     :union
-     (some #(apply' (list % y)) xs) ; nil if all nil
+       (op-isa? :values expr)
+       (cons :values (map #(eval-for-type % type context) (rest expr)))
 
-     :right
-     (apply' (list (first xs) y (second xs)))
+       (seq? type)
+       (eval-for-tuple expr type)
 
-     predefined-ops
-     ;; must be apply of section
-     (apply-binary opr (first xs) y)
+       :else ((case type
+                :seq eval-for-seq
+                :cons eval-for-cons
+                :empty eval-for-empty
+                :set eval-for-set
+                :num eval-for-num
+                :int eval-for-int
+                :bool eval-for-bool
+                :char eval-for-char
+                :any identity)
+              expr)))))
 
-     (error-apply (cons opr xs)))))
+(defn eval1-for-type
+  "Like eval-for-type, but if multiple values are returned, use the first one."
+  ([expr type]
+   (eval1-for-type expr type nil))
 
-(defn intChar [x]
-  (when (integer? x) ; TODO: check doubles too
-    (char x)))
-
-(defn charInt [x]
-  (when (char? x)
-    (int x)))
-
-(defn len [s]
-  (when (op-isa? :seq s)
-    (count (rest s))))
-
-(defn apply'
-  ([expr]
-   (apply' expr nil))
-
-  ;; TODO: use "head" rather than "opr"
-  ;; TODO: none of the arguments are evaled yet
-  ([expr context]
-   (let [[opr x & xs] expr]
-     (if (op? opr)
-       (apply-op expr)
-       (condp opr-isa? opr
-         predefined-ops (if (seq xs)
-                          (apply-binary opr x (first xs))
-                          expr ; section
-                          )
-         :neg (- x)
-         'intChar (intChar x)
-         'charInt (charInt x)
-         'len (len x)
-         (error-apply expr))))))
-
-(defn eval'
-  "Eval all expressions except atomic literals, predefined names,
-and :cons, ++, :seq, :map, :fn, :set, and :values constructs.
-The context argument is only used if the expr doesn't have a :context metatag."
-  ([expr]
-   (eval' expr nil))
-
-  ([expr context]
-   (let [context (or (get-context expr) context)]
-     (if (list? expr)
-       (let [head (first expr)]
-         (cond
-           (keyword? head)
-           (case head
-             :name (symbol (second expr))
-             :neg (apply' expr context)
-
-             ;; TODO: :let, :guard, :alt, :tup
-             :let nil
-             :guard nil
-             :alt nil
-             :tup nil
-
-             ;; Don't eval :cons, :seq, :map, :fn, :set, or :values constructs.
-             expr)
-
-           (predefined head)
-           (if (= head '++)
-             ;; Don't eval ++ constructs.
-             expr
-             (apply' expr context))
-
-           :else
-           (let [head (eval' head context)
-                 expr (set-context (cons head (rest expr))
-                                   context)]
-             (if ((some-fn keyword? predefined) head)
-               (eval' expr)
-               (apply' expr)))))
-
-       ;; expr now must be a name or atomic literal.
-       (if (and (name? expr)
-                (not (predefined expr)))
-         (let [a (context expr)
-               v @a]
-           (if (nil? v)
-             (error (str "Undefined name: " expr))
-             (if (and ((some-fn list? name?) v)
-                      (not (:evaled (meta v))))
-               (let [v (eval' v)]
-                 (reset! a (if ((some-fn list? name?) v)
-                             (vary-meta v assoc :evaled true)
-                             v))
-                 v)
-               v)))
-         
-         ;; No atomic literal or predefined name needs to change.
-         ;; true and false are already booleans rather than names.
-         expr)))))
-
-
-
-
-
-
-
-
-
-
-
-
-#_(let [f (fn []
-          (let [s (map #(eval' % context) expr)]
-            (when (every? not-nil? s)
-              s)))]
-  (condf expr
-         (par op-isa? :fn)
-         (if (:context (meta expr))
-           expr
-           (with-meta expr {:context context}))
-
-         (par op-isa? #{:seq :tup :right}) (f)
-
-         op?
-         (let [s (f)]
-           (when s (apply' s)))
-
-         expr))
+  ([expr type context]
+   (let [v (eval-for-type expr type context)]
+     (if (op-isa? :values v)
+       (some identity (rest v))
+       v))))

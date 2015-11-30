@@ -3,7 +3,23 @@
   (:require [timeless.common :refer :all]
             [clojure.set :as set]))
 
-;;; ---------------------------------------------------------------------------
+(defn get-maybe-free-names
+  "Collect all names except those in contained comprehensions."
+  [expr]
+  (prn expr)
+  (condf expr
+   op? 
+   (reduce (fn [name-set sub-expr]
+             (if (op-isa? :fn sub-expr)
+               name-set
+               (set/union name-set (get-maybe-free-names sub-expr))) )
+           #{}
+           expr)
+
+   name? #{expr}
+
+   nil))
+
 (defn split-assertions
   "The guard of a clause is split into a list of assertions, if it isn't already."
   [asserts]
@@ -11,9 +27,11 @@
              (split-assertions (rest %))
              (list %))
           asserts))
-;;; ---------------------------------------------------------------------------
 
-;;; ---------------------------------------------------------------------------
+(defn make-=
+  [a b]
+  (list '= a b))
+
 (defn extract-embedded-assertions*
   "Extract embedded assertions from a pattern.
   Return the new pattern and the list of embedded assertions."
@@ -48,20 +66,14 @@
   (let [[pattern new-asserts] (extract-embedded-assertions* pattern)
         asserts (concat new-asserts asserts)]
     [pattern asserts]))
-;;; ---------------------------------------------------------------------------
 
-;;; ---------------------------------------------------------------------------
 (defn normalize-clause
   "Make the clause pattern a new name."
   [pattern asserts]
   (let [nam (new-name)]
     [nam (cons (make-= nam pattern)
                asserts)]))
-;;; ---------------------------------------------------------------------------
 
-;;; ---------------------------------------------------------------------------
-;;; decompose assertions
-;;;
 (defn destructuring-op?
   "The destructuring operators are :seq, :tup, :, and ++."
   [expr]
@@ -105,9 +117,7 @@
   The destructuring operators are :seq, :tup, :, and ++."
   [asserts]
   (mapcat decompose-assertion asserts))
-;;; ---------------------------------------------------------------------------
 
-;;; ---------------------------------------------------------------------------
 (defn transform-clause
   "Transforms a clause, except for reordering assertions which is done
   in a second pass using the finalized :maybe-free-names tags.
@@ -120,11 +130,7 @@
          asserts (decompose-assertions asserts)]
      (apply list :fn nam v asserts))
    expr))
-;;; ---------------------------------------------------------------------------
 
-;;; ---------------------------------------------------------------------------
-;;; reorder assertions
-;;;
 (defn local-free-names
   [assert free-names]
   (set/intersection free-names (get-maybe-free-names assert)))
@@ -188,11 +194,11 @@
    (par op-isa? :fn)
    (let [free-names (set/difference (get-maybe-free-names expr)
                                     bound-names)
-         [opr nam v & asserts] expr
+         [head nam v & asserts] expr
          asserts (reorder-assertions asserts
                                      (set/difference free-names #{nam}))
          bound-names (set/union bound-names free-names)]
-     (apply list opr nam
+     (apply list head nam
             (map (par reorder-assertions-walk bound-names)
                  (cons v asserts))))
 
@@ -201,4 +207,3 @@
         expr)
 
    expr))
-;;; ---------------------------------------------------------------------------
