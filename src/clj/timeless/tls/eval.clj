@@ -7,8 +7,6 @@
 ;; Throw an error when the evaluation could never succeed, e.g. when the expression is an unbound name.
 ;; Also throw an error when the interpreter doesn't yet know how to evaluate the expression.
 
-;; TODO: Figure out why 0 .. ∞ is not lazy.
-
 (declare eval')
 (declare eval-for-type)
 
@@ -248,21 +246,18 @@ Returned expressions have a :context metatag if possible."
 (defn eval-for-set [expr] nil)
 
 (defn eval-for-int [expr]
-  ;; TODO: call eval-for-num, check if it's an int or can be coerced to an int, o.w. fail
-  nil)
+  (when-let [x (eval-for-num expr)]
+    (if (integer? x)
+      x
+      (let [n (int x)]
+        (when (= x (float n))
+          n)))))
 
-(defn n? [f]
-  (fn [x y]
-    (when (and (number? x)
-               (number? y))
-      (f x y))))
-
-(defn charInt [x]
-  (when (char? x)
-    (int x)))
+(defn charInt [c]
+  (when (char? c)
+    (int c)))
 
 (defn len [expr]
-  ;; TODO: make this work for other kinds of sets
   (let [context (get-context expr)]
     (condf expr
       string? (count expr)
@@ -276,12 +271,15 @@ Returned expressions have a :context metatag if possible."
               :cons (when-let [[_ & s] (f (second xs))]
                       (inc (count s)))
               nil))
-      predefined-sets (set-context '∞ context))))
+      predefined-sets (set-context '∞ context)
+
+      ;; TODO: make len work for other kinds of sets
+      )))
 
 (defn eval-for-num [expr]
   ;; TODO: apply of :neg, len, charInt, arith ops
-  ;; TODO: return number literals and inf
-  nil)
+  (when (or (number? expr) (= '∞ expr))
+    expr))
 
 (defn bool? [x]
   (or (true? x) (false? x)))
@@ -294,35 +292,34 @@ Returned expressions have a :context metatag if possible."
   (when (and (bool? x) (bool? y))
     (or x y)))
 
-;; TODO: make it work with uneval'ed set ops and fns, including :set
+;; TODO: make member? work with uneval'ed set ops and fns, including :set
 ;; TODO: eval args of uneval'ed ops and fns
 (defn member?
   [x S]
-  (let [efn #(error (str "Can't check member of: " S))]
-    (if (op? S)
-      (let [[head & ys] S]
-        (cond
-          (and (= :fn head) (= true (second ys)))
-          (let [[nam v & asserts] ys]
-            (boolean
-             (eval-asserts true asserts (assoc (:context (meta S))
-                                               nam x))))
+  (if (op? S)
+    (let [[head & ys] S]
+      (cond
+        (and (= :fn head) (= true (second ys)))
+        (let [[nam v & asserts] ys]
+          (boolean
+           (eval-asserts true asserts (assoc (:context (meta S))
+                                             nam x))))
 
-          (= '∩ head) (every? (par member? x) ys)
-          (= '∪ head) (boolean (some (par member? x) ys))
+        (= '∩ head) (every? (par member? x) ys)
+        (= '∪ head) (boolean (some (par member? x) ys))
 
-          (and (= 'Im head)
-               (op-isa? :seq (first ys)))
-          (boolean (some #{x} (rest (first ys))))
+        (and (= 'Im head)
+             (op-isa? :seq (first ys)))
+        (boolean (some #{x} (rest (first ys))))
 
-          :else (efn)))
+        :else nil))
 
-      ;; so S is not itself an op
-      (condp = S
-        'Int (or (integer? x) (= '∞ x)) ; TODO: check doubles too
-        'Char (char? x)
-        'Seq (op-isa? :seq x)
-        (efn)))))
+    ;; so S is not itself an op
+    (condp = S
+      'Int (or (integer? x) (= '∞ x)) ; TODO: check doubles too
+      'Char (char? x)
+      'Seq (op-isa? :seq x)
+      nil)))
 
 ;; TODO: make it work with uneval'ed set ops and fns, including :set
 ;; TODO: eval args of uneval'ed ops and fns
@@ -346,7 +343,8 @@ Returned expressions have a :context metatag if possible."
               [x n] expr]
           (cond
             (= 'intChar x) (if-let [n (f n)]
-                             (char n))
+                             (when (< n 65536)
+                               (char n)))
             (string? x) (if-let [n (f n)]
                           (when (and (>= n 0) (not= n '∞))
                             (try (nth x n)
