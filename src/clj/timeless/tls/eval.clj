@@ -316,7 +316,7 @@ Returned expressions have a :context metatag if possible."
 
     ;; so S is not itself an op
     (condp = S
-      'Int (or (integer? x) (= '∞ x)) ; TODO: check doubles too
+      'Int (or (integer? x) (= '∞ x)) ; TODO: use eval-for-int
       'Char (char? x)
       'Seq (op-isa? :seq x)
       nil)))
@@ -332,6 +332,7 @@ Returned expressions have a :context metatag if possible."
 (defn eval-for-bool [expr]
   ;; TODO: apply of sets and set-producing fns
   ;; TODO: apply of bool ops
+  ;; member and equal will be difficult, because it isn't clear what eval type to use
   nil)
 
 (defn eval-for-char [expr]
