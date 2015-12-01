@@ -5,35 +5,44 @@
 ;; In most cases where an expression can't be evaluated, fail (return nil) rather than throw an error,
 ;; because the failure could be an implicit type failure that is an intentional part of the program control flow.
 ;; Throw an error when the evaluation could never succeed, e.g. when the expression is an unbound name.
-;; Also throw an error when the interpreter doesn't yet know how to evaluate the expression.
+;; Also throw an error when the interpreter doesn't (yet) know how to evaluate the expression.
 
 (declare eval')
-(declare eval-for-type)
+(declare eval-for)
 
 (defn make-binding
-  "Make a new context with names in pattern bound to functions of v.
-Multiple binding values, and ++ patterns, are not allowed if values? is false."
-  [pattern v context values?]
+  "Make a new context with names in pattern bound to parts of the eval of v.
+v is not eval'ed if the pattern is a single name. Return nil if evaluation of v fails."
+  [pattern v context]
   (if (name? pattern)
     (let [a (atom nil)
           context (assoc context pattern a)
           v (set-context v context)]
-      (reset! a (if (taggable? v)
-                  (vary-meta v assoc :values? values?)
-                  v))
+      (reset! a v)
       context)
     (let [[head & xs] pattern]
-      (case head
-        ++ (if values?
-             nil ; TODO
-             (error (str "++ pattern for a let binding: " pattern)))
-        :cons nil ; TODO
-        :seq nil ; TODO
-        :tup nil ; TODO
-        :map nil ; TODO
-        ∪ nil ; TODO
-        (+ - * /) nil ; TODO
-        (error (str "Unknown destructuring pattern: " pattern))))))
+      (if (seq xs)
+        (case head
+          :tup (if-let [[_ & ys] (eval-for (count xs) v context)]
+                 (some->> context
+                          (make-binding (first xs) (first ys))
+                          (make-binding (cons :tup (rest xs)) (cons :tup (rest ys)))))
+          :cons (if-let [[_ x y] (eval-for :cons v context)]
+                  (some->> context
+                           (make-binding (first xs) x)
+                           (make-binding (second xs) y)))
+          :seq (if-let [[_ & ys] (eval-for :seq v context)]
+                 (when (= (count xs) (count ys))
+                   (some->> context
+                            (make-binding (first xs) (first ys))
+                            (make-binding (cons :seq (rest xs)) (cons :seq (rest ys))))))
+          ++ nil ; TODO
+          :map nil ; TODO
+          ∪ nil ; TODO
+          (+ - * /) nil ; TODO
+          (error (str "Unknown destructuring pattern: " pattern)))
+        context ; so :seq and :tup bindings can call make-binding recursively
+        ))))
 
 (defn apply-fn [expr]
   (let [context (get-context expr)
@@ -56,8 +65,9 @@ Multiple binding values, and ++ patterns, are not allowed if values? is false."
               (if (seq (rest rs))
                 (cons :values rs)
                 (first rs))))
-          (eval' body ; assumes body doesn't have a :context metatag
-                 (make-binding pattern v context true)))))))
+          (if-let [v (vary-meta v assoc :evaled true)]
+            (eval' body ; body should not already have a :context metatag
+                   (make-binding pattern v context))))))))
 
 (defn apply-seq [expr]
   (let [context (get-context expr)
@@ -68,7 +78,7 @@ Multiple binding values, and ++ patterns, are not allowed if values? is false."
                     (apply-seq (set-context (list f n) context))
                     xs)
              context)
-      (when-let [n (eval-for-type n :int context)]
+      (when-let [n (eval-for :int n context)]
         (when (and (>= n 0) (not= n '∞))
           (try (nth ys n)
                (catch java.lang.IndexOutOfBoundsException e)))))))
@@ -82,11 +92,11 @@ Multiple binding values, and ++ patterns, are not allowed if values? is false."
                     (apply-cons (set-context (list f n) context))
                     xs)
              context)
-      (when-let [n (eval-for-type n :int context)]
+      (when-let [n (eval-for :int n context)]
         (if (= n 0)
           (set-context y context)
           (when (and (> n 0) (not= n '∞))
-            (when-let [s (eval-for-type s :seq context)]
+            (when-let [s (eval-for :seq s context)]
               (eval' (list s (dec n)) context))))))))
 
 (defn apply-map [expr]
@@ -105,20 +115,24 @@ Multiple binding values, and ++ patterns, are not allowed if values? is false."
                        (list (cons :map kvs) x))
                  context))))))
 
-(defn eval-let [expr]
+(defn eval-let
+  "Eval a let construct by making bindings and eval'ing the body in the new context.
+Bindings of patterns other than single names are immediately eval'ed with eval-for <type>,
+which means that much of the evaluation can only depend on bindings earlier in the bindings list."
+  [expr]
   (let [[_ bindings body] expr
         context (get-context expr)]
     (if (seq bindings)
       (let [[pattern v & bs] bindings]
         (eval-let
          (set-context (list :let bs body) ; assumes body doesn't have a :context metatag
-                      (make-binding pattern v context false))))
+                      (make-binding pattern v context))))
       (eval' body context))))
 
 (defn eval-guard [expr]
   (let [context (get-context expr)
         [_ guard body] expr]
-    (when (eval-for-type guard :bool context) ; fail if the eval'ed guard is nil or false
+    (when (eval-for :bool guard context) ; fail if the eval'ed guard is nil or false
       (eval' body context))))
 
 (defn apply' [expr]
@@ -181,14 +195,11 @@ Returned expressions have a :context metatag if possible."
              (error (str "Undefined name: " expr))
              (if (and (taggable? v)
                       (not (:evaled (meta v))))
-               (let [w (eval' v)]
-                 (if (and (op-isa? :values w)
-                          (not (:values? (meta v))))
-                   (error (str "Multiple values for a let binding: " expr))
-                   (reset! a (if (taggable? w)
-                               (vary-meta w assoc :evaled true)
-                               w)))
-                 w)
+               (let [v (eval' v)]
+                 (reset! a (if (taggable? v)
+                             (vary-meta v assoc :evaled true)
+                             v))
+                 v)
                v)))
          ;; Return atomic literals, predefined names, and keywords unchanged.
          expr)))))
@@ -198,7 +209,7 @@ Returned expressions have a :context metatag if possible."
     (lazy-seq
      (cond
        (op? expr)
-       (let [f #(eval-for-type % :seq context)
+       (let [f #(eval-for :seq % context)
              [head & xs] expr]
          (case head
            :seq expr
@@ -229,7 +240,7 @@ Returned expressions have a :context metatag if possible."
         (case head
           :cons expr
           :seq (f xs)
-          ++ (when-let [[_ x y] (eval-for-type (first xs) :cons context)]
+          ++ (when-let [[_ x y] (eval-for :cons (first xs) context)]
                (set-context (list :cons x (list '++ y (second xs)))
                             context))
           nil))
@@ -245,13 +256,8 @@ Returned expressions have a :context metatag if possible."
 
 (defn eval-for-set [expr] nil)
 
-(defn eval-for-int [expr]
-  (when-let [x (eval-for-num expr)]
-    (if (integer? x)
-      x
-      (let [n (int x)]
-        (when (= x (float n))
-          n)))))
+
+;; TODO >>>>>
 
 (defn charInt [c]
   (when (char? c)
@@ -262,7 +268,7 @@ Returned expressions have a :context metatag if possible."
     (condf expr
       string? (count expr)
       op? (let [[head xs] expr
-                f #(eval-for-type % :seq context)]
+                f #(eval-for :seq % context)]
             (case head
               :seq (count xs)
               ++ (when-let [[_ & s1] (f (first xs))]
@@ -281,6 +287,20 @@ Returned expressions have a :context metatag if possible."
   (when (or (number? expr) (= '∞ expr))
     expr))
 
+;; TODO <<<<<
+
+
+(defn eval-for-int [expr]
+  (when-let [x (eval-for-num expr)]
+    (if (integer? x)
+      x
+      (let [n (int x)]
+        (when (= x (float n))
+          n)))))
+
+
+;; TODO >>>>>
+
 (defn bool? [x]
   (or (true? x) (false? x)))
 
@@ -294,7 +314,7 @@ Returned expressions have a :context metatag if possible."
 
 ;; TODO: make member? work with uneval'ed set ops and fns, including :set
 ;; TODO: eval args of uneval'ed ops and fns
-(defn member?
+#_(defn member?
   [x S]
   (if (op? S)
     (let [[head & ys] S]
@@ -316,14 +336,14 @@ Returned expressions have a :context metatag if possible."
 
     ;; so S is not itself an op
     (condp = S
-      'Int (or (integer? x) (= '∞ x)) ; TODO: use eval-for-int
+      'Int (or (integer? x) (= '∞ x)) ; TODO: use eval-for :int
       'Char (char? x)
       'Seq (op-isa? :seq x)
       nil)))
 
 ;; TODO: make it work with uneval'ed set ops and fns, including :set
 ;; TODO: eval args of uneval'ed ops and fns
-(defn not-member?
+#_(defn not-member?
   [x S]
   (let [v (member? x S)]
     (when (bool? v)
@@ -335,12 +355,15 @@ Returned expressions have a :context metatag if possible."
   ;; member and equal will be difficult, because it isn't clear what eval type to use
   nil)
 
+;; TODO <<<<<
+
+
 (defn eval-for-char [expr]
   (if (char? expr)
     expr
     (let [context (get-context expr)]
       (when (op? expr)
-        (let [f #(eval-for-type % :int context)
+        (let [f #(eval-for :int % context)
               [x n] expr]
           (cond
             (= 'intChar x) (if-let [n (f n)]
@@ -352,36 +375,30 @@ Returned expressions have a :context metatag if possible."
                                  (catch java.lang.IndexOutOfBoundsException e))))
             :else nil))))))
 
-(declare eval-for-type)
+(defn eval-for-tuple [n expr]
+  (when (and (op-isa? :tup expr)
+             (= n (count (rest expr))))
+    expr))
 
-(defn eval-for-tuple [expr types]
-  (let [context (get-context expr)]
-    (when (and (op-isa? :tup expr)
-               (= (count (rest expr))
-                  (count types)))
-      (set-context (cons :tup (map #(eval-for-type %1 %2 context)
-                                   (rest expr)
-                                   types))
-                   context))))
-
-(defn eval-for-type
-  "Eval for a particular type. The type argument is a keyword describing the type, or a list of types for a tuple.
+(defn eval-for
+  "Eval for a particular type. Use this function rather than calling the specific eval-for-<type> functions.
+The type argument is a keyword describing the type, or an integer n for a tuple of arity n.
 The context argument is only used if the expr doesn't have a :context metatag.
 Returned expressions have a :context metatag if possible."
-  ([expr type]
-   (eval-for-type expr type nil))
+  ([type expr]
+   (eval-for type expr nil))
   
-  ([expr type context]
+  ([type expr context]
    (let [expr (eval' expr context)]
      (cond
        (op-isa? :alt expr)
-       (some #(eval-for-type % type context) (rest expr))
+       (some #(eval-for type % context) (rest expr))
 
        (op-isa? :values expr)
-       (cons :values (map #(eval-for-type % type context) (rest expr)))
+       (cons :values (map #(eval-for type % context) (rest expr)))
 
-       (seq? type)
-       (eval-for-tuple expr type)
+       (integer? type)
+       (eval-for-tuple type expr)
 
        :else ((case type
                 :seq eval-for-seq
@@ -391,17 +408,16 @@ Returned expressions have a :context metatag if possible."
                 :num eval-for-num
                 :int eval-for-int
                 :bool eval-for-bool
-                :char eval-for-char
-                :any identity)
+                :char eval-for-char)
               expr)))))
 
-(defn eval1-for-type
-  "Like eval-for-type, but if multiple values are returned, use the first one."
-  ([expr type]
-   (eval1-for-type expr type nil))
+(defn eval1-for
+  "Like eval-for, but if multiple values are returned, use the first one that isn't nil."
+  ([type expr]
+   (eval1-for type expr nil))
 
-  ([expr type context]
-   (let [v (eval-for-type expr type context)]
+  ([type expr context]
+   (let [v (eval-for type expr context)]
      (if (op-isa? :values v)
        (some identity (rest v))
        v))))
