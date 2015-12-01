@@ -12,7 +12,8 @@
 
 (defn make-binding
   "Make a new context with names in pattern bound to parts of the eval of v.
-v is not eval'ed if the pattern is a single name. Return nil if evaluation of v fails."
+v is not eval'ed if the pattern is a single name. Return nil if evaluation of v fails.
+Returns a list of contexts for the ++ pattern."
   [pattern v context]
   (if (name? pattern)
     (let [a (atom nil)
@@ -23,20 +24,20 @@ v is not eval'ed if the pattern is a single name. Return nil if evaluation of v 
     (let [[head & xs] pattern]
       (if (seq xs)
         (case head
-          :tup (if-let [[_ & ys] (eval-for (count xs) v context)]
+          :tup (when-let [[_ & ys] (eval-for (count xs) v context)]
                  (some->> context
                           (make-binding (first xs) (first ys))
                           (make-binding (cons :tup (rest xs)) (cons :tup (rest ys)))))
-          :cons (if-let [[_ x y] (eval-for :cons v context)]
+          :cons (when-let [[_ x y] (eval-for :cons v context)]
                   (some->> context
                            (make-binding (first xs) x)
                            (make-binding (second xs) y)))
-          :seq (if-let [[_ & ys] (eval-for :seq v context)]
+          :seq (when-let [[_ & ys] (eval-for :seq v context)]
                  (when (= (count xs) (count ys))
                    (some->> context
                             (make-binding (first xs) (first ys))
                             (make-binding (cons :seq (rest xs)) (cons :seq (rest ys))))))
-          ++ nil ; TODO
+          ++ nil ; TODO; what about (:cons a (++ x y)) or (++ a (++ b c))?
           :map nil ; TODO
           ∪ nil ; TODO
           (+ - * /) nil ; TODO
@@ -44,6 +45,7 @@ v is not eval'ed if the pattern is a single name. Return nil if evaluation of v 
         context ; so :seq and :tup bindings can call make-binding recursively
         ))))
 
+;; TODO: make this work with multiple binding contexts
 (defn apply-fn [expr]
   (let [context (get-context expr)
         [f x & xs] expr
@@ -55,7 +57,7 @@ v is not eval'ed if the pattern is a single name. Return nil if evaluation of v 
              context)
       (let [v (eval' x context)]
         (if (op-isa? :values v)
-          (let [rs (mapcat #(let [w (apply-fn (set-context (apply list f % xs)
+          (let [rs (mapcat #(let [w (apply-fn (set-context (apply list f %)
                                                            context))]
                               (if (op-isa? :values w)
                                 (rest w)
@@ -118,15 +120,18 @@ v is not eval'ed if the pattern is a single name. Return nil if evaluation of v 
 (defn eval-let
   "Eval a let construct by making bindings and eval'ing the body in the new context.
 Bindings of patterns other than single names are immediately eval'ed with eval-for <type>,
-which means that much of the evaluation can only depend on bindings earlier in the bindings list."
+which means that the eval-for <type> can only depend on bindings earlier in the bindings list. Subsequent evaluation can depend on all the bindings."
   [expr]
   (let [[_ bindings body] expr
         context (get-context expr)]
     (if (seq bindings)
-      (let [[pattern v & bs] bindings]
-        (eval-let
-         (set-context (list :let bs body) ; assumes body doesn't have a :context metatag
-                      (make-binding pattern v context))))
+      (let [[pattern v & bs] bindings
+            context (make-binding pattern v context)]
+        (if (seq? context)
+          (error (str "Multivalued let binding: pattern " pattern " value " v))
+          (eval-let
+           (set-context (list :let bs body) ; assumes body doesn't have a :context metatag
+                        context))))
       (eval' body context))))
 
 (defn eval-guard [expr]
