@@ -81,6 +81,15 @@
           (recur (conj before x)
                  r))))))
 
+(defn some-not-nil
+  "Returns the first non-nil element of s.
+(some identity s) is not the same, as it doesn't return boolean false elements."
+  [s]
+  (when (seq s)
+    (if (nil? (first s))
+      (recur (rest s))
+      (first s))))
+
 (defn error
   [msg]
   (throw (Exception. msg)))

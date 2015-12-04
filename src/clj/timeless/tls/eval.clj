@@ -10,17 +10,22 @@
 (declare eval')
 (declare eval-for)
 
+(defn bind-name [nam v context]
+  (let [a (atom nil)
+          context (assoc context nam a)
+          v (set-context v context)]
+      (reset! a v)
+      context))
+
 (defn make-binding
   "Make a new context with names in pattern bound to parts of the eval of v.
 v is not eval'ed if the pattern is a single name. Return nil if evaluation of v fails.
 Returns a list of contexts for the ++ pattern."
+
+;; TODO: if (seq? context) is true, cat together make-binding on each context
   [pattern v context]
   (if (name? pattern)
-    (let [a (atom nil)
-          context (assoc context pattern a)
-          v (set-context v context)]
-      (reset! a v)
-      context)
+    (bind-name pattern v context)
     (let [[head & xs] pattern]
       (if (seq xs)
         (case head
@@ -37,7 +42,7 @@ Returns a list of contexts for the ++ pattern."
                    (some->> context
                             (make-binding (first xs) (first ys))
                             (make-binding (cons :seq (rest xs)) (cons :seq (rest ys))))))
-          ++ nil ; TODO; what about (:cons a (++ x y)) or (++ a (++ b c))?
+          ++ nil ; TODO; what about (:cons a (++ x y)) or (++ a (++ b c))? (return multiple contexts)
           :map nil ; TODO
           ∪ nil ; TODO
           (+ - * /) nil ; TODO
@@ -48,16 +53,16 @@ Returns a list of contexts for the ++ pattern."
 ;; TODO: make this work with multiple binding contexts
 (defn apply-fn [expr]
   (let [context (get-context expr)
-        [f x & xs] expr
-        [_ pattern body] f]
+        [head x & xs] expr ; head is already eval'ed
+        [_ pattern body] head]
     (if (seq xs)
       (eval' (apply list
-                    (apply-fn (set-context (list f x) context))
+                    (apply-fn (set-context (list head x) context))
                     xs)
              context)
       (let [v (eval' x context)]
         (if (op-isa? :values v)
-          (let [rs (mapcat #(let [w (apply-fn (set-context (apply list f %)
+          (let [rs (mapcat #(let [w (apply-fn (set-context (apply list head %)
                                                            context))]
                               (if (op-isa? :values w)
                                 (rest w)
@@ -68,16 +73,20 @@ Returns a list of contexts for the ++ pattern."
                 (cons :values rs)
                 (first rs))))
           (if-let [v (vary-meta v assoc :evaled true)]
-            (eval' body ; body should not already have a :context metatag
-                   (make-binding pattern v context))))))))
+            (let [context-s (make-binding pattern v context)]
+              ;; body should not already have a :context metatag
+              (if (seq? context-s)
+                (set-context (cons :values (map #(eval' body %) context-s))
+                             context)
+                (eval' body context-s)))))))))
 
 (defn apply-seq [expr]
   (let [context (get-context expr)
-        [f n & xs] expr
-        [_ & ys] f]
+        [head n & xs] expr ; head is already eval'ed
+        [_ & ys] head]
     (if (seq xs)
       (eval' (apply list
-                    (apply-seq (set-context (list f n) context))
+                    (apply-seq (set-context (list head n) context))
                     xs)
              context)
       (when-let [n (eval-for :int n context)]
@@ -87,11 +96,11 @@ Returns a list of contexts for the ++ pattern."
 
 (defn apply-cons [expr]
   (let [context (get-context expr)
-        [f n & xs] expr
-        [_ y s] f]
+        [head n & xs] expr ; head is already eval'ed
+        [_ y s] head]
     (if (seq xs)
       (eval' (apply list
-                    (apply-cons (set-context (list f n) context))
+                    (apply-cons (set-context (list head n) context))
                     xs)
              context)
       (when-let [n (eval-for :int n context)]
@@ -103,11 +112,11 @@ Returns a list of contexts for the ++ pattern."
 
 (defn apply-map [expr]
   (let [context (get-context expr)
-        [f x & xs] expr
-        [_ & clauses] f]
+        [head x & xs] expr ; head is already eval'ed
+        [_ & clauses] head]
     (if (seq xs)
       (eval' (apply list
-                    (apply-map (set-context (list f x) context))
+                    (apply-map (set-context (list head x) context))
                     xs)
              context)
       (when (seq clauses)
@@ -117,21 +126,32 @@ Returns a list of contexts for the ++ pattern."
                        (list (cons :map kvs) x))
                  context))))))
 
+(defn apply-alt [expr]
+  (let [context (get-context expr)
+        [head & xs] expr ; head is already eval'ed
+        [_ & ys] head
+        v (some-not-nil (map #(eval' % context) ys))]
+    (eval' (apply list v xs) context)))
+
+(defn apply-values [expr]
+  (let [context (get-context expr)
+        [head & xs] expr ; head is already eval'ed
+        [_ & ys] head]
+    (set-context (cons :values (map #(apply list % xs) ys))
+                 context)))
+
 (defn eval-let
   "Eval a let construct by making bindings and eval'ing the body in the new context.
-Bindings of patterns other than single names are immediately eval'ed with eval-for <type>,
-which means that the eval-for <type> can only depend on bindings earlier in the bindings list. Subsequent evaluation can depend on all the bindings."
+Bindings are not immediately eval'ed, so they can be recursive."
   [expr]
   (let [[_ bindings body] expr
         context (get-context expr)]
     (if (seq bindings)
       (let [[pattern v & bs] bindings
             context (make-binding pattern v context)]
-        (if (seq? context)
-          (error (str "Multivalued let binding: pattern " pattern " value " v))
-          (eval-let
-           (set-context (list :let bs body) ; assumes body doesn't have a :context metatag
-                        context))))
+        (eval-let
+         (set-context (list :let bs body) ; assumes body doesn't have a :context metatag
+                      context)))
       (eval' body context))))
 
 (defn eval-guard [expr]
@@ -154,6 +174,8 @@ which means that the eval-for <type> can only depend on bindings earlier in the 
                     :map apply-map
                     :seq apply-seq
                     :cons apply-cons
+                    :alt apply-alt
+                    :values apply-values
                     nil)]
             (when f (f expr)))
 
@@ -199,7 +221,7 @@ Returned expressions have a :context metatag if possible."
            (if (nil? v)
              (error (str "Undefined name: " expr))
              (if (and (taggable? v)
-                      (not (:evaled (meta v))))
+                      (not (:eval (meta v))))
                (let [v (eval' v)]
                  (reset! a (if (taggable? v)
                              (vary-meta v assoc :evaled true)
@@ -214,8 +236,8 @@ Returned expressions have a :context metatag if possible."
     (lazy-seq
      (cond
        (op? expr)
-       (let [f #(eval-for :seq % context)
-             [head & xs] expr]
+       (let [[head & xs] expr
+             f #(eval-for :seq % context)]
          (case head
            :seq expr
            :cons (if-let [[_ & s] (f (second xs))]
@@ -385,11 +407,30 @@ Returned expressions have a :context metatag if possible."
              (= n (count (rest expr))))
     expr))
 
+(defn eval-for*
+  "Code that's common between eval-for and eval1-for. Don't call this directly."
+  [type expr]
+  (if (integer? type)
+    (eval-for-tuple type expr)
+    ((case type
+       :seq eval-for-seq
+       :cons eval-for-cons
+       :empty eval-for-empty
+       :set eval-for-set
+       :num eval-for-num
+       :int eval-for-int
+       :bool eval-for-bool
+       :char eval-for-char)
+     expr)))
+
 (defn eval-for
   "Eval for a particular type. Use this function rather than calling the specific eval-for-<type> functions.
 The type argument is a keyword describing the type, or an integer n for a tuple of arity n.
 The context argument is only used if the expr doesn't have a :context metatag.
-Returned expressions have a :context metatag if possible."
+Returned expressions have a :context metatag if possible.
+
+:alt exprs are eval'ed here rather than in eval' (except for applying an :alt expr with apply-alt) because
+they have to be fully eval-for-<type>'ed before returning the first non-nil value."
   ([type expr]
    (eval-for type expr nil))
   
@@ -397,32 +438,23 @@ Returned expressions have a :context metatag if possible."
    (let [expr (eval' expr context)]
      (cond
        (op-isa? :alt expr)
-       (some #(eval-for type % context) (rest expr))
+       (some-not-nil (map #(eval-for type % context)
+                          (rest expr)))
 
        (op-isa? :values expr)
-       (cons :values (map #(eval-for type % context) (rest expr)))
+       (cons :values (map #(eval-for type % context)
+                          (rest expr)))
 
-       (integer? type)
-       (eval-for-tuple type expr)
-
-       :else ((case type
-                :seq eval-for-seq
-                :cons eval-for-cons
-                :empty eval-for-empty
-                :set eval-for-set
-                :num eval-for-num
-                :int eval-for-int
-                :bool eval-for-bool
-                :char eval-for-char)
-              expr)))))
+       :else (eval-for* type expr)))))
 
 (defn eval1-for
   "Like eval-for, but if multiple values are returned, use the first one that isn't nil."
   ([type expr]
-   (eval1-for type expr nil))
-
+   (eval-for type expr nil))
+  
   ([type expr context]
-   (let [v (eval-for type expr context)]
-     (if (op-isa? :values v)
-       (some identity (rest v))
-       v))))
+   (let [expr (eval' expr context)]
+     (if (op-isa? #{:alt :values} expr)
+       (some-not-nil (map #(eval1-for type % context)
+                          (rest expr)))
+       (eval-for* type expr)))))
