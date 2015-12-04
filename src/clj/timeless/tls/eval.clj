@@ -11,6 +11,9 @@
 ;; TODO: this returns nil, should return 3/2
 ;; (eval-for :num '((:alt (:fn x (/ x 0)) (:fn y (/ y 2))) 3))
 
+;; TODO: null pointer exception:
+;; (eval' '((:fn (++ a b) a) "foo"))
+
 
 (declare eval')
 (declare eval-for)
