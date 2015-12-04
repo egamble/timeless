@@ -7,9 +7,8 @@
 ;; Throw an error when the evaluation could never succeed, e.g. when the expression is an unbound name.
 ;; Also throw an error when the interpreter doesn't (yet) know how to evaluate the expression.
 
-;; TODO: null pointer exception:
-;; (eval' '((:fn (++ a b) a) "foo"))
-
+;; TODO: LazySeq cannot be cast to clojure.lang.IFn (eval.clj:240)
+;; (eval' '((:fn (++ a (++ b c)) a) "foo"))
 
 (declare eval')
 (declare eval-for)
@@ -226,7 +225,7 @@ Bindings are not immediately eval'ed, so they can be recursive."
 The context argument is only used if the expr doesn't have a :context metatag.
 Returned expressions have a :context metatag if possible."
   ([expr]
-   (eval' expr nil))
+   (eval' expr {}))
 
   ([expr context]
    (let [x (get-context expr)
