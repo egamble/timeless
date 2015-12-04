@@ -12,8 +12,6 @@
 
 (declare eval')
 (declare eval-for)
-(declare eval1-for)
-
 
 (defn splits
   "Returns a lazy sequence of all the splits of coll into two sequences."
@@ -257,7 +255,7 @@ Returned expressions have a :context metatag if possible."
      (cond
        (op? expr)
        (let [[head & xs] expr
-             f #(eval1-for :seq % context)]
+             f #(eval-for :seq % context)]
          (case head
            :seq expr
            :cons (if-let [[_ & s] (f (second xs))]
@@ -287,7 +285,7 @@ Returned expressions have a :context metatag if possible."
         (case head
           :cons expr
           :seq (f xs)
-          ++ (when-let [[_ x y] (eval1-for :cons (first xs) context)]
+          ++ (when-let [[_ x y] (eval-for :cons (first xs) context)]
                (set-context (list :cons x (list '++ y (second xs)))
                             context))
           nil))
@@ -308,7 +306,7 @@ Returned expressions have a :context metatag if possible."
   (condf expr
     string? (count expr)
     op? (let [[head & xs] expr
-              f #(eval1-for :seq % context)]
+              f #(eval-for :seq % context)]
           (case head
             :seq (count xs)
             ++ (when-let [[_ & s1] (f (first xs))]
@@ -329,15 +327,15 @@ Returned expressions have a :context metatag if possible."
       (let [context (get-context expr)
             [head x y] expr]
         (case head
-          charInt (when-let [c (eval1-for :char x context)]
+          charInt (when-let [c (eval-for :char x context)]
                     (int c))
           len (len x context)
-          :neg (when-let [x (eval1-for :num x context)]
+          :neg (when-let [x (eval-for :num x context)]
                  (- x))
 
           (+ - * /)
-          (when-let [x (eval1-for :num x context)]
-            (when-let [y (eval1-for :num y context)]
+          (when-let [x (eval-for :num x context)]
+            (when-let [y (eval-for :num y context)]
               (if (= head '/)
                 (when (not (zero? y))
                   (/ x y))
@@ -394,7 +392,7 @@ Returned expressions have a :context metatag if possible."
 
     ;; so S is not itself an op
     (condp = S
-      'Int (or (integer? x) (= '∞ x)) ; TODO: use eval1-for :int
+      'Int (or (integer? x) (= '∞ x)) ; TODO: use eval-for :int
       'Char (char? x)
       'Seq (op-isa? :seq x)
       nil)))
@@ -421,7 +419,7 @@ Returned expressions have a :context metatag if possible."
     expr
     (let [context (get-context expr)]
       (when (op? expr)
-        (let [f #(eval1-for :int % context)
+        (let [f #(eval-for :int % context)
               [x n] expr]
           (cond
             (= 'intChar x) (if-let [n (f n)]
@@ -438,22 +436,6 @@ Returned expressions have a :context metatag if possible."
              (= n (count (rest expr))))
     expr))
 
-(defn eval-for*
-  "Code that's common between eval-for and eval1-for. Don't call this directly."
-  [type expr]
-  (if (integer? type)
-    (eval-for-tuple type expr)
-    ((case type
-       :seq eval-for-seq
-       :cons eval-for-cons
-       :empty eval-for-empty
-       :set eval-for-set
-       :num eval-for-num
-       :int eval-for-int
-       :bool eval-for-bool
-       :char eval-for-char)
-     expr)))
-
 (defn eval-for
   "Eval for a particular type. Use this function rather than calling the specific eval-for-<type> functions.
 The type argument is a keyword describing the type, or an integer n for a tuple of arity n.
@@ -461,31 +443,26 @@ The context argument is only used if the expr doesn't have a :context metatag.
 Returned expressions have a :context metatag if possible.
 
 :alt exprs are eval'ed here rather than in eval' because they have to be
-fully eval-for-<type>'ed before returning the first non-nil value."
+fully eval-for-<type>'ed before returning the first non-nil value.
+
+:values exprs are treated like :alt exprs, because the contract of this function is one value of the given type or nil."
   ([type expr]
-   (eval-for type expr nil))
-  
-  ([type expr context]
-   (let [expr (eval' expr context)]
-     (cond
-       (op-isa? :alt expr)
-       (some-not-nil (map #(eval-for type % context)
-                          (rest expr)))
-
-       (op-isa? :values expr)
-       (cons :values (map #(eval-for type % context)
-                          (rest expr)))
-
-       :else (eval-for* type expr)))))
-
-(defn eval1-for
-  "Like eval-for, but if multiple values are returned, use the first one that isn't nil."
-  ([type expr]
-   (eval-for type expr nil))
+   (eval-for type expr {}))
   
   ([type expr context]
    (let [expr (eval' expr context)]
      (if (op-isa? #{:alt :values} expr)
-       (some-not-nil (map #(eval1-for type % context)
+       (some-not-nil (map #(eval-for type % context)
                           (rest expr)))
-       (eval-for* type expr)))))
+       (if (integer? type)
+         (eval-for-tuple type expr)
+         ((case type
+            :seq eval-for-seq
+            :cons eval-for-cons
+            :empty eval-for-empty
+            :set eval-for-set
+            :num eval-for-num
+            :int eval-for-int
+            :bool eval-for-bool
+            :char eval-for-char)
+          expr))))))

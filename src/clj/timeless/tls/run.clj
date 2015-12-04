@@ -1,6 +1,6 @@
 (ns timeless.tls.run
   "Run TLS code from the command line."
-  (:require [timeless.tls.eval :refer [eval1-for]]
+  (:require [timeless.tls.eval :refer [eval-for]]
             [timeless.common :refer :all]))
 
 (defn lazy-input
@@ -23,8 +23,8 @@
         expr (set-context expr context) ; override original context on expr, if any
         ]
     (reset! a stdin)
-    (if-let [s (eval1-for :seq expr)]
-      (let [cs (map #(or (eval1-for :char % context)
+    (if-let [s (eval-for :seq expr)]
+      (let [cs (map #(or (eval-for :char % context)
                          (error-top))
                     (rest s))]
         (doseq [c cs]
