@@ -7,10 +7,6 @@
 ;; Throw an error when the evaluation could never succeed, e.g. when the expression is an unbound name.
 ;; Also throw an error when the interpreter doesn't (yet) know how to evaluate the expression.
 
-
-;; TODO: this returns nil, should return 3/2
-;; (eval-for :num '((:alt (:fn x (/ x 0)) (:fn y (/ y 2))) 3))
-
 ;; TODO: null pointer exception:
 ;; (eval' '((:fn (++ a b) a) "foo"))
 
@@ -154,9 +150,9 @@ Returns a list of contexts for patterns that contain ++."
 (defn apply-alt [expr]
   (let [context (get-context expr)
         [head & xs] expr ; head is already eval'ed
-        [_ & ys] head
-        v (some-not-nil (map #(eval' % context) ys))]
-    (eval' (apply list v xs) context)))
+        [_ & ys] head]
+    (set-context (cons :alt (map #(apply list % xs) ys))
+                 context)))
 
 (defn apply-values [expr]
   (let [context (get-context expr)
@@ -465,8 +461,8 @@ The type argument is a keyword describing the type, or an integer n for a tuple 
 The context argument is only used if the expr doesn't have a :context metatag.
 Returned expressions have a :context metatag if possible.
 
-:alt exprs are eval'ed here rather than in eval' (except for applying an :alt expr with apply-alt) because
-they have to be fully eval-for-<type>'ed before returning the first non-nil value."
+:alt exprs are eval'ed here rather than in eval' because they have to be
+fully eval-for-<type>'ed before returning the first non-nil value."
   ([type expr]
    (eval-for type expr nil))
   
