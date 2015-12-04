@@ -8,6 +8,10 @@
 ;; Also throw an error when the interpreter doesn't (yet) know how to evaluate the expression.
 
 
+;; TODO: this returns nil, should return 3/2
+;; (eval-for :num '((:alt (:fn x (/ x 0)) (:fn y (/ y 2))) 3))
+
+
 (declare eval')
 (declare eval-for)
 (declare eval1-for)
@@ -76,7 +80,7 @@ Returns a list of contexts for patterns that contain ++."
                     (apply-fn (set-context (list head x) context))
                     xs)
              context)
-      (let [v (eval' x context)]
+      (if-let [v (eval' x context)]
         (if (op-isa? :values v)
           (let [rs (mapcat #(let [w (apply-fn (set-context (apply list head %)
                                                            context))]
@@ -88,7 +92,9 @@ Returns a list of contexts for patterns that contain ++."
               (if (seq (rest rs))
                 (cons :values rs)
                 (first rs))))
-          (if-let [v (vary-meta v assoc :evaled true)]
+          (let [v (if (taggable? v)
+                    (vary-meta v assoc :evaled true)
+                    v)]
             (let [context-s (make-binding pattern v context)]
               ;; body should not already have a :context metatag
               (if (seq? context-s)
