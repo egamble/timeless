@@ -7,8 +7,20 @@
 ;; Throw an error when the evaluation could never succeed, e.g. when the expression is an unbound name.
 ;; Also throw an error when the interpreter doesn't (yet) know how to evaluate the expression.
 
+
 (declare eval')
 (declare eval-for)
+(declare eval1-for)
+
+
+(defn splits
+  "Returns a lazy sequence of all the splits of coll into two sequences."
+  [coll]
+  (lazy-seq
+   (cons (list '() coll)
+         (when (seq coll)
+           (for [[s & ss] (splits (rest coll))]
+             (cons (cons (first coll) s) ss))))))
 
 (defn bind-name [nam v context]
   (let [a (atom nil)
@@ -20,37 +32,41 @@
 (defn make-binding
   "Make a new context with names in pattern bound to parts of the eval of v.
 v is not eval'ed if the pattern is a single name. Return nil if evaluation of v fails.
-Returns a list of contexts for the ++ pattern."
-
-;; TODO: if (seq? context) is true, cat together make-binding on each context
+Returns a list of contexts for patterns that contain ++."
   [pattern v context]
-  (if (name? pattern)
-    (bind-name pattern v context)
-    (let [[head & xs] pattern]
-      (if (seq xs)
-        (case head
-          :tup (when-let [[_ & ys] (eval-for (count xs) v context)]
-                 (some->> context
-                          (make-binding (first xs) (first ys))
-                          (make-binding (cons :tup (rest xs)) (cons :tup (rest ys)))))
-          :cons (when-let [[_ x y] (eval-for :cons v context)]
-                  (some->> context
-                           (make-binding (first xs) x)
-                           (make-binding (second xs) y)))
-          :seq (when-let [[_ & ys] (eval-for :seq v context)]
-                 (when (= (count xs) (count ys))
+  (if (seq? context)
+    (mapcat #(make-binding pattern v) context)
+    (if (name? pattern)
+      (bind-name pattern v context)
+      (let [[head & xs] pattern]
+        (if (seq xs)
+          (case head
+            :tup (when-let [[_ & ys] (eval-for (count xs) v context)]
                    (some->> context
                             (make-binding (first xs) (first ys))
-                            (make-binding (cons :seq (rest xs)) (cons :seq (rest ys))))))
-          ++ nil ; TODO; what about (:cons a (++ x y)) or (++ a (++ b c))? (return multiple contexts)
-          :map nil ; TODO
-          ∪ nil ; TODO
-          (+ - * /) nil ; TODO
-          (error (str "Unknown destructuring pattern: " pattern)))
-        context ; so :seq and :tup bindings can call make-binding recursively
-        ))))
+                            (make-binding (cons :tup (rest xs)) (cons :tup (rest ys)))))
+            :cons (when-let [[_ x y] (eval-for :cons v context)]
+                    (some->> context
+                             (make-binding (first xs) x)
+                             (make-binding (second xs) y)))
+            :seq (when-let [[_ & ys] (eval-for :seq v context)]
+                   (when (= (count xs) (count ys))
+                     (some->> context
+                              (make-binding (first xs) (first ys))
+                              (make-binding (cons :seq (rest xs)) (cons :seq (rest ys))))))
+            ++ (when-let [[_ & ys] (eval-for :seq v context)]
+                 (map #(let [[a b] %]
+                         (some->> context
+                                  (make-binding (first xs) (cons :seq a))
+                                  (make-binding (second xs) (cons :seq b))))
+                      (splits ys)))
+            :map nil ; TODO
+            ∪ nil ; TODO
+              (+ - * /) nil ; TODO
+              (error (str "Unknown destructuring pattern: " pattern)))
+          context ; the base case of calling make-binding recursively
+          )))))
 
-;; TODO: make this work with multiple binding contexts
 (defn apply-fn [expr]
   (let [context (get-context expr)
         [head x & xs] expr ; head is already eval'ed
@@ -147,8 +163,8 @@ Bindings are not immediately eval'ed, so they can be recursive."
   (let [[_ bindings body] expr
         context (get-context expr)]
     (if (seq bindings)
-      (let [[pattern v & bs] bindings
-            context (make-binding pattern v context)]
+      (let [[nam v & bs] bindings
+            context (bind-name nam v context)]
         (eval-let
          (set-context (list :let bs body) ; assumes body doesn't have a :context metatag
                       context)))
@@ -237,7 +253,7 @@ Returned expressions have a :context metatag if possible."
      (cond
        (op? expr)
        (let [[head & xs] expr
-             f #(eval-for :seq % context)]
+             f #(eval1-for :seq % context)]
          (case head
            :seq expr
            :cons (if-let [[_ & s] (f (second xs))]
@@ -267,7 +283,7 @@ Returned expressions have a :context metatag if possible."
         (case head
           :cons expr
           :seq (f xs)
-          ++ (when-let [[_ x y] (eval-for :cons (first xs) context)]
+          ++ (when-let [[_ x y] (eval1-for :cons (first xs) context)]
                (set-context (list :cons x (list '++ y (second xs)))
                             context))
           nil))
@@ -281,41 +297,52 @@ Returned expressions have a :context metatag if possible."
                (nil? (second expr)))
       :empty)))
 
+;; TODO
 (defn eval-for-set [expr] nil)
 
+(defn len [expr context]
+  (condf expr
+    string? (count expr)
+    op? (let [[head & xs] expr
+              f #(eval1-for :seq % context)]
+          (case head
+            :seq (count xs)
+            ++ (when-let [[_ & s1] (f (first xs))]
+                 (when-let [[_ & s2] (f (second xs))]
+                   (+ (count s1) (count s2))))
+            :cons (when-let [[_ & s] (f (second xs))]
+                    (inc (count s)))
+            nil))
+    predefined-sets (set-context '∞ context)
 
-;; TODO >>>>>
-
-(defn charInt [c]
-  (when (char? c)
-    (int c)))
-
-(defn len [expr]
-  (let [context (get-context expr)]
-    (condf expr
-      string? (count expr)
-      op? (let [[head xs] expr
-                f #(eval-for :seq % context)]
-            (case head
-              :seq (count xs)
-              ++ (when-let [[_ & s1] (f (first xs))]
-                   (when-let [[_ & s2] (f (second xs))]
-                     (+ (count s1) (count s2))))
-              :cons (when-let [[_ & s] (f (second xs))]
-                      (inc (count s)))
-              nil))
-      predefined-sets (set-context '∞ context)
-
-      ;; TODO: make len work for other kinds of sets
-      )))
+    ;; TODO: make len work for other kinds of sets
+    ))
 
 (defn eval-for-num [expr]
-  ;; TODO: apply of :neg, len, charInt, arith ops
-  (when (or (number? expr) (= '∞ expr))
-    expr))
+  (if (or (number? expr) (= '∞ expr))
+    expr
+    (when (op? expr)
+      (let [context (get-context expr)
+            [head x y] expr]
+        (case head
+          charInt (when-let [c (eval1-for :char x context)]
+                    (int c))
+          len (len x context)
+          :neg (when-let [x (eval1-for :num x context)]
+                 (- x))
 
-;; TODO <<<<<
+          (+ - * /)
+          (when-let [x (eval1-for :num x context)]
+            (when-let [y (eval1-for :num y context)]
+              (if (= head '/)
+                (when (not (zero? y))
+                  (/ x y))
+                (case head
+                  + (+ x y)
+                  - (- x y)
+                  * (* x y)))))
 
+          nil)))))
 
 (defn eval-for-int [expr]
   (when-let [x (eval-for-num expr)]
@@ -363,7 +390,7 @@ Returned expressions have a :context metatag if possible."
 
     ;; so S is not itself an op
     (condp = S
-      'Int (or (integer? x) (= '∞ x)) ; TODO: use eval-for :int
+      'Int (or (integer? x) (= '∞ x)) ; TODO: use eval1-for :int
       'Char (char? x)
       'Seq (op-isa? :seq x)
       nil)))
@@ -390,7 +417,7 @@ Returned expressions have a :context metatag if possible."
     expr
     (let [context (get-context expr)]
       (when (op? expr)
-        (let [f #(eval-for :int % context)
+        (let [f #(eval1-for :int % context)
               [x n] expr]
           (cond
             (= 'intChar x) (if-let [n (f n)]
