@@ -108,7 +108,7 @@ The returned context or contexts are returned in a list."
       (when-let [n (eval-for :int n context)]
         (when (and (>= n 0) (not= n '∞))
           (try (nth ys n)
-               (catch java.lang.IndexOutOfBoundsException e)))))))
+               (catch Exception e)))))))
 
 (defn apply-cons [expr]
   (let [context (get-context expr)
@@ -126,21 +126,35 @@ The returned context or contexts are returned in a list."
             (when-let [s (eval-for :seq s context)]
               (eval' (list s (dec n)) context))))))))
 
+(defn apply-map* [clauses x]
+  (when (seq? clauses)
+    (let [[[k v] & r] clauses
+          type (condf k
+                 string? :seq
+                 char? :char
+                 integer? :int
+                 number? :num
+                 bool? :bool
+                 (error (str "Map key must be an atomic literal: " k)))
+          x (eval-for type x)
+          k (if (string? k)
+              (cons :seq k)
+              k)]
+      (if (= k x)
+        v
+        (recur r x)))))
+
 (defn apply-map [expr]
   (let [context (get-context expr)
         [head x & xs] expr ; head is already eval'ed
-        [_ & clauses] head]
+        [_ & ys] head]
     (if (seq xs)
       (eval' (apply list
                     (apply-map (set-context (list head x) context))
                     xs)
              context)
-      (when (seq clauses)
-        (let [[k v & kvs] clauses]
-          (eval' (list :alt
-                       (list :guard (list '= k x) v)
-                       (list (cons :map kvs) x))
-                 context))))))
+      (set-context (apply-map* (partition 2 ys) x)
+                   context))))
 
 (defn apply-alt [expr]
   (let [context (get-context expr)
@@ -415,17 +429,15 @@ Returned expressions have a :context metatag if possible."
     expr
     (let [context (get-context expr)]
       (when (op? expr)
-        (let [f #(eval-for :int % context)
-              [x n] expr]
-          (cond
-            (= 'intChar x) (if-let [n (f n)]
-                             (when (< n 65536)
-                               (char n)))
-            (string? x) (if-let [n (f n)]
-                          (when (and (>= n 0) (not= n '∞))
-                            (try (nth x n)
-                                 (catch java.lang.IndexOutOfBoundsException e))))
-            :else nil))))))
+        (let [[x n] expr]
+          (when-let [n (eval-for :int n context)]
+            ;; don't need to check for ((:seq ...) n) because of apply-seq
+            (cond
+              (= 'intChar x) (when (< n 65536)
+                               (char n))
+              (string? x) (try (nth x n)
+                               (catch Exception e))
+              :else nil)))))))
 
 (defn eval-for-tuple [n expr]
   (when (and (op-isa? :tup expr)
