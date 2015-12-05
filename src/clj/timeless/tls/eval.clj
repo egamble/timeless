@@ -7,9 +7,6 @@
 ;; Throw an error when the evaluation could never succeed, e.g. when the expression is an unbound name.
 ;; Also throw an error when the interpreter doesn't (yet) know how to evaluate the expression.
 
-;; TODO: LazySeq cannot be cast to clojure.lang.IFn (eval.clj:240)
-;; (eval' '((:fn (++ a (++ b c)) a) "foo"))
-
 (declare eval')
 (declare eval-for)
 
@@ -30,14 +27,15 @@
       context))
 
 (defn make-binding
-  "Make a new context with names in pattern bound to parts of the eval of v.
+  "Make a new context or contexts with the names in pattern bound to parts of the eval of v.
 v is not eval'ed if the pattern is a single name. Return nil if evaluation of v fails.
-Returns a list of contexts for patterns that contain ++."
+Multiple contexts are returned if pattern contains ++.
+The returned context or contexts are returned in a list."
   [pattern v context]
   (if (seq? context)
-    (mapcat #(make-binding pattern v) context)
+    (mapcat #(make-binding pattern v %) context)
     (if (name? pattern)
-      (bind-name pattern v context)
+      (list (bind-name pattern v context))
       (let [[head & xs] pattern]
         (if (seq xs)
           (case head
@@ -55,11 +53,11 @@ Returns a list of contexts for patterns that contain ++."
                               (make-binding (first xs) (first ys))
                               (make-binding (cons :seq (rest xs)) (cons :seq (rest ys))))))
             ++ (when-let [[_ & ys] (eval-for :seq v context)]
-                 (map #(let [[a b] %]
-                         (some->> context
-                                  (make-binding (first xs) (cons :seq a))
-                                  (make-binding (second xs) (cons :seq b))))
-                      (splits ys)))
+                 (mapcat #(let [[a b] %]
+                            (some->> context
+                                     (make-binding (first xs) (cons :seq a))
+                                     (make-binding (second xs) (cons :seq b))))
+                         (splits ys)))
             :map nil ; TODO
             ∪ nil ; TODO
               (+ - * /) nil ; TODO
@@ -69,34 +67,34 @@ Returns a list of contexts for patterns that contain ++."
 
 (defn apply-fn [expr]
   (let [context (get-context expr)
-        [head x & xs] expr ; head is already eval'ed
+        [head x & xs] expr              ; head is already eval'ed
         [_ pattern body] head]
     (if (seq xs)
       (eval' (apply list
                     (apply-fn (set-context (list head x) context))
                     xs)
              context)
-      (if-let [v (eval' x context)]
-        (if (op-isa? :values v)
-          (let [rs (mapcat #(let [w (apply-fn (set-context (apply list head %)
-                                                           context))]
-                              (if (op-isa? :values w)
-                                (rest w)
-                                (list w)))
-                           (rest v))]
-            (when (seq rs)
-              (if (seq (rest rs))
-                (cons :values rs)
-                (first rs))))
-          (let [v (if (taggable? v)
-                    (vary-meta v assoc :evaled true)
-                    v)]
-            (let [context-s (make-binding pattern v context)]
+      (when-let [x (eval' x context)]
+        (let [f (fn [s]
+                  (let [ss (mapcat (fn [v]
+                                     (when v
+                                       (if (op-isa? :values v)
+                                         (rest v)
+                                         (list v))))
+                                   s)]
+                    (when (seq ss)
+                      (set-context (if (seq (rest ss))
+                                     (cons :values ss)
+                                     (first ss))
+                                   context))))]
+          (if (op-isa? :values x)
+            (f (map #(apply-fn (set-context (list head %)
+                                            context))
+                    (rest x)))
+            (let [contexts (make-binding pattern (set-tag x :evaled true)
+                                         context)]
               ;; body should not already have a :context metatag
-              (if (seq? context-s)
-                (set-context (cons :values (map #(eval' body %) context-s))
-                             context)
-                (eval' body context-s)))))))))
+              (f (map #(eval' body %) contexts)))))))))
 
 (defn apply-seq [expr]
   (let [context (get-context expr)
@@ -239,11 +237,9 @@ Returned expressions have a :context metatag if possible."
            (if (nil? v)
              (error (str "Undefined name: " expr))
              (if (and (taggable? v)
-                      (not (:eval (meta v))))
+                      (not (:evaled (meta v))))
                (let [v (eval' v)]
-                 (reset! a (if (taggable? v)
-                             (vary-meta v assoc :evaled true)
-                             v))
+                 (reset! a (set-tag v :evaled true))
                  v)
                v)))
          ;; Return atomic literals, predefined names, and keywords unchanged.

@@ -38,14 +38,17 @@
 
 (def taggable? (some-fn op? name?))
 
+(defn set-tag [expr tag v]
+  (if (taggable? expr)
+    (vary-meta expr assoc tag v)
+    expr))
+
 (defn get-context [expr]
   (when (taggable? expr)
     (:context (meta expr))))
 
 (defn set-context [expr context]
-  (if (taggable? expr)
-    (vary-meta expr assoc :context context)
-    expr))
+  (set-tag expr :context context))
 
 (defn new-name [] (gensym "__"))
 
