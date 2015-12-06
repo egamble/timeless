@@ -7,6 +7,13 @@
 ;; Throw an error when the evaluation could never succeed, e.g. when the expression is an unbound name.
 ;; Also throw an error when the interpreter doesn't (yet) know how to evaluate the expression.
 
+;; TODO
+;; ∩ ∪ → ⇸ = ≠ ∈ ∉ ⊂ :∈
+;; =. ≠. <. >. ≤. ≥. ∈. ∉. ⊂. :∈.
+;; U, Num, Int, Bool, Char, Set, Fn, Seq, Str
+;; Dm, Im
+
+
 (declare eval')
 (declare eval-for)
 
@@ -26,6 +33,37 @@
       (reset! a v)
       context))
 
+(declare make-binding)
+
+(defn make-bindings
+  "Recursively call make-binding for lists of patterns and values.
+The lists of patterns and values are known to be equal length."
+  [patterns vs context]
+  (if (seq patterns)
+    (some->> context
+             (make-binding (first patterns) (first vs))
+             (make-bindings (rest patterns) (rest vs)))
+    context))
+
+(defn make-map-binding [pattern v context strict?]
+  (when-let [v (eval-for :map v context)]
+    (let [f (fn [clauses]
+              (into {} (map (par into [])
+                            (partition 2 clauses))))
+          mp (f (rest pattern))
+          mv (f (rest v))]
+      (when (or (not strict?)
+                (= (count mp) (count mv)))
+        (when-let [[patterns vs]
+                   (reduce-kv (fn [[patterns vs] k p]
+                                (if-let [vv (mv k)]
+                                  [(cons p patterns)
+                                   (cons vv vs)]
+                                  (reduced nil)))
+                              [nil nil]
+                              mp)]
+          (make-bindings patterns vs context))))))
+
 (defn make-binding
   "Make a new context or contexts with the names in pattern bound to parts of the eval of v.
 v is not eval'ed if the pattern is a single name. Return nil if evaluation of v fails.
@@ -36,34 +74,46 @@ The returned context or contexts are returned in a list."
     (mapcat #(make-binding pattern v %) context)
     (if (name? pattern)
       (list (bind-name pattern v context))
-      (let [[head & xs] pattern]
-        (if (seq xs)
-          (case head
-            :tup (when-let [[_ & ys] (eval-for (count xs) v context)]
-                   (some->> context
-                            (make-binding (first xs) (first ys))
-                            (make-binding (cons :tup (rest xs)) (cons :tup (rest ys)))))
-            :cons (when-let [[_ x y] (eval-for :cons v context)]
-                    (some->> context
-                             (make-binding (first xs) x)
-                             (make-binding (second xs) y)))
-            :seq (when-let [[_ & ys] (eval-for :seq v context)]
-                   (when (= (count xs) (count ys))
-                     (some->> context
-                              (make-binding (first xs) (first ys))
-                              (make-binding (cons :seq (rest xs)) (cons :seq (rest ys))))))
-            ++ (when-let [[_ & ys] (eval-for :seq v context)]
-                 (mapcat #(let [[a b] %]
-                            (some->> context
-                                     (make-binding (first xs) (cons :seq a))
-                                     (make-binding (second xs) (cons :seq b))))
-                         (splits ys)))
-            :map nil ; TODO
-            ∪ nil ; TODO
-              (+ - * /) nil ; TODO
-              (error (str "Unknown destructuring pattern: " pattern)))
-          context ; the base case of calling make-binding recursively
-          )))))
+      (let [[head & xs] pattern
+            ef #(error (str "Unknown destructuring pattern: " pattern))]
+        (case head
+          :tup (when-let [[_ & ys] (eval-for (count xs) v context)]
+                 (make-bindings xs ys context))
+          :cons (when-let [[_ & ys] (eval-for :cons v context)]
+                  (make-bindings xs ys context))
+          :seq (when-let [[_ & ys] (eval-for :seq v context)]
+                 (when (= (count xs) (count ys))
+                   (make-bindings xs ys context)))
+          ++ (when-let [[_ & ys] (eval-for :seq v context)]
+               (mapcat (fn [split]
+                         (make-bindings xs
+                                        (map #(cons :seq %) split)
+                                        context))
+                       (splits ys)))
+          :map (make-map-binding pattern v context true)
+          ∪ (let [x (first xs)]
+              (if (op-isa? :map x)
+                (make-map-binding x v context false)
+                (ef)))
+          :neg (when-let [y (eval-for :num v context)]
+                 (make-binding (first xs) (- y) context))
+          (+ - * /) (when-let [y (eval-for :num v context)]
+                      (let [[x1 x2] xs]
+                        (if (number? x1)
+                          (case head
+                            + (make-binding x2 (- y x1) context)
+                            - (make-binding x2 (- x1 y) context)
+                            * (when (not (zero? x1))
+                                (make-binding x2 (/ y x1) context))
+                            / (when (not (zero? y))
+                                (make-binding x2 (/ x1 y) context)))
+                          (case head
+                            + (make-binding x1 (- y x2) context)
+                            - (make-binding x1 (+ y x2) context)
+                            * (when (not (zero? x2))
+                                (make-binding x1 (/ y x2) context))
+                            / (make-binding x1 (* y x2) context)))))
+          (ef))))))
 
 (defn apply-fn [expr]
   (let [context (get-context expr)
@@ -125,6 +175,8 @@ The returned context or contexts are returned in a list."
           (when (and (> n 0) (not= n '∞))
             (when-let [s (eval-for :seq s context)]
               (eval' (list s (dec n)) context))))))))
+
+(declare bool?)
 
 (defn apply-map* [clauses x]
   (when (seq? clauses)
@@ -309,8 +361,9 @@ Returned expressions have a :context metatag if possible."
                (nil? (second expr)))
       :empty)))
 
-;; TODO
-(defn eval-for-set [expr] nil)
+(defn eval-for-map [expr]
+  (when (op-isa? :map expr)
+    expr))
 
 (defn len [expr context]
   (condf expr
@@ -364,19 +417,11 @@ Returned expressions have a :context metatag if possible."
         (when (= x (float n))
           n)))))
 
-
-;; TODO >>>>>
-
 (defn bool? [x]
   (or (true? x) (false? x)))
 
-(defn and' [x y]
-  (when (and (bool? x) (bool? y))
-    (and x y)))
 
-(defn or' [x y]
-  (when (and (bool? x) (bool? y))
-    (or x y)))
+;; TODO >>>>>
 
 ;; TODO: make member? work with uneval'ed set ops and fns, including :set
 ;; TODO: eval args of uneval'ed ops and fns
@@ -416,10 +461,27 @@ Returned expressions have a :context metatag if possible."
       (not v))))
 
 (defn eval-for-bool [expr]
+  ;; TODO: remaining comparison ops
   ;; TODO: apply of sets and set-producing fns
-  ;; TODO: apply of bool ops
   ;; member and equal will be difficult, because it isn't clear what eval type to use
-  nil)
+  (if (bool? expr)
+    expr
+    (when (op? expr)
+      (let [context (get-context expr)
+            [head x y] expr]
+        (case head
+          (∧ ∨) (when-some [x (eval-for :bool x context)]
+                  (when-some [y (eval-for :bool y context)]
+                    (case head
+                      ∧ (and x y)
+                      ∨ (or x y))))
+          (< > ≤ ≥) (when-let [x (eval-for :num x context)]
+                      (when-let [y (eval-for :num y context)]
+                        (case head
+                          < (< x y)
+                          > (> x y)
+                          ≤ (<= x y)
+                          ≥ (>= x y)))))))))
 
 ;; TODO <<<<<
 
@@ -468,7 +530,7 @@ fully eval-for-<type>'ed before returning the first non-nil value.
             :seq eval-for-seq
             :cons eval-for-cons
             :empty eval-for-empty
-            :set eval-for-set
+            :map eval-for-map
             :num eval-for-num
             :int eval-for-int
             :bool eval-for-bool
