@@ -7,8 +7,9 @@
 ;; Throw an error when the evaluation could never succeed, e.g. when the expression is an unbound name.
 ;; Also throw an error when the interpreter doesn't (yet) know how to evaluate the expression.
 
-;; TODO
-;; ∩ ∪ → ⇸ = ≠ ∈ ∉ ⊂ :∈
+
+;; TODO:
+;; ∩ ∪ → ⇸ = ∈ ⊂ :∈
 ;; =. ≠. <. >. ≤. ≥. ∈. ∉. ⊂. :∈.
 ;; U, Num, Int, Bool, Char, Set, Fn, Seq, Str
 ;; Dm, Im
@@ -365,6 +366,7 @@ Returned expressions have a :context metatag if possible."
   (when (op-isa? :map expr)
     expr))
 
+;; TODO: make len work for other kinds of sets
 (defn len [expr context]
   (condf expr
     string? (count expr)
@@ -378,10 +380,7 @@ Returned expressions have a :context metatag if possible."
             :cons (when-let [[_ & s] (f (second xs))]
                     (inc (count s)))
             nil))
-    predefined-sets (set-context '∞ context)
-
-    ;; TODO: make len work for other kinds of sets
-    ))
+    predefined-sets (set-context '∞ context)))
 
 (defn eval-for-num [expr]
   (if (or (number? expr) (= '∞ expr))
@@ -395,7 +394,6 @@ Returned expressions have a :context metatag if possible."
           len (len x context)
           :neg (when-let [x (eval-for :num x context)]
                  (- x))
-
           (+ - * /)
           (when-let [x (eval-for :num x context)]
             (when-let [y (eval-for :num y context)]
@@ -406,7 +404,6 @@ Returned expressions have a :context metatag if possible."
                   + (+ x y)
                   - (- x y)
                   * (* x y)))))
-
           nil)))))
 
 (defn eval-for-int [expr]
@@ -420,14 +417,21 @@ Returned expressions have a :context metatag if possible."
 (defn bool? [x]
   (or (true? x) (false? x)))
 
+;; TODO
+(defn equal? [expr]
+  nil)
 
-;; TODO >>>>>
+(defn not-equal? [expr]
+  (let [v (equal? expr)]
+    (when (bool? v)
+      (not v))))
 
-;; TODO: make member? work with uneval'ed set ops and fns, including :set
-;; TODO: eval args of uneval'ed ops and fns
-#_(defn member?
-  [x S]
-  (if (op? S)
+;; TODO
+(defn member? [expr]
+  ;; TODO: :set, ∩, ∪, predefined sets, Im of :seq
+  nil
+
+#_(if (op? S)
     (let [[head & ys] S]
       (cond
         (and (= :fn head) (= true (second ys)))
@@ -452,18 +456,18 @@ Returned expressions have a :context metatag if possible."
       'Seq (op-isa? :seq x)
       nil)))
 
-;; TODO: make it work with uneval'ed set ops and fns, including :set
-;; TODO: eval args of uneval'ed ops and fns
-#_(defn not-member?
-  [x S]
-  (let [v (member? x S)]
+(defn not-member? [expr]
+  (let [v (member? expr)]
     (when (bool? v)
       (not v))))
 
+;; TODO
+(defn subset? [expr]
+  nil)
+
 (defn eval-for-bool [expr]
-  ;; TODO: remaining comparison ops
+  ;; TODO: optional comparison operations
   ;; TODO: apply of sets and set-producing fns
-  ;; member and equal will be difficult, because it isn't clear what eval type to use
   (if (bool? expr)
     expr
     (when (op? expr)
@@ -481,10 +485,13 @@ Returned expressions have a :context metatag if possible."
                           < (< x y)
                           > (> x y)
                           ≤ (<= x y)
-                          ≥ (>= x y)))))))))
-
-;; TODO <<<<<
-
+                          ≥ (>= x y))))
+          = (equal? expr)
+          ≠ (not-equal? expr)
+          ∈ (member? expr)
+          ∉ (not-member? expr)
+          ⊂ (subset? expr)
+          nil)))))
 
 (defn eval-for-char [expr]
   (if (char? expr)
