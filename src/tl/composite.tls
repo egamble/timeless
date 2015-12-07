@@ -1,23 +1,32 @@
-;; A parser that recognizes composite-length strings
+;; A recognizer for strings of 1s whose length is composite (i.e. not prime).
 
-;; This works on strings whose length is composite (i.e. not prime) where all the characters are the same
-;; and, more generally, on strings that are the concatenation of a composite number of identical strings.
+(:let
+    (Repeat+
+     (:fn s
+       (∪ (:set s)
+          (:fn (++ a b)
+               (:guard (^ (= a s)
+                          (∈ b (Repeat+ s)))
+                       true))))
 
-;; TODO: not working
+     Factor
+     (:fn (++ a b)
+       (:guard (^ (= a "1")
+                  (∈ b (Repeat+ "1")))
+               true))
 
-(= Repeat*
-   (:fn s
-        (∪ (:fn "" true)
-           (:fn (Repeat+ s) true))))
+     Composite
+     (∪
+      (:set "" "1")
+      (:fn (++ s b)
+           (:guard (^ (∈ s Factor)
+                      (∈ b (Repeat+ s)))
+                   true)))
 
-(= Repeat+
-   (:fn s
-        (:fn (++ s (Repeat* s)) true)))
+     stdout
+     (:alt
+      (:guard (∈ stdin Composite)
+              "composite")
+      "prime"))
 
-(= Composite1
-   (:fn (++ s (∈ _ (Repeat+ s))) true (> (len s) 1)))
-
-;; Equivalently:
-
-(= Composite2
-   (:fn (++ s (++ s (∈ _ (Repeat* s)))) true (> (len s) 1)))
+  stdout)

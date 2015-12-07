@@ -17,6 +17,7 @@
 
 (declare eval')
 (declare eval-for)
+(declare equal*)
 
 (defn splits
   "Returns a lazy sequence of all the splits of coll into two sequences."
@@ -47,7 +48,7 @@ The lists of patterns and values are known to be equal length."
     context))
 
 (defn make-map-binding [pattern v context strict?]
-  (when-let [v (eval-for :map v context)]
+  (when-let [v (eval-for :atom-map v context)]
     (let [f (fn [clauses]
               (into {} (map (par into [])
                             (partition 2 clauses))))
@@ -57,7 +58,7 @@ The lists of patterns and values are known to be equal length."
                 (= (count mp) (count mv)))
         (when-let [[patterns vs]
                    (reduce-kv (fn [[patterns vs] k p]
-                                (if-let [vv (mv k)]
+                                (if-some [vv (mv k)]
                                   [(cons p patterns)
                                    (cons vv vs)]
                                   (reduced nil)))
@@ -125,7 +126,7 @@ The returned context or contexts are returned in a list."
                     (apply-fn (set-context (list head x) context))
                     xs)
              context)
-      (when-let [x (eval' x context)]
+      (when-some [x (eval' x context)]
         (let [f (fn [s]
                   (let [ss (mapcat (fn [v]
                                      (when v
@@ -177,25 +178,14 @@ The returned context or contexts are returned in a list."
             (when-let [s (eval-for :seq s context)]
               (eval' (list s (dec n)) context))))))))
 
-(declare bool?)
-
-(defn apply-map* [clauses x]
+;; TODO: doesn't work when equal* returns nil
+(defn apply-map* [clauses x context]
   (when (seq? clauses)
-    (let [[[k v] & r] clauses
-          type (condf k
-                 string? :seq
-                 char? :char
-                 integer? :int
-                 number? :num
-                 bool? :bool
-                 (error (str "Map key must be an atomic literal: " k)))
-          x (eval-for type x)
-          k (if (string? k)
-              (cons :seq k)
-              k)]
-      (if (= k x)
-        v
-        (recur r x)))))
+    (let [[[k v] & r] clauses]
+      (when-let [[p _ x] (equal* k x context)]
+        (if p
+          v
+          (recur r x context))))))
 
 (defn apply-map [expr]
   (let [context (get-context expr)
@@ -206,8 +196,8 @@ The returned context or contexts are returned in a list."
                     (apply-map (set-context (list head x) context))
                     xs)
              context)
-      (set-context (apply-map* (partition 2 ys) x)
-                   context))))
+      (when-some [v (apply-map* (partition 2 ys) x context)]
+        (eval' v context)))))
 
 (defn apply-alt [expr]
   (let [context (get-context expr)
@@ -321,11 +311,11 @@ Returned expressions have a :context metatag if possible."
              f #(eval-for :seq % context)]
          (case head
            :seq expr
-           :cons (if-let [[_ & s] (f (second xs))]
+           :cons (when-let [[_ & s] (f (second xs))]
                    (set-context (apply list :seq (first xs) s)
                                 context))
-           ++ (if-let [[_ & s1] (f (first xs))]
-                (if-let [[_ & s2] (f (second xs))]
+           ++ (when-let [[_ & s1] (f (first xs))]
+                (when-let [[_ & s2] (f (second xs))]
                   (set-context (cons :seq (concat s1 s2))
                                context)))
            nil))
@@ -354,17 +344,6 @@ Returned expressions have a :context metatag if possible."
           nil))
       (when (string? expr)
         (f (seq expr))))))
-
-(defn eval-for-empty [expr]
-  (if (= :empty expr)
-    :empty
-    (when (and (op-isa? :seq expr)
-               (nil? (second expr)))
-      :empty)))
-
-(defn eval-for-map [expr]
-  (when (op-isa? :map expr)
-    expr))
 
 ;; TODO: make len work for other kinds of sets
 (defn len [expr context]
@@ -418,8 +397,18 @@ Returned expressions have a :context metatag if possible."
   (or (true? x) (false? x)))
 
 ;; TODO
-(defn equal? [expr]
+(defn equal*
+  "Eval's x and y as necessary. Returns [p x y] or nil.
+p is true if x equals y, o.w. false. Returns nil if either x or y eval to nil.
+The eval'ed x and y are returned so they can be used in other comparisons."  
+  [x y context]
   nil)
+
+(defn equal? [expr]
+  (let [context (get-context expr)
+        [_ x y] expr]
+    (when-let [[p _ _] (equal* x y context)]
+      p)))
 
 (defn not-equal? [expr]
   (let [v (equal? expr)]
@@ -428,7 +417,7 @@ Returned expressions have a :context metatag if possible."
 
 ;; TODO
 (defn member? [expr]
-  ;; TODO: :set, ∩, ∪, predefined sets, Im of :seq
+  ;; TODO: :set, :fn returning true, ∩, ∪, predefined sets, Im of :seq
   nil
 
 #_(if (op? S)
@@ -500,7 +489,7 @@ Returned expressions have a :context metatag if possible."
       (when (op? expr)
         (let [[x n] expr]
           (when-let [n (eval-for :int n context)]
-            ;; don't need to check for ((:seq ...) n) because of apply-seq
+            ;; No need to check for ((:seq ...) n) because of apply-seq.
             (cond
               (= 'intChar x) (when (< n 65536)
                                (char n))
@@ -508,13 +497,40 @@ Returned expressions have a :context metatag if possible."
                                (catch Exception e))
               :else nil)))))))
 
+(defn eval-for-str [expr]
+  (if (string? expr)
+    expr
+    (when-let [[_ & s] (eval-for-seq expr)]
+      (when (every? char? s) ; stops when an element is not a char, so works with infinite non-char seqs
+        (apply str s)))))
+
+(defn eval-for-atom [expr]
+  (some-not-nil ((juxt eval-for-str
+                       eval-for-num
+                       eval-for-char
+                       eval-for-bool)
+                 expr)))
+
+(defn eval-for-atom-map [expr]
+  (when (op-isa? :map expr)
+    (let [context (get-context expr)
+          kvs (partition 2 (rest expr))]
+      (when-let [s (reduce (fn [s [k v]]
+                             (if-let [k (eval-for-atom (set-context k context))]
+                               (cons k (cons v s))
+                               (reduced nil)))
+                           '() kvs)]
+        (set-context (cons :map s)
+                     context)))))
+
 (defn eval-for-tuple [n expr]
   (when (and (op-isa? :tup expr)
              (= n (count (rest expr))))
     expr))
 
+;; TODO: add eval-for :set
 (defn eval-for
-  "Eval for a particular type. Use this function rather than calling the specific eval-for-<type> functions.
+  "Eval for a particular type. Eval's expr and checks for :alt and :values before dispatching.
 The type argument is a keyword describing the type, or an integer n for a tuple of arity n.
 The context argument is only used if the expr doesn't have a :context metatag.
 Returned expressions have a :context metatag if possible.
@@ -536,10 +552,9 @@ fully eval-for-<type>'ed before returning the first non-nil value.
          ((case type
             :seq eval-for-seq
             :cons eval-for-cons
-            :empty eval-for-empty
-            :map eval-for-map
             :num eval-for-num
             :int eval-for-int
             :bool eval-for-bool
-            :char eval-for-char)
+            :char eval-for-char
+            :atom-map eval-for-atom-map)
           expr))))))

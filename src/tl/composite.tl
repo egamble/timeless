@@ -1,21 +1,14 @@
-# A parser that recognizes composite-length strings
+# A recognizer for strings of 1s whose length is composite (i.e. not prime).
 
-# This works on strings whose length is composite (i.e. not prime) where all the characters are the same
-# and, more generally, on strings that are the concatenation of a composite number of identical strings.
+#name Repeat+
 
-#name Repeat* Repeat+
+Repeat+ = {s ↦ {s, s ++ (∈ Repeat+ s)}}
 
-Repeat* = {s  ↦ {'',  Repeat+ s}}
-Repeat+ = {s  ↦ {s ++ Repeat* s}}
+Factor = {'1' ++ (∈ Repeat+ '1')}
 
-Composite1 = {s ++ (∈ Repeat+ s) | len s > 1}
-
-# Equivalently:
-
-Composite2 = {s ++ s ++ (∈ Repeat* s) | len s > 1}
+Composite = {'', '1', (s ∈ Factor) ++ (∈ Repeat+ s)}
 
 stdout =
-{∈ Composite1  ↦ "composite",
- _             ↦ "not composite"
+{| stdin ∈ Composite ↦ "composite"
+ |                   ↦ "prime"
 }
-stdin
