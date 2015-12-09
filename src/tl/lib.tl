@@ -1,11 +1,9 @@
 # Library operators
 
 #infixa 10 ∘
-
 (∘) = {f g x ↦ f (g x)}
 
 #infix 8 ..
-
 (..) =
 {a ∈ Int ↦
  {a ↦ [a],
