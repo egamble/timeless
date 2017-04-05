@@ -10,7 +10,6 @@
 
 ;; TODO:
 ;; ∩ ∪ → ⇸ = ∈ ⊂ :∈
-;; =. ≠. <. >. ≤. ≥. ∈. ∉. ⊂. :∈.
 ;; U, Num, Int, Bool, Char, Set, Fn, Seq, Str
 ;; Dm, Im
 
