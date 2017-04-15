@@ -20,6 +20,7 @@ lex_split =
                                                    t:ts | t ∈ Sep -> [c]:r
                                                         |         -> c:t:ts}
                                                   r}}}
+:∈ SetOf Char => Str => SeqOf(Str ∪ Char)                                                  
 
 lex_remove_ws = remove WS
 
