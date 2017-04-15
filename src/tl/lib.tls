@@ -1,3 +1,5 @@
+;; TODO: update these definitions to match lib.tl
+
 ;; Library operators
 
 (= ∘ (:fn f (:fn g (:fn x (f (g x))))))
