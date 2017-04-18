@@ -1,3 +1,4 @@
+#use lib
 #use lex_split
 
 # A parser that recognizes S-expressions and builds an AST
