@@ -29,8 +29,8 @@ lex_parse = parse ∘ lex
 # The generated AST is ignored in this example definition of stdout.
 
 stdout =
-  {s | _ = lex_parse s -> "match"
-     |                 -> "no match"}
+  {s | _ = lex_parse s -> "match",
+                       -> "no match"}
   stdin
 
 # This is an equivalent definition of stdout.

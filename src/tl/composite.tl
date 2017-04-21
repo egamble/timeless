@@ -9,5 +9,5 @@ Composite = {'', '1', (s ∈ Factor) ++ (∈ Repeat+ s)}
 
 stdout =
 {| stdin ∈ Composite -> "composite"
- |                   -> "prime"}
+                     -> "prime"}
 

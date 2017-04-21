@@ -9,14 +9,18 @@
 #infix 8 ..
 (..) =
   {m ∈ Int ->
-    {m             -> [m],
-     n ∈ Int | m<n -> m:(inc m..n)},
+    {m -> [m],
+     n ∈ Int
+       | m<n
+       -> m:(inc m..n)},
 
    c ∈ Char ->
-    {c              -> [c],
-     d ∈ Char | m=charInt c
-              ∧ n=charInt d
-              ∧ m<n -> c:(intChar(inc m)..d)}}
+    {c -> [c],
+     d ∈ Char
+       | m=charInt(c) ∧
+         n=charInt(d) ∧
+         m<n
+       -> c:(intChar(inc m)..d)}}
 
 #infixl 4 \
 (\) =
@@ -36,8 +40,8 @@ inc = {x -> x+1}
 dec = {x -> x-1}
 
 if =
-  {cond -> then -> else | cond -> then
-                        |      -> else}
+  {cond -> then -> else | cond -> then,
+                               -> else}
 ¬ =
   {true  -> false,
    false -> true}
@@ -64,14 +68,14 @@ map =
 
 filter =
   {_   -> []                     -> [],
-   S   -> x:xs | r = filter S xs -> {| x ∈ S -> x:r
-                                   |       -> r}}
+   S   -> x:xs | r = filter S xs -> {| x ∈ S -> x:r,
+                                             -> r}}
 :∈ Set => Seq                    => Seq
 
 remove =
   {_   -> []                     -> [],
-   S   -> x:xs | r = remove S xs -> {| x ∈ S -> r
-                                     |       -> x:r}}
+   S   -> x:xs | r = remove S xs -> {| x ∈ S -> r,
+                                             -> x:r}}
 :∈ Set => Seq                    => Seq
 
 foldl =
