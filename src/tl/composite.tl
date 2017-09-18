@@ -1,13 +1,15 @@
 # A recognizer for strings of 1s whose length is composite (i.e. not prime).
 
 #name Repeat+
-Repeat+ = {s -> {s, s ++ (∈ Repeat+ s)}}
+Repeat+ = {s -> {s,
+                 s++t | t ∈ Repeat+ s}}
 
-Factor = {'1' ++ (∈ Repeat+ '1')}
+Factor = {'1'++s | s ∈ Repeat+ '1'}
 
-Composite = {'', '1', (s ∈ Factor) ++ (∈ Repeat+ s)}
+Composite = {'', '1',
+             s++t | s ∈ Factor
+                    t ∈ Repeat+ s}
 
 stdout =
-{| stdin ∈ Composite -> "composite"
-                     -> "prime"}
-
+{∈ Composite -> 'composite'
+ ∉ Composite -> 'prime'}
