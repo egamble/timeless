@@ -3,11 +3,13 @@
 
 # A parser that recognizes S-expressions and builds an AST
 
-WS             = {`space, `tab, `newline}
-Paren          = {`(, `)}
+# space, tab, newline
+WS             = Im ' 	
+'
+Paren          = Im '()'
 
-Alpha          = Im(`a..`z ++ `A..`Z)
-Alphanum       = Alpha ∪ Im(`0..`9)
+Alpha          = Im 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+Alphanum       = Alpha ∪ Im '0123456789'
 Alphanum_str   = {'', c:s | c ∈ Alphanum
                             s ∈ Alphanum_str}
 Symbol         = {c:s | c ∈ Alpha
@@ -33,5 +35,5 @@ Sexp = Dm lex_parse
 # The generated AST is ignored in this example definition of stdout.
 
 stdout =
-{∈ Sexp -> "match",
- ∉ Sexp -> "no match"}
+{∈ Sexp -> 'match',
+ ∉ Sexp -> 'no match'}
