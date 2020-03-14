@@ -1,100 +1,123 @@
-# Library operators
+| Bool = {true, false}
 
-#infixa 10 ∘
-(∘) = {f -> g -> x -> f (g x)}
+| Nat    = {n∈Int | n>=0}
+| PosInt = {n∈Int | n>0}
+| NegInt = {n∈Int | n<0}
 
-#infixr 0 $
-($) = {f -> x -> f x}
+| SetOf = {S∈Set -> {⊂ S}}
 
-#infix 8 ..
-(..) =
-  {m ∈ Int ->
-    {m -> [m],
-     n ∈ Int
-       | m<n
-       -> m:(inc m..n)},
+| SeqOf = {S∈Set -> {s ∈ Seq | Im s ⊂ S}}
 
-   c ∈ Char ->
-    {c -> [c],
-     d ∈ Char
-       | m=charInt(c) ∧
-         n=charInt(d) ∧
-         m<n
-       -> c:(intChar(inc m)..d)}}
+#pr> = ∧ ∨ --> ->
+#pr= ∧ &&
+#pr= ∨ ||
 
-#infixl 4 \
-(\) =
-  {A   -> B   -> {x ∈ A | x ∉ B}}
-:∈ Set => Set => Set
+#opa ∧ ∨ && ||
 
-#infix 3 ⊃
-(⊃) = flip (⊂)
+| (∧) = (&&) =
+{true  -> true  -> true,
+ true  -> false -> false,
+ false -> true  -> false,
+ false -> false -> false,
+ false -> null  -> false,
+ null  -> false -> false}
 
-# Library prefix functions
+| (∨) = (||) =
+{true  -> true  -> true,
+ true  -> false -> true,
+ false -> true  -> true,
+ false -> false -> false,
+ true  -> null  -> true,
+ null  -> true  -> true}
 
-id = {x -> x}
+#opr ⟶ -->
+#pr= ⟶ -->
 
-const = {x -> y -> x}
+| (⟶) = (-->) =
+{true  -> true  -> true,
+ true  -> false -> false,
+ false -> true  -> true,
+ false -> false -> true,
+ false -> null  -> true,
+ null  -> true  -> true}
 
-inc = {x -> x+1}
-dec = {x -> x-1}
+#pr> -> ? $ |
 
-if =
-  {cond -> then -> else | cond -> then,
-                               -> else}
-¬ =
-  {true  -> false,
-   false -> true}
+#op ?
+| (?) =
+{true -> then -> else -> then,
+ true -> then -> null -> then,
+ false -> then -> else -> else,
+ false -> null -> else -> else}
 
-implies = {p -> q -> ¬p ∨ q}
+#pr> ∘ \ => ∩
+#pr= ⇒ =>
+#opa ⇒ =>
 
-flip = {f -> a -> b -> f b a}
+| (⇒) = (=>) =
+{S∈Set -> T∈Set -> {∈S -> ∈T}}
 
-first = {x:_ -> x}
+#opl \
 
-rest = {_:xs -> xs}
+| (\) = Set=>Set=>Set ∩
+{A -> B -> {x∈A | x∉B}}
 
-second = {_:x:_ -> x}
+#opr ∘ .
+#pr= ∘ .
 
-take =
-  {0   -> _    -> [],
-   n   -> x:xs -> x : take (dec n) xs}
-:∈ Nat => Seq  => Seq
+| (∘) = (.) = {f -> g -> x -> f (g x)}
 
-map =
-  {_  -> []   -> [],
-   f  -> x:xs -> f x : map f xs}
-:∈ Fn => Seq  => Seq
+#opr $
 
-filter =
-  {_   -> []                     -> [],
-   S   -> x:xs | r = filter S xs -> {| x ∈ S -> x:r,
-                                             -> r}}
-:∈ Set => Seq                    => Seq
+| ($) = {f -> x -> f x}
 
-remove =
-  {_   -> []                     -> [],
-   S   -> x:xs | r = remove S xs -> {| x ∈ S -> r,
-                                             -> x:r}}
-:∈ Set => Seq                    => Seq
+#name ¬ !
+| ! = ¬ = {true -> false, false -> true}
 
-foldl =
-  {_         -> z  -> []   -> z,
-   f         -> z  -> x:xs -> foldl f (f z x) xs}
-:∈ (U~>U~>U) => U  => Seq  => Seq
+| if = (?)
 
-reduce = foldl
+| id = {x -> x}
 
-foldr =
-  {_         -> z -> []   -> z,
-   f         -> z -> x:xs -> f x (foldr f z xs)}
-:∈ (U~>U~>U) => U => Seq  => Seq
+| const = {x -> {_ -> x}}
 
-mapcat =
-  {f        -> s   -> reduce (++) [] (map f s)}
-:∈ (U~>Seq) => Seq => Seq
+| inc = {x -> x+1}
+| dec = {x -> x-1}
 
-zip =
-  {[]    -> ∈ Seq -> [],
-   ∈ Seq -> []    -> [],
-   x:xs  -> y:ys  -> (x,y) : zip xs ys}
+| flip = {f -> a -> b -> f b a}
+
+| first = {x:_ -> x}
+
+| rest = {_:xs -> xs}
+
+| second = {_:x:_ -> x}
+
+| take = Nat=>Seq=>Seq ∩
+{0 -> _    -> [],
+ n -> x:xs -> x:take(dec n)xs}
+
+| map = Fn=>Seq=>Seq ∩
+{_ -> []   -> [],
+ f -> x:xs -> f x : map f xs}
+
+| filter = Set=>Seq=>Seq ∩
+{_ -> []   -> [],
+ S -> x:xs -> x∈S?x:r:?r | r=filter S xs}
+
+| remove = Set=>Seq=>Seq ∩
+{_ -> []   -> [],
+ S -> x:xs -> x∈S?r:?x:r | r=remove S xs}
+
+| reduce = foldl = SetOf(Any=>Any=>Any)=>Any=>Seq=>Any ∩
+{_ -> z -> []   -> z,
+ f -> z -> x:xs -> foldl f (f z x) xs}
+
+| foldr = SetOf(Any=>Any=>Any)=>Any=>Seq=>Any ∩
+{_ -> z -> []   -> z,
+ f -> z -> x:xs -> f x (foldr f z xs)}
+
+| zip =
+{a∈Seq -> b∈Seq
+  -> [] | a=[] ∨ b=[],
+  -> (x,y): zip xs ys
+  | a=x:xs
+    b=y:ys}
