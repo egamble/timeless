@@ -7,5 +7,5 @@
   {"" -> [],
    (c:cs ∈ Str | r = lex_split Sep cs) | c ∈ Sep -> c:r,
                                        | c ∉ Sep -> f r | f = {[] -> [ Str;[c] ],
-                                                               t:ts | t ∈ Sep -> Str;[c]:r,
-                                                                    | t ∉ Sep -> Str;(c:t):ts}}}
+                                                               t:ts | t ∈ Sep -> Str;[c] : r,
+                                                                    | t ∉ Sep -> c : t : ts}}}

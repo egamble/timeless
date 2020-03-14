@@ -1,7 +1,10 @@
 #use lex_split
 
+| newline = "
+"
+
 | index_lines =
-{s ∈ Str | N = {\newline} ->
+{s ∈ Str | N = {newline} ->
  zip (1..∞) (remove N (lex_split N s))}
 
 | index_cols =
