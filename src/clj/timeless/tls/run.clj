@@ -42,5 +42,8 @@
 (defn test-run-file [file in-str]
   (run-file file (java.io.StringReader. in-str) *out*))
 
+(defn tl->tls [in-file out-file]
+  (spit out-file (slurp in-file)))
+
 (defn -main [file]
   (run-file file *in* *out*))

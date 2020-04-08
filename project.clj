@@ -4,4 +4,4 @@
   :dependencies [[org.clojure/clojure "1.7.0"]]
   :min-lein-version "2.0.0"
   :url "https://github.com/egamble/timeless"
-  :main timeless.tls.run)
+  :main timeless.tl.compile)
