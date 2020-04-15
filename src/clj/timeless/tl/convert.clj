@@ -35,7 +35,7 @@
                                 (map classify-line annotated-lines))
         classified-lines (apply merge-with into classified-lines
                                 (map #(tag-and-separate-lines (get-include %))
-                                     (:include-lines classified-lines)))]
+                                     (reverse (:include-lines classified-lines))))]
     {:declare-lines (reverse (:declare-lines classified-lines))
      :source-lines (reverse (:source-lines classified-lines))}))
 
