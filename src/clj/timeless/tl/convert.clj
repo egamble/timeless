@@ -1,50 +1,95 @@
 (ns timeless.tl.convert
   "Convert TL code to TLS code."
-  (:refer-clojure :exclude [replace])
-  (:require [clojure.string :refer :all :exclude [reverse]]))
+  (:require [clojure.string :as str]))
+
+
+;;; Annotate and classify lines and get #includes.
 
 (def declare-tokens #{"#name" "#op" "#opa" "#opr" "#opl" "#pr<" "#pr=" "#pr>"})
 
-(defn split-annotated-line [annotated-line]
-  (split
-   (trim (:line annotated-line))
-   #"[ \t]"))
+(defn split-source-line [line]
+  (remove str/blank?
+          (str/split (str/trim line)
+                 #"[ \t]")))
 
-(defn classify-line [annotated-line]
-  (let [first-token (first (split-annotated-line annotated-line))]
-    (cond (= "#include" first-token) {:include-lines (list annotated-line)
-                                      :source-lines (list (merge annotated-line {:line ""}))}
-          (declare-tokens first-token) {:declare-lines (list annotated-line)
-                                        :source-lines (list (merge annotated-line {:line ""}))}
-          :default {:source-lines (list annotated-line)})))
+;; Returns [<annotated declare line> <annotated include line> <source line>].
+(defn classify-line [path index line]
+  (let [split-line (split-source-line line)
+        annotated-split-line {:file path
+                              :line-num (inc index)
+                              :split-line split-line}
+        first-token (first split-line)]
+    (cond (declare-tokens first-token)
+          [annotated-split-line nil ""]
+ 
+          (= "#include" first-token)
+          [nil annotated-split-line ""]
 
+          :default
+          [nil nil line])))
+
+;; Returns [<path> <source>].
 (defn get-include [include-line]
-  ;; TODO: throw useful error here with line number
-  (let [path (second (split-annotated-line include-line))]
-    [path (slurp path)]))
+  (let [path (second (:split-line include-line))
+        source (try
+                 (slurp path)
+                 (catch Exception e
+                   (throw (Exception. (str "Line " (:line-num include-line)
+                                           " of file " (:file include-line)
+                                           ": #include " (.getMessage e))))))]
+    [path source]))
 
-;; Returns {:declare-lines <annotated lines> :source-lines <annotated lines>}.
-(defn tag-and-separate-lines [[path source]]
-  (let [annotated-lines (mapv #(do
-                                 {:file path
-                                  :line %1
-                                  :line-num %2})
-                             (split-lines source)
-                             (range))
-        classified-lines (apply merge-with into
-                                (map classify-line annotated-lines))
-        classified-lines (apply merge-with into classified-lines
-                                (map #(tag-and-separate-lines (get-include %))
-                                     (reverse (:include-lines classified-lines))))]
-    {:declare-lines (reverse (:declare-lines classified-lines))
-     :source-lines (reverse (:source-lines classified-lines))}))
+;; Returns [<annotated declare lines> <annotated include lines> <source lines>].
+(defn extract-declare-and-include-lines [[path source]]
+  (let [lines (str/split-lines source)
+        classified-lines (map-indexed (partial classify-line path)
+                                      lines)]
+    (map (partial remove nil?)
+         (apply map list classified-lines) ; This works because str/split-lines will always
+                                           ; generate at least one line, even if source is empty.
+         )))
+
+;; Returns [<annotated declare lines> <list of {:file <path> :lines <source lines>}>].
+(defn get-declare-lines-and-annotated-files [[path source]]
+  (let [[declare-lines include-lines source-lines] (extract-declare-and-include-lines [path source])
+        annotated-file {:file path :lines source-lines}]
+    (map (partial apply concat)
+         (apply map list
+                [declare-lines (list annotated-file)]
+                (map #(get-declare-lines-and-annotated-files (get-include %))
+                     include-lines)))))
+
+
+;;; Replace string literals with place holders, to avoid tokenizing problems with multi-line strings.
+
+
+
+;;; Tokenize.
+
+(def name-declaring-tokens #{"#name" "#op" "#opa" "#opr" "#opl"})
+
+(def predefined-op-names #{"*" "/" "+" "-" ":" "++" "∩" "∪" "=" "≠" "<" ">" "≤" "≥" "⊂" "⊃" "∈" "∉" "|" ";" "→" "<>" "><" "!=" "<=" ">=" "<<" ">>" "@" "!@"})
+
+(def other-tokens #{"," "~" "'" ".." "(" ")" "[" "]" "{" "}" "∞"})
+
+(defn declared-names [declare-lines]
+  (mapcat #(when (name-declaring-tokens (first (:split-line %)))
+             (rest (:split-line %)))
+          declare-lines))
+
+(defn tokenize [{declare-lines :declare-lines
+                 source-lines :source-lines}]
+  (println (declared-names declare-lines)))
+
+
+;;; Convert from TL to TLS.
 
 (defn tl->tls [in-path out-path]
   (let [source (slurp in-path)
-        file-data (tag-and-separate-lines [in-path source])]
+        [declare-lines annotated-files] (get-declare-lines-and-annotated-files [in-path source])
+        all-lines (mapcat :lines annotated-files)]
     (spit out-path
-          (str (join "\n" (map :line (concat (:source-lines file-data)
-                                             (:declare-lines file-data))))
+          (str (str/join "\n" all-lines)
                "\n"))))
 
 (defn -main [in-file out-file]
