@@ -9,13 +9,12 @@
 
 (defn tl->tls [in-path out-path]
   (let [source (slurp in-path)
-        annotated-tokens (->> in-path
-                              slurp
-                              (tokenize in-path)
-                              prefixize)]
+        form (->> in-path
+                  slurp
+                  (tokenize in-path)
+                  prefixize)]
     (spit out-path
-          (str (str/join "\n" annotated-tokens)
-               "\n"))))
+          (pr-str form))))
 
 (defn -main [in-file out-file]
   (tl->tls in-file out-file))
