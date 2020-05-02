@@ -5,18 +5,29 @@
 
 ;;; Get include files, extract declaration lines, and tokenize source.
 
-(declare get-declaration-lines-and-annotated-files
-         whitespace-or-comment?
-         restore-string-literals
-         tokenize-annotated-files)
+(declare get-annotated-files
+         tokenize-annotated-file
+         extract-comments-remove-whitespace
+         check-first-token
+         restore-string-literals)
 
-;; Returns: [<annotated declaration lines> <annotated tokens>]
+;; Returns: {:declarations <annotated declaration lines>
+;;           :comments <annotated comment tokens>
+;;           :tokens <annotated tokens>}
 (defn tokenize [path source]
-  (let [[declaration-lines annotated-files] (get-declaration-lines-and-annotated-files path source)
-        annotated-tokens (->> (mapcat restore-string-literals
-                                      (tokenize-annotated-files declaration-lines annotated-files))
-                              (remove whitespace-or-comment?))]
-    [declaration-lines annotated-tokens]))
+  (let [annotated-files (get-annotated-files path source)
+        declaration-lines (mapcat :declarations annotated-files)
+        pattern (make-tokenize-pattern declaration-lines)
+        annotated-files (map (fn [annotated-file]
+                               (->> annotated-file
+                                    (tokenize-annotated-file pattern)
+                                    extract-comments-remove-whitespace
+                                    check-first-token
+                                    restore-string-literals))
+                             annotated-files)]
+    {:declarations declaration-lines
+     :comments (mapcat :comments annotated-files)
+     :tokens   (mapcat :tokens   annotated-files)}))
 
 
 ;;; Replace string literals with place holders, to avoid problems with tokenizing multi-line strings.
@@ -93,23 +104,22 @@
          )))
 
 ;; Returns:
-;; [<annotated declare lines>
 ;;  <list of {:file <path>
 ;;            :source <source with declaration lines removed and string literals replaced>
-;;            :strings <string literals>}>]
-(defn get-declaration-lines-and-annotated-files [path source]
+;;            :strings <string literals>
+;;            :declarations <declaration lines>}>
+(defn get-annotated-files [path source]
   (let [source (str (str/trimr source) "\n") ; ensure source ends with a newline,
                                         ; otherwise string literal replacement will fail
         [declaration-lines include-lines source-lines] (extract-declaration-and-include-lines path source)
         [strings source] (replace-string-literals path (str/join "\n" source-lines))
         annotated-file {:file path
                         :source source
-                        :strings strings}]
-    (map (partial apply concat)
-         (apply map list
-                [declaration-lines (list annotated-file)]
-                (map #(apply get-declaration-lines-and-annotated-files (get-include %))
-                     include-lines)))))
+                        :strings strings
+                        :declarations declaration-lines}]
+    (cons annotated-file
+          (map #(apply get-annotated-files (get-include %))
+               include-lines))))
 
 
 ;;; Tokenize.
@@ -162,16 +172,15 @@
                 (tokenize-line pattern path index (subs line n))))
         (throw (Exception. (str "Can't tokenize line " line-num " of file " path ".")))))))
 
-;; Returns: a list of annotated tokens from all the annotated files.
-(defn tokenize-annotated-files [declaration-lines annotated-files]
-  (let [pattern (make-tokenize-pattern declaration-lines)]
-    (map (fn [annotated-file]
-           (into annotated-file
-                 {:tokens
-                  (apply concat
-                   (map-indexed (partial tokenize-line pattern (:file annotated-file))
-                                (str/split-lines (:source annotated-file))))}))
-         annotated-files)))
+;; Returns: the annotated file with annotated tokens added to it.
+(defn tokenize-annotated-file [pattern annotated-file]
+  (let [annotated-tokens
+        (apply concat
+               (map-indexed (partial tokenize-line pattern (:file annotated-file))
+                            (str/split-lines (:source annotated-file))))]
+
+    (into annotated-file
+          {:tokens annotated-tokens})))
 
 
 ;;; Restore string literals
@@ -187,12 +196,32 @@
             {:token new-token
              :type :string}))))
 
-(defn restore-string-literals [{annotated-tokens :tokens strings :strings}]
-  (map (partial restore-string-literal strings)
-       annotated-tokens))
+(defn restore-string-literals [annotated-file]
+  (let [{annotated-tokens :tokens strings :strings} annotated-file]
+    (into annotated-file
+          {:tokens (map (partial restore-string-literal strings)
+                        annotated-tokens)})))
 
 
-;;; Remove whitespace and comments.
+;;; Extract comments and remove whitespace.
+
+(defn comment? [annotated-token]
+  (re-matches #"#.*" (:token annotated-token)))
 
 (defn whitespace-or-comment? [annotated-token]
   (re-matches #"[ \t]*|#.*" (:token annotated-token)))
+
+(defn extract-comments-remove-whitespace [annotated-file]
+  (let [tokens (:tokens annotated-file)
+        comments (filter comment? tokens)]
+    (into annotated-file
+          {:comments comments
+           :tokens (remove whitespace-or-comment? tokens)})))
+
+
+;;; Ensure that the first token of a file is the guard operator.
+
+(defn check-first-token [annotated-file]
+  (when (not (= "|" (:token (first (:tokens annotated-file)))))
+    (throw (Exception. (str "In file " (:file annotated-file)
+                            " the first token is not \"|\".")))))
