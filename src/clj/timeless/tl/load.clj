@@ -1,6 +1,34 @@
-(ns timeless.tl.tokenize
-  "Make annotated tokens from TL code."
+(ns timeless.tl.load
+  "Load TL code."
   (:require [clojure.string :as str]))
+
+
+;;; Load TL or TLS code.
+
+(declare tokenize)
+
+(defn drop-extension [path]
+  (let [split-path (str/split path #"\.")]
+    (when (second split-path)
+      (str/join "\."
+                (drop-last split-path)))))
+
+(defn load-file [path]
+  (let [without-extension (drop-extension path)
+        tls-source (when without-extension
+                     (try
+                       (slurp (str path ".tls"))
+                       (catch Exception e nil)))
+        tl-source (when (and (not tls-source)
+                             without-extension)
+                    (try
+                      (slurp (str path ".tl"))
+                      (catch Exception e nil)))
+        tl-source (when (not (or tls-source tl-source))
+                    (slurp path))]
+    (if tls-source
+      (read-tls-source tls-source)
+      (tokenize path tl-source))))
 
 
 ;;; Get include files, extract declaration lines, and tokenize source.
@@ -12,7 +40,6 @@
          restore-string-literals)
 
 ;; Returns: {:declarations <annotated declaration lines>
-;;           :comments <annotated comment tokens>
 ;;           :tokens <annotated tokens>}
 (defn tokenize [path source]
   (let [annotated-files (get-annotated-files path source)
@@ -21,12 +48,10 @@
         annotated-files (map (fn [annotated-file]
                                (->> annotated-file
                                     (tokenize-annotated-file pattern)
-                                    extract-comments-remove-whitespace
                                     check-first-token
                                     restore-string-literals))
                              annotated-files)]
     {:declarations declaration-lines
-     :comments (mapcat :comments annotated-files)
      :tokens   (mapcat :tokens   annotated-files)}))
 
 

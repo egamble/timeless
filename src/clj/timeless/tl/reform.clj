@@ -1,5 +1,5 @@
-(ns timeless.tl.prefixize
-  "Convert infix operators to prefix functions."
+(ns timeless.tl.reform
+  "Reform tokens into TLS S-expressions."
   (:require [clojure.string :as str]))
 
 
