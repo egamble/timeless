@@ -1,18 +1,19 @@
 (ns timeless.tl.convert
   "Convert TL code to TLS code."
-  (:require [timeless.tl.tokenize :refer [tokenize]]
-            [timeless.tl.prefixize :refer [prefixize]]
+  (:require [timeless.tl.load :refer [load-file]]
+            [timeless.tl.reform :refer [reform]]
             [clojure.string :as str]))
+
 
 
 ;;; Convert from TL to TLS.
 
 (defn tl->tls [in-path out-path]
-  (let [source (slurp in-path)
+  (let [[tokens comments declarations included-assertions] (load-file in-path)
+        assertions ()
         form (->> in-path
-                  slurp
-                  (tokenize in-path)
-                  prefixize)]
+                  load-file
+                  reform)]
     (spit out-path
           (pr-str form))))
 
