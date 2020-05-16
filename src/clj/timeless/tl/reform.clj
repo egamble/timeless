@@ -107,3 +107,10 @@
     (list :name form)
 
     :default form))
+
+
+;;; Reform.
+
+;; Returns: <assertions>
+(defn reform [declarations annotated-tokens]
+  nil)
