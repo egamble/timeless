@@ -35,9 +35,9 @@
 
 ;; TODO: load annotated-includes
 
-(defun read-tl-source [path source]
+(defn read-tl-source [path source]
   (let [[declarations annotated-includes source strings]
-        (extract-declarations path source)
+        (extract path source)
 
         annotated-tokens (tokenize declarations path source strings)
         assertions (reform declarations annotated-tokens)]
@@ -49,10 +49,10 @@
 (defn drop-extension [path]
   (let [split-path (str/split path #"\.")]
     (when (second split-path)
-      (str/join "\."
+      (str/join "."
                 (drop-last split-path)))))
 
-(defn load-file [path]
+(defn load-source-file [path]
   (let [without-extension (drop-extension path)
         tls-source (when without-extension
                      (try
@@ -72,7 +72,7 @@
 
 ;;; Write TLS code.
 
-(defn write-file [forms]
+(defn write-file [out-path forms]
   (spit out-path
         (str (str/join "\n"
                        (map pr-str forms))
@@ -82,7 +82,7 @@
 ;;; Load TL or TLS file and write TLS file.
 
 (defn load-and-write-file [in-path out-path]
-  (let [[declarations assertions] (load-file in-path)]
+  (let [[declarations assertions] (load-source-file in-path)]
     (write-file out-path
                 (concat declarations assertions))))
 

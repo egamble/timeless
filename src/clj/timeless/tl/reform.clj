@@ -3,24 +3,6 @@
   (:require [clojure.string :as str]))
 
 
-;;; Convert infix operators to prefix functions.
-
-(declare check-balance
-         build-parens
-         build-top-level
-         wrap-non-clj-names)
-
-;; Returns: <annotated tokens>
-(defn prefixize [{comment-tokens :comments
-                  declaration-lines :declarations
-                  annotated-tokens :tokens}]
-  (-> annotated-tokens
-      check-balance
-      build-parens
-      build-top-level
-      wrap-non-clj-names))
-
-
 ;;; Check that all brackets are balanced.
 
 (def left-brackets #{"(" "{" "["})
@@ -113,4 +95,8 @@
 
 ;; Returns: <assertions>
 (defn reform [declarations annotated-tokens]
-  nil)
+  (-> annotated-tokens
+      check-balance
+      build-parens
+      build-top-level
+      wrap-non-clj-names))
