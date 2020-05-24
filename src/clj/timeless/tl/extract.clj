@@ -72,7 +72,7 @@
 
 ;; Returns:
 ;; [<declarations>
-;;  <annotated includes>
+;;  <annotated includes in the form {:line-num <> :paths <>}>
 ;;  <source with declaration lines removed and string literals replaced>
 ;;  <strings>]
 (defn extract [path source]

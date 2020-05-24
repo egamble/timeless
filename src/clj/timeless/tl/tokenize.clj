@@ -12,7 +12,7 @@
              (rest (rest %)))
           declarations))
 
-(def predefined-op-names '("*" "/" "+" "-" ":" "++" "∩" "∪" "=" "≠" "<" ">" "≤" "≥" "⊂" "⊃" "∈" "∉" "|" ";" "→" "<>" "><" "<<<" "!=" "<=" ">=" "<<" ">>" "@" "!@"))
+(def predefined-op-names '("*" "/" "+" "-" ":" "++" "∩" "∪" "=" "≠" "<" ">" "≤" "≥" "⊂" "⊃" "∈" "∉" "|" ";" "->" "→" "<>" "><" "!=" "<=" ">=" "<<" ">>" "@" "!@"))
 
 (def other-tokens '("," "~" "'" ".." "(" ")" "[" "]" "{" "}" "∞"))
 
@@ -90,7 +90,6 @@
 
 ;; Returns: <annotated tokens>
 (defn tokenize [declarations path source strings]
-(println "d " declarations " p " path " s " source " s " strings)
   (let [pattern (make-tokenize-pattern declarations)
         annotated-tokens (->> (tokenize-raw pattern path source)
                               (restore-string-literals strings)

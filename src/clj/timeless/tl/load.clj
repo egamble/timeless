@@ -6,52 +6,9 @@
             [clojure.string :as str]))
 
 
+;;; Load included TL or TLS files.
 
-
-Returns: [<path> <source>]
-(defn get-include [include-line]
-  (let [path (second (:split-line include-line))
-        source (try
-                 (slurp path)
-                 (catch Exception e
-                   (throw (Exception. (str "Line " (:line-num include-line)
-                                           " of file " (:file include-line)
-                                           ": #include " (.getMessage e))))))]
-    [path source]))
-
-
-
-
-
-;;; Read source strings.
-
-(defn read-tls-source [source]
-  (let [forms (read-string (str "(" source ")"))
-        grouped-forms (group-by #(= :declare (first %))
-                                forms)]
-    {:declarations (grouped-forms true)
-     :assertions (grouped-forms false)}))
-
-(defn load-includes [annotated-includes]
-  (reduce ...))
-
-(defn read-tl-source [path source]
-  (let [[declarations annotated-includes source strings]
-        (extract path source)
-
-        {included-declarations :declarations
-         included-assertions :assertions}
-        (load-includes annotated-includes)
-
-        declarations (concat declarations included-declarations)
-        annotated-tokens (tokenize declarations path source strings)
-        assertions (concat (reform declarations annotated-tokens)
-                           included-assertions)]
-    {:declarations declarations
-     :assertions assertions}))
-
-
-;;; Load TL or TLS code.
+(declare read-tl-source read-tls-source)
 
 (defn drop-extension [path]
   (let [split-path (str/split path #"\.")]
@@ -63,28 +20,66 @@ Returns: [<path> <source>]
 ;; Returns:
 ;; {:declarations <declarations>
 ;;  :assertions <assertions>}
-(defn load-source-file [path &optional include-line]
-  (let [without-extension (drop-extension path)
-        tls-source (try
-                     (slurp (str without-extension ".tls"))
-                     (catch Exception e nil))
-        tl-source (when (not tls-source)
-                    (try
-                      (slurp (str without-extension ".tl"))
-                      (catch Exception e nil)))
-        tl-source  (or tl-source
-                       (when (not tls-source)
-                         (try
-                           (slurp path)
-                           (catch Exception e
-                             (throw (if include-line
-                                      (Exception. (if include-line
-                                                    (str "Line " include-line
-                                                         ": #include " (.getMessage e))))
-                                      e))))))]
-    (if tls-source
-      (read-tls-source tls-source)
-      (read-tl-source path tl-source))))
+(defn load-included-file [path parent-path line-num]
+  (let [without-extension (drop-extension path)]
+    (or
+     (let [try-path (str without-extension ".tls")
+           tls-source (try
+                        (slurp try-path)
+                        (catch Exception e nil))]
+       (when tls-source
+         (read-tls-source tls-source)))
+
+     (let [try-path (str without-extension ".tl")
+           tl-source (try
+                      (slurp try-path)
+                      (catch Exception e nil))]
+       (when tl-source
+         (read-tl-source try-path tl-source)))
+
+     (let [tl-source (try
+                       (slurp path)
+                       (catch Exception e
+                         (throw (Exception. (str "#include error at line " line-num
+                                                 " in file " parent-path
+                                                 ": " (.getMessage e))))))]
+       (read-tl-source path tl-source)))))
+
+(defn load-include [parent-path annotated-include]
+  (let [{line-num :line-num paths :paths} annotated-include]
+    (reduce #(into %1 (load-included-file %2 parent-path line-num))
+            {}
+            paths)))
+
+(defn load-includes [parent-path annotated-includes]
+  (reduce #(into %1 (load-include parent-path %2))
+          {}
+          annotated-includes))
+
+
+;;; Read source strings.
+
+(defn read-tls-source [source]
+  (let [forms (read-string (str "(" source ")"))
+        grouped-forms (group-by #(= :declare (first %))
+                                forms)]
+    {:declarations (grouped-forms true)
+     :assertions (grouped-forms false)}))
+
+(defn read-tl-source [path source]
+  (let [[declarations annotated-includes source strings]
+        (extract path source)
+
+        {included-declarations :declarations
+         included-assertions :assertions}
+        (load-includes path annotated-includes)
+
+        declarations (concat declarations included-declarations)
+        annotated-tokens (tokenize declarations path source strings)
+        assertions (concat (reform path declarations annotated-tokens)
+                           included-assertions)]
+    {:declarations declarations
+     :assertions assertions}))
 
 
 ;;; Write TLS code.
@@ -96,12 +91,12 @@ Returns: [<path> <source>]
              "\n")))
 
 
-;;; Load TL or TLS file and write TLS file.
+;;; Load TL file, convert to TLS and write.
 
 (defn convert [in-path out-path]
   (let [{declarations :declarations
          assertions :assertions}
-        (load-source-file in-path)]
+        (read-tl-source in-path (slurp in-path))]
     (write-file out-path
                 (concat declarations assertions))))
 
