@@ -5,27 +5,56 @@
 
 ;;;
 
-(defn follow-col-ops [row-op prev-type pr-matrix [col-op next-type]]
-  ;; TODO:
-  ;; If prev-type is nil, don't try to add a pair, just recur.
-  ;; If prev-type is non-nil:
-  ;; - If col-op is already in the row of row-op:
-  ;;   - Check that the already-added type is the same as the new type. If not, throw an error.
-  ;;   - Don't recur.
-  ;; - If prev-type is :eq, let type be next-type.
-  ;; - If prev-type is not :eq, and next-type is the same or is :eq, let type be prev-type.
-  ;; - If prev-type is not :eq, and next-type is the opposite, throw an error.
-  ;; - Add col-op with type to the row of row-op, and recur.
+(defn throw-pr-error [op1 op2 type1 type2]
+  (throw (Exception. (str "Conflicting precedence for ops \""
+                          op1 "\" and \"" op2
+                          "\": " type1 " vs. " type2 "."))))
 
-  (reduce (partial follow-col-ops row-op type)
-          pr-matrix
-          (pr-matrix col-op)))
+(declare recur-on-row)
+
+;; TODO: describe logic of this function in comments
+(defn maybe-add-op [pr-matrix start type next-op next-type]
+  (if type
+    (let [type (cond (= type :eq)
+                     next-type
+
+                     (or (= next-type :eq)
+                         (= next-type type))
+                     type
+                     
+                     :default
+                     (throw-pr-error start next-op type next-type))]
+      (let [start-row-type ((pr-matrix start) next-op)]
+        (if start-row-type ; already added
+          (if (= type start-row-type)
+            pr-matrix
+            (throw-pr-error start next-op type start-row-type))
+          (recur-on-row (update-in pr-matrix [start next-op] (constantly type))
+                        start
+                        next-op
+                        type))))
+    (recur-on-row pr-matrix
+                  start
+                  next-op
+                  next-type)))
+
+(defn recur-on-row [pr-matrix start op type]
+  (let [op-row (pr-matrix op)]
+    (reduce (fn [pr-matrix [next-op next-type]]
+              (maybe-add-op pr-matrix
+                            start
+                            type
+                            next-op
+                            next-type))
+            pr-matrix
+            op-row)))
 
 (defn transitive-closure-of-pr-matrix [pr-matrix]
-  (reduce (fn [pr-matrix [row-op col-map]]
-            (reduce (partial follow-col-ops row-op nil)
-                    pr-matrix
-                    col-map))
+  (reduce (fn [pr-matrix [start _]]
+            (recur-on-row pr-matrix
+                          start
+                          start
+                          nil))
           pr-matrix
           pr-matrix))
 
@@ -48,9 +77,7 @@
                (if (or (not prev-type)
                        (= prev-type type))
                  type
-                 (throw (Exception. (str "Conflicting precedence for ops \""
-                                         (first pair) "\" and \"" (second pair)
-                                         "\": " prev-type " vs. " type ".")))))))
+                 (throw-pr-error (first pair) (second pair) prev-type type)))))
 
 (defn build-pr-matrix-from-pair [type pr-matrix pair]
   (add-pair-to-pr-matrix
