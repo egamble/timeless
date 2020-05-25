@@ -3,7 +3,7 @@
   (:require [clojure.string :as str]))
 
 
-;;;
+;;; Construct the transitive closure of the precedence matrix.
 
 (defn throw-pr-error [op1 op2 type1 type2]
   (throw (Exception. (str "Conflicting precedence for ops \""
@@ -12,7 +12,7 @@
 
 (declare recur-on-row)
 
-;; TODO: describe logic of this function in comments
+;; TODO: describe the logic of this function in comments.
 (defn maybe-add-op [pr-matrix start type next-op next-type]
   (if type
     (let [type (cond (= type :eq)
@@ -59,7 +59,7 @@
           pr-matrix))
 
 
-;;; Build precedence matrix.
+;;; Build the precedence matrix.
 
 (def predefined-precedence-declarations
   '((:declare "#pr>" "*" "+" "=")
