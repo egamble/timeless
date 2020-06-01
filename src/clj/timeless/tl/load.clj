@@ -6,6 +6,19 @@
             [clojure.string :as str]))
 
 
+
+
+;; TODO:
+;; - an empty file throws a misleading error
+;; - a file with just "foo" says unterminated string literal
+
+
+
+
+
+
+
+
 ;;; Load included TL or TLS files.
 
 (declare read-tl-source read-tls-source)

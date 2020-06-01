@@ -13,36 +13,40 @@
 (declare recur-on-row)
 
 ;; TODO: describe the logic of this function in comments.
-(defn maybe-add-op [pr-matrix start type next-op next-type]
-  (if type
-    (let [type (cond (= type :eq)
-                     next-type
+(defn maybe-add-op [pr-matrix start-op curr-type next-op next-type]
+  (if (= start-op next-op)
+    pr-matrix
+    (if curr-type
+      (let [type (cond (= curr-type :eq)
+                       next-type
 
-                     (or (= next-type :eq)
-                         (= next-type type))
-                     type
-                     
-                     :default
-                     (throw-pr-error start next-op type next-type))]
-      (let [start-row-type ((pr-matrix start) next-op)]
-        (if start-row-type ; already added
-          (if (= type start-row-type)
-            pr-matrix
-            (throw-pr-error start next-op type start-row-type))
-          (recur-on-row (update-in pr-matrix [start next-op] (constantly type))
-                        start
-                        next-op
-                        type))))
-    (recur-on-row pr-matrix
-                  start
-                  next-op
-                  next-type)))
+                       (or (= next-type :eq)
+                           (= next-type type))
+                       curr-type
+                       
+                       :default
+                       nil)]
+        (if type
+          (let [start-row-type ((pr-matrix start-op) next-op)]
+            (if start-row-type ; already added
+              (if (= type start-row-type)
+                pr-matrix
+                (throw-pr-error start-op next-op type start-row-type))
+              (recur-on-row (update-in pr-matrix [start-op next-op] (constantly type))
+                            start-op
+                            next-op
+                            type)))
+          pr-matrix))
+      (recur-on-row pr-matrix
+                    start-op
+                    next-op
+                    next-type))))
 
-(defn recur-on-row [pr-matrix start op type]
+(defn recur-on-row [pr-matrix start-op op type]
   (let [op-row (pr-matrix op)]
     (reduce (fn [pr-matrix [next-op next-type]]
               (maybe-add-op pr-matrix
-                            start
+                            start-op
                             type
                             next-op
                             next-type))
@@ -50,10 +54,10 @@
             op-row)))
 
 (defn transitive-closure-of-pr-matrix [pr-matrix]
-  (reduce (fn [pr-matrix [start _]]
+  (reduce (fn [pr-matrix [start-op _]]
             (recur-on-row pr-matrix
-                          start
-                          start
+                          start-op
+                          start-op
                           nil))
           pr-matrix
           pr-matrix))
