@@ -65,10 +65,10 @@
   (let [lines (str/split-lines source)
         classified-lines (map-indexed (partial classify-line path)
                                       lines)]
+
     (map (partial remove nil?)
-         (apply map list classified-lines) ; This works because str/split-lines will always
-                                           ; generate at least one line, even if source is empty.
-         )))
+         ;; This works because str/split-lines will always generate at least one line.
+         (apply map list classified-lines))))
 
 ;; Returns:
 ;; [<declarations>
@@ -76,8 +76,12 @@
 ;;  <source with declaration lines removed and string literals replaced>
 ;;  <strings>]
 (defn extract [path source]
-  (let [source (str (str/trimr source) "\n") ; ensure source ends with a newline,
-                                        ; otherwise string literal replacement will fail
+  (let [;; Ensure source ends with a newline, otherwise string literal
+        ;; replacement will fail.
+        ;; Also, add a space before the newline to ensure the source has at least
+        ;; one non-newline character, otherwise str/split-lines will return nil.
+        source (str source " \n")
+
         [declarations
          annotated-includes
          source-lines]

@@ -132,14 +132,14 @@
                         "#opa" :assoc
                         nil)]
     (when assoc-keyword
-      (map #(do {:token %
+      (map #(do {:value %
                  :type :op
                  :assoc assoc-keyword})
            (rest (rest declaration))))))
 
 ;; Returns:
 ;; <list of
-;;  {:token <op token>
+;;  {:value <op token value>
 ;;   :type :op
 ;;   :assoc :assoc|:left|:right|:none}>
 (defn make-template-ops [declarations]
@@ -147,16 +147,16 @@
           (concat predefined-op-declarations
                   declarations)))
 
-(defn annotate-op-token [template-ops annotated-token]
-  (if (= (:type annotated-token) :string)
-    annotated-token
-    (let [token (:token annotated-token)
-          annotated-op (some #(when (= (:token %) token)
+(defn annotate-op-token [template-ops token]
+  (if (= (:type token) :string)
+    token
+    (let [val (:value token)
+          annotated-op (some #(when (= (:value %) val)
                                 %)
                              template-ops)]
-      (into annotated-token annotated-op))))
+      (into token annotated-op))))
 
-(defn annotate-ops [declarations annotated-tokens]
+(defn annotate-ops [declarations tokens]
   (map (partial annotate-op-token
                 (make-template-ops declarations))
-       annotated-tokens))
+       tokens))

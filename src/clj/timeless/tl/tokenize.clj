@@ -50,12 +50,12 @@
           token (re-find pattern line)]
       (if token
         (let [n (count token)]
-          (cons {:token token
+          (cons {:value token
                  :line-num line-num}
                 (tokenize-line pattern path index (subs line n))))
         (throw (Exception. (str "Can't tokenize line " line-num " of file " path ".")))))))
 
-;; Returns: <annotated tokens>
+;; Returns: <tokens>
 (defn tokenize-raw [pattern path source]
   (apply concat
          (map-indexed (partial tokenize-line pattern path)
@@ -64,34 +64,34 @@
 
 ;;; Restore string literals.
 
-(defn restore-string-literal [strings annotated-token]
-  (let [token (:token annotated-token)
-        new-token (when (= (first token) \")
+(defn restore-string-literal [strings token]
+  (let [val (:value token)
+        new-val (when (= (first val) \")
                     (let [index (read-string
-                                 (read-string token))]
+                                 (read-string val))]
                       (nth strings index)))]
-    (into annotated-token
-          (when new-token
-            {:token new-token
+    (into token
+          (when new-val
+            {:value new-val
              :type :string}))))
 
-(defn restore-string-literals [strings annotated-tokens]
+(defn restore-string-literals [strings tokens]
  (map (partial restore-string-literal strings)
-      annotated-tokens))
+      tokens))
 
 
 ;;; Tokenize, restore string literals, and remove whitespace and comments.
 
-(defn comment? [annotated-token]
-  (re-matches #"#.*" (:token annotated-token)))
+(defn comment? [token]
+  (re-matches #"#.*" (:value token)))
 
-(defn whitespace-or-comment? [annotated-token]
-  (re-matches #"[ \t]*|#.*" (:token annotated-token)))
+(defn whitespace-or-comment? [token]
+  (re-matches #"[ \t]*|#.*" (:value token)))
 
-;; Returns: <annotated tokens>
+;; Returns: <tokens>
 (defn tokenize [declarations path source strings]
   (let [pattern (make-tokenize-pattern declarations)
-        annotated-tokens (->> (tokenize-raw pattern path source)
-                              (restore-string-literals strings)
-                              (remove whitespace-or-comment?))]
-    annotated-tokens))
+        tokens (->> (tokenize-raw pattern path source)
+                    (restore-string-literals strings)
+                    (remove whitespace-or-comment?))]
+    tokens))

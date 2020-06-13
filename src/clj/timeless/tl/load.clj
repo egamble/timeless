@@ -6,19 +6,6 @@
             [clojure.string :as str]))
 
 
-
-
-;; TODO:
-;; - an empty file throws a misleading error
-;; - a file with just "foo" says unterminated string literal
-
-
-
-
-
-
-
-
 ;;; Load included TL or TLS files.
 
 (declare read-tl-source read-tls-source)
@@ -89,7 +76,7 @@
 
         declarations (concat declarations included-declarations)
         annotated-tokens (tokenize declarations path source strings)
-        assertions (concat (reform path declarations annotated-tokens)
+        assertions (concat (parse path declarations annotated-tokens)
                            included-assertions)]
     {:declarations declarations
      :assertions assertions}))
