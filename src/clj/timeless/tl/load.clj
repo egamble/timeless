@@ -76,7 +76,7 @@
 
         declarations (concat declarations included-declarations)
         annotated-tokens (tokenize declarations path source strings)
-        assertions (concat (parse path declarations annotated-tokens)
+        assertions (concat (reform path declarations annotated-tokens)
                            included-assertions)]
     {:declarations declarations
      :assertions assertions}))
