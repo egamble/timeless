@@ -266,3 +266,82 @@
          build-parens
          (reform-top-level pr-matrix path)
          unannotate-tokens)))
+
+
+
+
+;;; Old code from extract.clj:
+
+;;; Replace string literals with place holders, to avoid problems with tokenizing multi-line strings.
+
+;; Returns: [<extracted string> <replacement string literal>]
+(defn make-string-literal-replacement [index s]
+  (if (odd? index)
+       ;; Put the same number of newlines, as in the original string literal,
+       ;; after the replacement to keep the original line numbering.
+    [s (str "\"" (/ (- index 1) 2) "\"" (str/replace s #"[^\n]" "")
+            )]
+       [nil s]))
+
+(defn replace-string-literals [path source]
+  (let [split-on-quote (str/split source #"^\"|(?<!\\)\"")
+        n (count split-on-quote)]
+    (cond (= 1 n)
+          [nil source]
+          
+          (even? n)
+          (throw (Exception. (str "File " path " has an unterminated string literal.")))
+
+          :default
+          (let [strings-and-replacements (map-indexed make-string-literal-replacement split-on-quote)
+                strings (remove nil? (map first strings-and-replacements))
+                source (str/join (map second strings-and-replacements))]
+            [strings source]))))
+
+
+;;; Old code from ops.clj:
+
+;;; Annotate operator tokens.
+
+(def predefined-op-declarations
+  '((:declare "#opa" "*" "+" "++" "∩" "∪" "<>" "><")
+    (:declare "#op" "=" "≠" "<" ">" "≤" "≥" "⊂" "⊃" "∈" "∉" "!=" "<=" ">=" "<<" ">>" "@" "!@")
+    (:declare "#opl" "/" "-" "|")
+    (:declare "#opr" ":" "->" "→" ";")))
+
+(defn make-template-ops-from-declaration [declaration]
+  (let [assoc-keyword (case (second declaration)
+                        "#op" :none
+                        "#opr" :right
+                        "#opl" :left
+                        "#opa" :assoc
+                        nil)]
+    (when assoc-keyword
+      (map #(do {:value %
+                 :type :op
+                 :assoc assoc-keyword})
+           (rest (rest declaration))))))
+
+;; Returns:
+;; <list of
+;;  {:value <op token value>
+;;   :type :op
+;;   :assoc :assoc|:left|:right|:none}>
+(defn make-template-ops [declarations]
+  (mapcat make-template-ops-from-declaration
+          (concat predefined-op-declarations
+                  declarations)))
+
+(defn annotate-op-token [template-ops token]
+  (if (= (:type token) :string)
+    token
+    (let [val (:value token)
+          annotated-op (some #(when (= (:value %) val)
+                                %)
+                             template-ops)]
+      (into token annotated-op))))
+
+(defn annotate-ops [declarations tokens]
+  (map (partial annotate-op-token
+                (make-template-ops declarations))
+       tokens))

@@ -1,5 +1,5 @@
 (ns timeless.tl.ops
-  "Process operator declarations."
+  "Build a precedence matrix from declarations."
   (:require [clojure.string :as str]))
 
 
@@ -114,49 +114,3 @@
                           (concat predefined-precedence-declarations
                                   declarations))]
     (transitive-closure-of-pr-matrix pr-matrix)))
-
-
-;;; Annotate operator tokens.
-
-(def predefined-op-declarations
-  '((:declare "#opa" "*" "+" "++" "∩" "∪" "<>" "><")
-    (:declare "#op" "=" "≠" "<" ">" "≤" "≥" "⊂" "⊃" "∈" "∉" "!=" "<=" ">=" "<<" ">>" "@" "!@")
-    (:declare "#opl" "/" "-" "|")
-    (:declare "#opr" ":" "->" "→" ";")))
-
-(defn make-template-ops-from-declaration [declaration]
-  (let [assoc-keyword (case (second declaration)
-                        "#op" :none
-                        "#opr" :right
-                        "#opl" :left
-                        "#opa" :assoc
-                        nil)]
-    (when assoc-keyword
-      (map #(do {:value %
-                 :type :op
-                 :assoc assoc-keyword})
-           (rest (rest declaration))))))
-
-;; Returns:
-;; <list of
-;;  {:value <op token value>
-;;   :type :op
-;;   :assoc :assoc|:left|:right|:none}>
-(defn make-template-ops [declarations]
-  (mapcat make-template-ops-from-declaration
-          (concat predefined-op-declarations
-                  declarations)))
-
-(defn annotate-op-token [template-ops token]
-  (if (= (:type token) :string)
-    token
-    (let [val (:value token)
-          annotated-op (some #(when (= (:value %) val)
-                                %)
-                             template-ops)]
-      (into token annotated-op))))
-
-(defn annotate-ops [declarations tokens]
-  (map (partial annotate-op-token
-                (make-template-ops declarations))
-       tokens))

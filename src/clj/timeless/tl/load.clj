@@ -1,8 +1,7 @@
 (ns timeless.tl.load
   "Load TL or TLS code."
-  (:require [timeless.tl.tokenize :refer [tokenize]]
-            [timeless.tl.reform :refer [reform]]
-            [timeless.tl.extract :refer [extract]]
+  (:require [timeless.tl.parse :refer [parse]]
+            [timeless.tl.extract :refer [extract-declarations]]
             [clojure.string :as str]))
 
 
@@ -67,16 +66,15 @@
      :assertions (grouped-forms false)}))
 
 (defn read-tl-source [path source]
-  (let [[declarations annotated-includes source strings]
-        (extract path source)
+  (let [[declarations annotated-includes]
+        (extract-declarations source)
 
         {included-declarations :declarations
          included-assertions :assertions}
         (load-includes path annotated-includes)
 
         declarations (concat declarations included-declarations)
-        annotated-tokens (tokenize declarations path source strings)
-        assertions (concat (reform path declarations annotated-tokens)
+        assertions (concat (parse path declarations source)
                            included-assertions)]
     {:declarations declarations
      :assertions assertions}))
