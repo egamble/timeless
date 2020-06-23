@@ -1,0 +1,54 @@
+<S> = exp*
+<exp> = op | set | seq | tup | right-section | left-section | prefix-op | str | name | number
+
+
+<non-epsilon-element> = exp | application
+element = non-epsilon-element | epsilon
+application = exp exp+
+
+
+set = (set-left set-right) | (set-left (non-epsilon-element comma)* non-epsilon-element set-right)
+
+<set-left> = ws <'{'> ws
+<set-right> = ws <'}'> ws
+
+
+(* If a seq ends with a comma, an empty element is produced, for a seq section. *)
+(* There is no way to make a seq section with a single empty (epsilon) element. *)
+
+seq = (seq-left non-epsilon-element? seq-right) | (seq-left (element comma)+ element seq-right)
+
+<seq-left> = ws <'['> ws
+<seq-right> = ws <']'> ws
+
+
+tup = left-paren (element comma)+ element right-paren
+
+<left-paren> = ws <'('> ws
+<right-paren> = ws <')'> ws
+
+
+right-section = left-paren op exp right-paren
+left-section = left-paren exp op right-paren
+prefix-op = left-paren op right-paren
+
+
+<op> = guard-op | equal-op
+
+guard-op = ws <'|'> ws
+equal-op = ws <'='> ws
+
+(* string literal *)
+str = ws #'\".*\"' ws
+
+(* regular name *)
+name = ws #'[a-zA-Z_]\w*' ws
+
+(* number literal *)
+number = ws #'\d+(?:\.\d+)?' ws
+
+<comma> = ws <','> ws
+
+<ws> = (ws-only | comment)*
+<ws-only> = <#'\s+'>
+<comment> = <#'#.*\n'>
