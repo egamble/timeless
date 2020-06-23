@@ -12,41 +12,9 @@
 
 ;;; When parsing a chain of operators (other than all comparisons), an error is produced if (a) the operators don't have a relative precedence, or if (b) the operators have equal precedence but one is left assoc and another is right assoc. Equal precedence, with one left or right and another simply assoc, should be okay, but how can that be written as a parse rule?
 
+
 (def parser
-  (insta/parser
-    "
-<S> = exp
-<exp> = non-appl-exp | application
-<non-appl-exp> = guard-op | seq | tup | str | name
-application = non-appl-exp non-appl-exp+
-
-
-element = (epsilon | exp)
-
-(* If a seq ends with a comma, an empty element is produced, for a seq section. *)
-(* There is no way to make a seq section with a single empty element. *)
-
-seq = (seq-left seq-right) | (seq-left (element comma)+ element seq-right)
-
-<seq-left> = ws <'['> ws
-<seq-right> = ws <']'> ws
-
-
-tup = (tup-left (element comma)+ element tup-right)
-
-<tup-left> = ws <'('> ws
-<tup-right> = ws <')'> ws
-
-
-str = ws #'\".*\"' ws
-guard-op = ws <'|'> ws
-name = ws #'[a-zA-Z_]\\w*' ws
-
-<comma> = ws <','> ws
-
-<ws> = (ws-only | comment)*
-<ws-only> = <#'\\s+'>
-<comment> = <#'#.*\n'>"))
+  (insta/parser (slurp "src/clj/timeless/tl/grammar.txt")))
 
 
 ;; Returns: <assertions>
