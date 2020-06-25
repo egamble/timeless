@@ -1,16 +1,15 @@
 <S> = exp*
-<exp> = op | set | seq | tup | right-section | left-section | prefix-op | str | name | number
+
+<exp> = set | seq | tup | group | operation | right-section | left-section | prefix-op | str | name | number
+
+application = exp exp+
 
 
 <non-epsilon-element> = exp | application
 element = non-epsilon-element | epsilon
-application = exp exp+
 
 
 set = (set-left set-right) | (set-left (non-epsilon-element comma)* non-epsilon-element set-right)
-
-<set-left> = ws <'{'> ws
-<set-right> = ws <'}'> ws
 
 
 (* If a seq ends with a comma, an empty element is produced, for a seq section. *)
@@ -18,19 +17,29 @@ set = (set-left set-right) | (set-left (non-epsilon-element comma)* non-epsilon-
 
 seq = (seq-left non-epsilon-element? seq-right) | (seq-left (element comma)+ element seq-right)
 
-<seq-left> = ws <'['> ws
-<seq-right> = ws <']'> ws
-
 
 tup = left-paren (element comma)+ element right-paren
-
-<left-paren> = ws <'('> ws
-<right-paren> = ws <')'> ws
 
 
 right-section = left-paren op exp right-paren
 left-section = left-paren exp op right-paren
 prefix-op = left-paren op right-paren
+
+
+<group> = left-paren (exp | application) right-paren
+
+
+operation = exp op exp
+
+
+<set-left> = ws <'{'> ws
+<set-right> = ws <'}'> ws
+
+<seq-left> = ws <'['> ws
+<seq-right> = ws <']'> ws
+
+<left-paren> = ws <'('> ws
+<right-paren> = ws <')'> ws
 
 
 <op> = guard-op | equal-op
