@@ -4,20 +4,29 @@
 
 application = exp exp+
 
+partial-comparison = comparison-op exp
+single-comparison = exp comparison-op exp
+multiple-comparison = exp comparison-op exp (comparison-op exp)+
+<full-comparison> = single-comparison | multiple-comparison
 
-<non-epsilon-element> = exp | application
-element = non-epsilon-element | epsilon
 
+(* Sets can't have empty elements. *)
 
-set = (set-left set-right) | (set-left (non-epsilon-element comma)* non-epsilon-element set-right)
+(* Sets can have partial comparisons. *)
+
+<set-element> = exp | application | partial-comparison | full-comparison
+set = (set-left set-right) | (set-left (set-element comma)* set-element set-right)
 
 
 (* If a seq ends with a comma, an empty element is produced, for a seq section. *)
 (* There is no way to make a seq section with a single empty (epsilon) element. *)
 
+(* Seqs and tuples can't have partial comparisons. *)
+
+<non-epsilon-element> = exp | application | full-comparison
+element = non-epsilon-element | epsilon
+
 seq = (seq-left non-epsilon-element? seq-right) | (seq-left (element comma)+ element seq-right)
-
-
 tup = left-paren (element comma)+ element right-paren
 
 
@@ -26,10 +35,11 @@ left-section = left-paren exp op right-paren
 prefix-op = left-paren op right-paren
 
 
-<group> = left-paren (exp | application) right-paren
+<group> = left-paren (exp | application | single-comparison | multiple-comparison) right-paren
 
 
-operation = exp op exp
+<maybe-embedded> = exp | partial-comparison | single-comparison
+operation = (exp non-guard-arrow-comparison-op exp) | (maybe-embedded guard-op exp) | (maybe-embedded arrow-op maybe-embedded) 
 
 
 <set-left> = ws <'{'> ws
@@ -42,10 +52,15 @@ operation = exp op exp
 <right-paren> = ws <')'> ws
 
 
-<op> = guard-op | equal-op
+<op> = non-guard-arrow-comparison-op | comparison-op | guard-op | arrow-op
+<non-guard-arrow-comparison-op> = plus-op
+<comparison-op> = equal-op
 
+plus-op = ws <'+'> ws
+arrow-op = ws <'->'> ws
 guard-op = ws <'|'> ws
 equal-op = ws <'='> ws
+
 
 (* string literal *)
 str = ws #'\".*\"' ws

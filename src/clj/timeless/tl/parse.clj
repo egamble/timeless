@@ -20,7 +20,8 @@
 ;; Returns: <assertions>
 (defn parse [path declarations source]
   (let [pr-matrix (build-pr-matrix declarations)
-        parsed (parser source)]
+        ;; Add a newline in case the last line is a comment without a newline.
+        parsed (parser (str source "\n"))]
     (if (insta/failure? parsed)
       (println parsed)
       parsed)))
