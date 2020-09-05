@@ -1,46 +1,41 @@
-<S> = exp*
+<S> = partial-guard
 
-<exp> = set | seq | tup | group | operation | right-section | left-section | prefix-op | str | name | number
+<exp-except-guard> = set | seq | tup | group | right-section | left-section | prefix-op | operation | application | str | name | number
+<exp> = exp-except-guard | guard
 
 application = exp exp+
 
 partial-comparison = comparison-op exp
-single-comparison = exp comparison-op exp
-multiple-comparison = exp comparison-op exp (comparison-op exp)+
-<full-comparison> = single-comparison | multiple-comparison
-
 
 (* Sets can't have empty elements. *)
 
-(* Sets can have partial comparisons. *)
-
-<set-element> = exp | application | partial-comparison | full-comparison
+set-element = partial-comparison | partial-arrow | partial-guard | exp
 set = (set-left set-right) | (set-left (set-element comma)* set-element set-right)
 
+(* Seqs and tuple can have empty elements, as sections. *)
+(* There is no way to make a seq or tuple section with a single empty (epsilon) element. *)
 
-(* If a seq ends with a comma, an empty element is produced, for a seq section. *)
-(* There is no way to make a seq section with a single empty (epsilon) element. *)
+element = exp | epsilon
 
-(* Seqs and tuples can't have partial comparisons. *)
-
-<non-epsilon-element> = exp | application | full-comparison
-element = non-epsilon-element | epsilon
-
-seq = (seq-left non-epsilon-element? seq-right) | (seq-left (element comma)+ element seq-right)
+seq = (seq-left exp? seq-right) | (seq-left (element comma)+ element seq-right)
 tup = left-paren (element comma)+ element right-paren
-
 
 right-section = left-paren op exp right-paren
 left-section = left-paren exp op right-paren
 prefix-op = left-paren op right-paren
 
+group = left-paren exp right-paren
 
-<group> = left-paren (exp | application | single-comparison | multiple-comparison) right-paren
+operation = (exp op exp) | arrow-operation
 
+<arrow-exp> = partial-comparison | exp
+<arrow-operation> = arrow-exp arrow-op arrow-exp
+partial-arrow = arrow-op arrow-exp
 
-<maybe-embedded> = exp | partial-comparison | single-comparison
-operation = (exp non-guard-arrow-comparison-op exp) | (maybe-embedded guard-op exp) | (maybe-embedded arrow-op maybe-embedded) 
-
+full-guard = (partial-comparison | exp-except-guard) (guard-op exp-except-guard)+
+partial-guard = (guard-op exp-except-guard)+
+<guard> = full-guard | partial-guard
+<guard-op> = ws <'|'> ws
 
 <set-left> = ws <'{'> ws
 <set-right> = ws <'}'> ws
@@ -52,13 +47,11 @@ operation = (exp non-guard-arrow-comparison-op exp) | (maybe-embedded guard-op e
 <right-paren> = ws <')'> ws
 
 
-<op> = non-guard-arrow-comparison-op | comparison-op | guard-op | arrow-op
-<non-guard-arrow-comparison-op> = plus-op
+<op> = comparison-op | plus-op
 <comparison-op> = equal-op
 
 plus-op = ws <'+'> ws
 arrow-op = ws <'->'> ws
-guard-op = ws <'|'> ws
 equal-op = ws <'='> ws
 
 
