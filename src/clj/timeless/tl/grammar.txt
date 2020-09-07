@@ -1,7 +1,7 @@
 <S> = partial-guard
 
 
-<exp-except-guard> = set | seq | tup | group | section | operation | application | str | name | number
+<exp-except-guard> = set | seq | tuple | group | section | operation | application | str | name | number
 <exp> = exp-except-guard | full-guard
 
 
@@ -23,7 +23,7 @@ set = (set-left set-right) | (set-left (set-element comma)* set-element set-righ
 empty-element = epsilon
 
 seq = (seq-left exp? seq-right) | (seq-left (element comma)+ element seq-right)
-tup = left-paren (element comma)+ element right-paren
+tuple = left-paren (element comma)+ element right-paren
 
 
 group = left-paren exp right-paren
