@@ -1,58 +1,72 @@
 <S> = partial-guard
 
-<exp-except-guard> = set | seq | tup | group | right-section | left-section | prefix-op | operation | application | str | name | number
-<exp> = exp-except-guard | guard
+
+<exp-except-guard> = set | seq | tup | group | section | operation | application | str | name | number
+<exp> = exp-except-guard | full-guard
+
 
 application = exp exp+
 
-partial-comparison = comparison-op exp
+embedded-assertion = comparison-op exp
+
 
 (* Sets can't have empty elements. *)
 
-set-element = partial-comparison | partial-arrow | partial-guard | exp
+<set-element> = embedded-assertion | partial-arrow | partial-guard | exp
 set = (set-left set-right) | (set-left (set-element comma)* set-element set-right)
+
 
 (* Seqs and tuple can have empty elements, as sections. *)
 (* There is no way to make a seq or tuple section with a single empty (epsilon) element. *)
 
-element = exp | epsilon
+<element> = embedded-assertion | exp | empty-element
+empty-element = epsilon
 
 seq = (seq-left exp? seq-right) | (seq-left (element comma)+ element seq-right)
 tup = left-paren (element comma)+ element right-paren
 
-right-section = left-paren op exp right-paren
-left-section = left-paren exp op right-paren
-prefix-op = left-paren op right-paren
 
 group = left-paren exp right-paren
 
+
 operation = (exp op exp) | arrow-operation
 
-<arrow-exp> = partial-comparison | exp
-<arrow-operation> = arrow-exp arrow-op arrow-exp
-partial-arrow = arrow-op arrow-exp
 
-full-guard = (partial-comparison | exp-except-guard) (guard-op exp-except-guard)+
-partial-guard = (guard-op exp-except-guard)+
-<guard> = full-guard | partial-guard
-<guard-op> = ws <'|'> ws
-
-<set-left> = ws <'{'> ws
-<set-right> = ws <'}'> ws
-
-<seq-left> = ws <'['> ws
-<seq-right> = ws <']'> ws
-
-<left-paren> = ws <'('> ws
-<right-paren> = ws <')'> ws
-
-
-<op> = comparison-op | plus-op
 <comparison-op> = equal-op
+<op> = comparison-op | plus-op
+
+
+<arrow-exp> = embedded-assertion | exp
+<arrow-operation> = arrow-exp arrow-op arrow-exp
+
+partial-arrow = arrow-op arrow-exp
+<arrow-right-section> = left-paren arrow-op arrow-exp right-paren
+<arrow-left-section> = left-paren arrow-exp arrow-op right-paren
+
+
+guard-op = hidden-guard-op
+<hidden-guard-op> = ws <'|'> ws
+
+full-guard = (embedded-assertion | exp-except-guard) (hidden-guard-op exp-except-guard)+
+partial-guard = (hidden-guard-op exp-except-guard)+
+<guard-left-section> = left-paren (embedded-assertion | exp) guard-op right-paren
+
+
+<right-section-basic> = left-paren (op | guard-op) exp right-paren
+<right-section> = right-section-basic | arrow-right-section
+
+<left-section-basic> = left-paren exp op right-paren
+<left-section> = left-section-basic | arrow-left-section | guard-left-section
+
+<prefix-op> = left-paren (op | arrow-op | guard-op) right-paren
+
+
+section = left-section | right-section | prefix-op
+
 
 plus-op = ws <'+'> ws
-arrow-op = ws <'->'> ws
 equal-op = ws <'='> ws
+arrow-op = ws <'->'> ws
 
 
 (* string literal *)
@@ -64,8 +78,20 @@ name = ws #'[a-zA-Z_]\w*' ws
 (* number literal *)
 number = ws #'\d+(?:\.\d+)?' ws
 
+
 <comma> = ws <','> ws
 
 <ws> = (ws-only | comment)*
 <ws-only> = <#'\s+'>
 <comment> = <#'#.*\n'>
+
+
+<set-left> = ws <'{'> ws
+<set-right> = ws <'}'> ws
+
+<seq-left> = ws <'['> ws
+<seq-right> = ws <']'> ws
+
+<left-paren> = ws <'('> ws
+<right-paren> = ws <')'> ws
+

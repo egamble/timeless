@@ -11,8 +11,6 @@
 
 ;;; Leave grouping parens exposed after parsing, i.e. all parens except those that denote sections, prefixized operators, and tuples. The exposed parens allow correct post-processing of comparison chains, and abbreviated arrow and guard operations.
 
-;;; Don't insert "missing" in front of the source. Just check in post-processing that the top level expression is a guard with a guard operator on the left.
-
 ;;; In post-processing, extract the assertions from the top level guard expressions.
 
 ;;; Use insta/add-line-and-column-info-to-metadata so line/column info is available to generate errors when post-processing.
