@@ -1,72 +1,113 @@
-<S> = partial-guard
+<S> = operation-1
 
 
-<exp-except-guard> = set | seq | tuple | group | section | operation | application | str | name | number
-<exp> = exp-except-guard | full-guard
+<exp> = group | application | section | set | seq | tuple | str | name | number
 
 
+group = left-paren gte-0 right-paren
 application = exp exp+
 
-embedded-assertion = comparison-op exp
+
+
+<op-0> = arrow-op
+<op-1> = guard-op
+<op-10> = equal-op
+<op-17> = plus-op
+
+
+<gte-0> = exp | _gte-0
+<gt-0> = exp | _gt-0
+
+<gte-1> = exp | _gte-1
+<gt-1> = exp | _gt-1
+
+<gte-10> = exp | _gte-10
+<gt-10> = exp | _gt-10
+
+<gte-17> = exp | _gte-17
+<gt-17> = exp
+
+
+<_gte-0> = operation-0 | _gt-0
+<_gt-0> = _gte-1
+
+<_gte-1> = operation-1 | _gt-1
+<_gt-1> = _gte-10
+
+<_gte-10> = operation-10 | _gt-10
+<_gt-10> = _gte-17
+
+<_gte-17> = operation-17
+
+
+
+<right-section> = right-0 | right-1 | right-10 | right-17
+<left-section> = left-0 | left-1 | left-10 | left-17
+
+<op> = op-0 | op-1 | op-10 | op-17
+<prefix-op> = left-paren op right-paren
+
+section = left-section | right-section | prefix-op
+
+
+
+embedded = op-10 gt-10
+
+
+(* right associative *)
+<left-0> = left-paren (embedded | gt-0) op-0 right-paren
+<right-0> = left-paren op-0 (embedded | gte-0) right-paren
+operation-0 = (embedded | gt-0) op-0 (embedded | gte-0)
+
+
+(* left associative *)
+<left-1> = left-paren (embedded | gte-1) op-1 right-paren
+<right-1> = left-paren op-1 gt-1 right-paren
+operation-1 = (embedded | gte-1) op-1 gt-1
+
+
+(* right associative, but formally non-associative *)
+<left-10> = left-paren gt-10 op-10 right-paren
+<right-10> = left-paren op-10 gte-10 right-paren
+operation-10 = gt-10 op-10 gte-10
+
+
+(* left associative *)
+<left-17> = left-paren gte-17 op-17 right-paren
+<right-17> = left-paren op-17 gt-17 right-paren
+operation-17 = gte-17 op-17 gt-17
+
 
 
 (* Sets can't have empty elements. *)
 
-<set-element> = embedded-assertion | partial-arrow | partial-guard | exp
+<set-element-segment> = (guard-op gt-1) | (arrow-op (embedded | gt-1))
+
+<abbreviated-set-element> = set-element-segment+
+<unabbreviated-set-element> = (embedded | gt-1) set-element-segment*
+
+set-element = abbreviated-set-element | unabbreviated-set-element
 set = (set-left set-right) | (set-left (set-element comma)* set-element set-right)
+
 
 
 (* Seqs and tuple can have empty elements, as sections. *)
 (* There is no way to make a seq or tuple section with a single empty (epsilon) element. *)
 
-<element> = embedded-assertion | exp | empty-element
+<element-not-empty> = embedded | gte-0
+<element> = element-not-empty | empty-element
 empty-element = epsilon
 
-seq = (seq-left exp? seq-right) | (seq-left (element comma)+ element seq-right)
+seq = (seq-left element-not-empty? seq-right) | (seq-left (element comma)+ element seq-right)
 tuple = left-paren (element comma)+ element right-paren
 
-
-group = left-paren exp right-paren
-
-
-operation = (exp op exp) | arrow-operation
-
-
-<comparison-op> = equal-op
-<op> = comparison-op | plus-op
-
-
-<arrow-exp> = embedded-assertion | exp
-<arrow-operation> = arrow-exp arrow-op arrow-exp
-
-partial-arrow = arrow-op arrow-exp
-<arrow-right-section> = left-paren arrow-op arrow-exp right-paren
-<arrow-left-section> = left-paren arrow-exp arrow-op right-paren
-
-
-guard-op = hidden-guard-op
-<hidden-guard-op> = ws <'|'> ws
-
-full-guard = (embedded-assertion | exp-except-guard) (hidden-guard-op exp-except-guard)+
-partial-guard = (hidden-guard-op exp-except-guard)+
-<guard-left-section> = left-paren (embedded-assertion | exp) guard-op right-paren
-
-
-<right-section-basic> = left-paren (op | guard-op) exp right-paren
-<right-section> = right-section-basic | arrow-right-section
-
-<left-section-basic> = left-paren exp op right-paren
-<left-section> = left-section-basic | arrow-left-section | guard-left-section
-
-<prefix-op> = left-paren (op | arrow-op | guard-op) right-paren
-
-
-section = left-section | right-section | prefix-op
 
 
 plus-op = ws <'+'> ws
 equal-op = ws <'='> ws
+guard-op = ws <'|'> ws
 arrow-op = ws <'->'> ws
+
 
 
 (* string literal *)
@@ -79,11 +120,13 @@ name = ws #'[a-zA-Z_]\w*' ws
 number = ws #'\d+(?:\.\d+)?' ws
 
 
+
 <comma> = ws <','> ws
 
 <ws> = (ws-only | comment)*
 <ws-only> = <#'\s+'>
 <comment> = <#'#.*\n'>
+
 
 
 <set-left> = ws <'{'> ws
@@ -94,4 +137,3 @@ number = ws #'\d+(?:\.\d+)?' ws
 
 <left-paren> = ws <'('> ws
 <right-paren> = ws <')'> ws
-
