@@ -63,7 +63,7 @@
           pr-matrix))
 
 
-;;; Build the precedence matrix.
+;;; Build the precedence list.
 
 (def predefined-precedence-declarations
   '((:declare "#pr>" "*" "+" "=")
@@ -74,6 +74,17 @@
     (:declare "#pr=" "∩" "<>")
     (:declare "#pr=" "∪" "><")
     (:declare "#pr=" "→" "->")))
+
+;; (def predefined-precedence-declarations
+;;   '((:declare "#opr" 16 ";")
+;;     (:declare "#opr" 15 ": ++")
+;;     (:declare "#opl" 12 "∩" "<>")
+;;     (:declare "#opl" 11 "∪" "><")
+;;     (:declare "#op" 10 "=" "≠" "<" ">" "≤" "≥" "⊂" "⊃" "∈" "∉" "!=" "<=" ">=" "<<" ">>" "@" "!@")
+;;     (:declare "#opl" 1 "|")
+;;     (:declare "#opr" 0 "->" "→")))
+
+
 
 (defn add-pair-to-pr-matrix [pr-matrix type pair]
   (update-in pr-matrix pair
@@ -94,7 +105,7 @@
      :eq :eq)
    (reverse pair)))
 
-(defn build-pr-matrix-from-declaration [pr-matrix declaration]
+(defn build-pr-list-from-declaration [pr-matrix declaration]
   (let [type (case (second declaration)
                "#pr>" :gt
                "#pr<" :lt
@@ -108,8 +119,8 @@
                 pairs))
       pr-matrix)))
 
-(defn build-pr-matrix [declarations]
-  (let [pr-matrix (reduce build-pr-matrix-from-declaration
+(defn build-pr-list [declarations]
+  (let [pr-matrix (reduce build-pr-list-from-declaration
                           {}
                           (concat predefined-precedence-declarations
                                   declarations))]

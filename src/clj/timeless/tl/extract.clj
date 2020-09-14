@@ -5,7 +5,7 @@
 
 ;;; Extract declarations and get included files.
 
-(def declare-tokens #{"#name" "#op" "#opa" "#opr" "#opl" "#pr<" "#pr=" "#pr>"})
+(def declare-tokens #{"#name" "#op" "#opr" "#opl"})
 
 (defn split-source-line [line]
   (remove str/blank?
