@@ -1,6 +1,6 @@
 (ns timeless.tl.parse
   "Reform tokens to produce TLS S-expressions."
-  (:require [timeless.tl.ops :refer [build-pr-matrix]]
+  (:require [timeless.tl.ops :refer [build-operator-grammar]]
             [instaparse.core :as insta]
             [clojure.string :as str]))
 
@@ -12,13 +12,11 @@
 
 ;;; Use insta/add-line-and-column-info-to-metadata so line/column info is available to generate errors when post-processing.
 
-(def parser
-  (insta/parser (slurp "src/clj/timeless/tl/grammar.txt")))
-
 
 ;; Returns: <assertions>
 (defn parse [path declarations source]
-  (let [pr-matrix (build-pr-matrix declarations)
+  (let [parser (insta/parser (str (slurp "src/clj/timeless/tl/grammar.txt")
+                                  (build-operator-grammar declarations)))
         ;; Add a newline in case the last line is a comment without a newline.
         parsed (parser (str "missing " source "\n"))]
     (if (insta/failure? parsed)
