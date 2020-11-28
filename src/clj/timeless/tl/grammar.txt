@@ -6,80 +6,19 @@
 
 group = left-paren gte-0 right-paren
 application = exp exp+
-
-
-
-<op-0> = arrow-op
-<op-1> = guard-op
-<op-10> = equal-op
-<op-17> = plus-op
-
-
-<gte-0> = exp | _gte-0
-<gt-0> = exp | _gt-0
-
-<gte-1> = exp | _gte-1
-<gt-1> = exp | _gt-1
-
-<gte-10> = exp | _gte-10
-<gt-10> = exp | _gt-10
-
-<gte-17> = exp | _gte-17
-<gt-17> = exp
-
-
-<_gte-0> = operation-0 | _gt-0
-<_gt-0> = _gte-1
-
-<_gte-1> = operation-1 | _gt-1
-<_gt-1> = _gte-10
-
-<_gte-10> = operation-10 | _gt-10
-<_gt-10> = _gte-17
-
-<_gte-17> = operation-17
-
-
-
-<right-section> = right-0 | right-1 | right-10 | right-17
-<left-section> = left-0 | left-1 | left-10 | left-17
-
-<op> = op-0 | op-1 | op-10 | op-17
-<prefix-op> = left-paren op right-paren
-
 section = left-section | right-section | prefix-op
+
+<prefix-op> = left-paren op right-paren
 
 
 
 embedded = op-10 gt-10
 
 
-(* right associative *)
-<left-0> = left-paren (embedded | gt-0) op-0 right-paren
-<right-0> = left-paren op-0 (embedded | gte-0) right-paren
-operation-0 = (embedded | gt-0) op-0 (embedded | gte-0)
 
-
-(* left associative *)
-<left-1> = left-paren (embedded | gte-1) op-1 right-paren
-<right-1> = left-paren op-1 gt-1 right-paren
-operation-1 = (embedded | gte-1) op-1 gt-1
-
-
-(* right associative, but formally non-associative *)
-<left-10> = left-paren gt-10 op-10 right-paren
-<right-10> = left-paren op-10 gte-10 right-paren
-operation-10 = gt-10 op-10 gte-10
-
-
-(* left associative *)
-<left-17> = left-paren gte-17 op-17 right-paren
-<right-17> = left-paren op-17 gt-17 right-paren
-operation-17 = gte-17 op-17 gt-17
-
-
-
-(* Sets can't have empty elements. *)
+(*
+Sets can't have empty elements.
+*)
 
 <set-element-segment> = (guard-op gt-1) | (arrow-op (embedded | gt-1))
 
@@ -91,8 +30,11 @@ set = (set-left set-right) | (set-left (set-element comma)* set-element set-righ
 
 
 
-(* Seqs and tuple can have empty elements, as sections. *)
-(* There is no way to make a seq or tuple section with a single empty (epsilon) element. *)
+(*
+Seqs and tuple can have empty elements, as sections.
+
+There is no way to make a seq or tuple section with a single empty (epsilon) element.
+*)
 
 <element-not-empty> = embedded | gte-0
 <element> = element-not-empty | empty-element
@@ -103,20 +45,21 @@ tuple = left-paren (element comma)+ element right-paren
 
 
 
-plus-op = ws <'+'> ws
-equal-op = ws <'='> ws
-guard-op = ws <'|'> ws
-arrow-op = ws <'->'> ws
-
-
-
-(* string literal *)
+(*
+string literal
+*)
 str = ws #'\".*\"' ws
 
-(* regular name *)
+
+(*
+regular name
+*)
 name = ws #'[a-zA-Z_]\w*' ws
 
-(* number literal *)
+
+(*
+number literal
+*)
 number = ws #'\d+(?:\.\d+)?' ws
 
 
@@ -137,3 +80,35 @@ number = ws #'\d+(?:\.\d+)?' ws
 
 <left-paren> = ws <'('> ws
 <right-paren> = ws <')'> ws
+
+
+
+(* The arrow operation is right associative. *)
+<left-0> = left-paren (embedded | gt-0) op-0 right-paren
+<right-0> = left-paren op-0 (embedded | gte-0) right-paren
+operation-0 = (embedded | gt-0) op-0 (embedded | gte-0)
+
+<op-0> = arrow-op
+
+arrow-op = ws <'->' | '→'> ws
+
+<gte-0> = exp | _gte-0
+<gt-0> = exp | _gt-0
+<_gte-0> = operation-0 | _gt-0
+<_gt-0> = _gte-1
+
+
+
+(* The guard operation is left associative. *)
+<left-1> = left-paren (embedded | gte-1) op-1 right-paren
+<right-1> = left-paren op-1 gt-1 right-paren
+operation-1 = (embedded | gte-1) op-1 gt-1
+
+<op-1> = guard-op
+
+guard-op = ws <'|'> ws
+
+<gte-1> = exp | _gte-1
+<gt-1> = exp | _gt-1
+<_gte-1> = operation-1 | _gt-1
+<_gt-1> = _gte-10
