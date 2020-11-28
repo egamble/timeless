@@ -18,7 +18,7 @@
   (let [predefined-grammar (slurp  "src/clj/timeless/tl/grammar.txt")
         op-grammar (build-operator-grammar declarations)
         grammar (str predefined-grammar op-grammar)
-        _ (spit "src/clj/timeless/tl/generated-grammar.txt" grammar)
+        _ (spit "generated-grammar.txt" grammar)
         parser (insta/parser grammar)
         ;; Add a newline in case the last line is a comment without a newline.
         parsed (parser (str "missing " source "\n"))]
