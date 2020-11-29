@@ -14,14 +14,38 @@
     ("#opl" 17 "+" "-")
     ("#opl" 18 "*" "/")))
 
-(defn third [s] (nth s 2))
+(def predefined-names
+  #{"->" "→"
+    "|"
+    "=" "≠" "<" ">" "≤" "≥" "⊂" "⊃" "∈" "∉" "!=" "<=" ">=" "<<" ">>" "@" "!@"
+    "∪" "><"
+    "∩" "<>"
+    ":" "++"
+    ";"
+    "+" "-"
+    "*" "/"
+    "Any" "Num" "Int" "Bool" "Sym" "Tag" "Arr" "Set" "Fn" "Seq" "Str" "Char"
+    "Dm" "Im"
+    "size" "infinity" "∞"
+    "_"
+    })
 
 (defn build-op-declarations [declarations]
-  (map (fn [[_ assoc priority-str & names]]
-         `(~assoc ; associativity: "#op" or "#opr" or "#opl"
-           ~(read-string priority-str) ; numeric priority
-           ~@names ; names of the operators
-           ))
+  (map (fn [[_ assoc precedence-str & names]]
+         (let [pr (read-string precedence-str)
+               op-declaration `(~assoc ; associativity: "#op" or "#opr" or "#opl"
+                                ~pr ; numeric precedence
+                                ~@names ; names of the operators
+                                )
+               redefined-name (some predefined-names names)]
+
+           (when redefined-name
+             (throw (Exception. (str "can't redefine the predefined name " (pr-str redefined-name)))))
+
+           (when (or (<= pr 1))
+             (throw (Exception. (str "op declaration must have precedence > 1: "
+                                     (pr-str op-declaration)))))
+           op-declaration))
        (filter #(#{"#op" "#opr" "#opl"} (second %))
                declarations)))
 
@@ -42,7 +66,7 @@
        butlast
        (apply str)))
 
-(defn build-associative-grammar-for-each-op [assoc pr names] ; associativity, numeric priority and op names
+(defn build-associative-grammar-for-each-op [assoc pr names] ; associativity, numeric precedence and op names
   (let [op-terminals (map make-op-terminal names)]
     (str
      (case assoc
@@ -69,8 +93,8 @@
 (def large-gap "\n\n\n")
 
 (defn build-grammar-for-each-op-but-last [[[assoc pr & names] [_ next-pr & _]]]
-  ;; pr is the numeric priority of the current op declaration and
-  ;; next-pr is the priority of the next op declaration
+  ;; pr is the numeric precedence of the current op declaration and
+  ;; next-pr is the precedence of the next op declaration
   (when (not (#{0 1} pr))
     (str
      large-gap
@@ -82,7 +106,7 @@
      (format "<_gt-%d> = _gte-%d\n" pr next-pr))))
 
 (defn build-grammar-for-last-op [[assoc pr & names]]
-  ;; pr is the numeric priority
+  ;; pr is the numeric precedence
   (str
    large-gap
    (build-associative-grammar-for-each-op assoc pr names)
@@ -93,27 +117,27 @@
 
 
 (defn build-complete-op-rules [op-declarations]
-  (let [priorities (map second op-declarations)
+  (let [precedences (map second op-declarations)
         f (fn [prefix]
-            (->> priorities
+            (->> precedences
                  (map #(format "%s-%d" prefix %))
                  interleave-with-bar))]
     (str
      large-gap
-     (format "<right-section> = %s" (f "right"))
+     (format "right-section = %s" (f "right"))
      large-gap
-     (format "<left-section> = %s" (f "left"))
+     (format "left-section = %s" (f "left"))
      large-gap
      (format "<op> = %s" (f "op")))))
 
 
-;; Assumes all the given op-declarations have the same priority.
+;; Assumes all the given op-declarations have the same precedence.
 (defn reduce-op-declarations [op-declarations]
   (let [pr (second (first op-declarations))
         assocs (map first op-declarations)]
     ;; Check all the given op-declarations have the same associativity.
     (when (> (count (set assocs)) 1)
-      (throw (Exception. (str "op declarations with priority " pr
+      (throw (Exception. (str "op declarations with precedence " pr
                               " have multiple associativities " (pr-str assocs)))))
     (let [all-names (mapcat (fn [[_ _ & names]]
                               names)
@@ -125,13 +149,11 @@
   (->> declarations
        build-op-declarations
        (concat predefined-op-declarations)
-       (group-by second) ; group by the numeric priority
+       (group-by second) ; group by the numeric precedence
        vals
        (map reduce-op-declarations)
-       (sort-by second) ; sort by the numeric priority
+       (sort-by second) ; sort by the numeric precedence
        ))
-
-;; TODO: check syntax of declarations, including that declaring a predefined name is an error.
 
 (defn build-operator-grammar [declarations]
   (let [op-declarations (combine-and-sort-op-declarations declarations)]

@@ -6,9 +6,8 @@
 
 group = left-paren gte-0 right-paren
 application = exp exp+
-section = left-section | right-section | prefix-op
-
-<prefix-op> = left-paren op right-paren
+<section> = left-section | right-section | prefix-op
+prefix-op = left-paren op right-paren
 
 
 
