@@ -5,9 +5,7 @@
             [instaparse.core :as insta]
             [clojure.string :as str]))
 
-;; TODO: a declared operator, e.g. #opl 78 foo, is parsed correctly in an operation, but not in a right or left section or prefix op.
-
-;; TODO: write decode-op for _ ops.
+;; TODO: use #name declarations
 
 
 ;;; Leave grouping parens exposed after parsing, i.e. all parens except those that denote sections, prefixized operators, and tuples. The exposed parens allow (1) correct post-processing of comparison chains, and (2) recognizing that comparison operations not surrounded by grouping parens that are in places allowed for embedded assertions become embedded assertions. It isn't easy to do this during parsing while still allowing operations lower in precedence than comparisons in those places.
@@ -29,12 +27,12 @@
 
 (defn decode-op [[op]]
   (let [op-str (str op)
-        name (subs op-str
-                1
-                (- (count op-str) 3))]
-    (if (= \_ (nth name 0))
-      [:op-to-be-decoded name]
-      [:op name])))
+        ;; remove leading ":" and trailing "-op"
+        name (subs op-str 1 (- (count op-str) 3))]
+    [:op 
+     (if (= \_ (nth name 0))
+       (unhexify (subs name 1)) ; remove leading "_"
+       name)]))
 
 (defn transform-operation [left-exp op right-exp]
   [:operation left-exp (decode-op op) right-exp])
@@ -53,8 +51,11 @@
 
 (defn transform-set-element [& exps]
   (apply vector :set-element (map (fn [exp]
-                                    (if (or (= exp [:_7c-op]) ; guard operator
-                                            (= exp [:_2d3e-op])) ; arrow operator
+                                    (if (#{:_7c-op ; guard operator (|)
+                                           :_2d3e-op ; arrow operator (->)
+                                           :_e28692-op ; arrow operator (→)
+                                           }
+                                         (first exp))
                                       (decode-op exp)
                                       exp))
                                   exps)))
@@ -74,7 +75,7 @@
                                  [:prefix-op transform-prefix-op]
                                  [:embedded transform-embedded]
                                  [:set-element transform-set-element]]))]
-    (if assertions
+    (if (seq assertions)
       (map (partial insta/transform transform-map) assertions)
       (error "no expressions"))))
 

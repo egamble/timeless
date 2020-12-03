@@ -17,11 +17,9 @@ embedded = op-10 gt-10
 
 (*
 Sets can't have empty elements.
-_7c-op is the guard operator.
-_2d3e-op is the arrow operator.
 *)
 
-<set-element-segment> = (_7c-op gt-1) | (_2d3e-op (embedded | gt-1))
+<set-element-segment> = (guard-op gt-1) | (arrow-op (embedded | gt-1))
 
 <abbreviated-set-element> = set-element-segment+
 <unabbreviated-set-element> = (embedded | gt-1) set-element-segment*
@@ -55,7 +53,7 @@ str = ws #'\".*\"' ws
 (*
 regular name
 *)
-name = ws #'[a-zA-Z_]\w*' ws
+name = !op ws #'[a-zA-Z_]\w*' ws
 
 
 (*
@@ -88,13 +86,15 @@ number = ws #'\d+(?:\.\d+)?' ws
 The arrow operation is right associative.
 *)
 
-<left-0> = left-paren (embedded | gt-0) op-0 right-paren
-<right-0> = left-paren op-0 (embedded | gte-0) right-paren
-operation-0 = (embedded | gt-0) op-0 (embedded | gte-0)
+<left-0> = left-paren (embedded | gt-0) arrow-op right-paren
+<right-0> = left-paren arrow-op (embedded | gte-0) right-paren
+operation-0 = (embedded | gt-0) arrow-op (embedded | gte-0)
 
-<op-0> = _2d3e-op
+<arrow-op> = _2d3e-op | _e28692-op
+<op-0> = arrow-op
 
-_2d3e-op = ws <'->' | '→'> ws
+_2d3e-op = ws <'->'> ws
+_e28692-op = ws <'→'> ws
 
 <gte-0> = exp | _gte-0
 <gt-0> = exp | _gt-0
@@ -107,11 +107,12 @@ _2d3e-op = ws <'->' | '→'> ws
 The guard operation is left associative.
 *)
 
-<left-1> = left-paren (embedded | gte-1) op-1 right-paren
-<right-1> = left-paren op-1 gt-1 right-paren
-operation-1 = (embedded | gte-1) op-1 gt-1
+<left-1> = left-paren (embedded | gte-1) guard-op right-paren
+<right-1> = left-paren guard-op gt-1 right-paren
+operation-1 = (embedded | gte-1) guard-op gt-1
 
-<op-1> = _7c-op
+<guard-op> = _7c-op
+<op-1> = guard-op
 
 _7c-op = ws <'|'> ws
 

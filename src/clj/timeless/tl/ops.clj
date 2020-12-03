@@ -50,15 +50,10 @@
        (filter #(#{"#op" "#opr" "#opl"} (second %))
                declarations)))
 
-(defn stringify-utf8 [s]
-  (->> (.getBytes s "UTF-8")
-       (map (partial format "%02x"))
-       (apply str)))
-
 (defn make-op-terminal [name]
   (str (if (re-matches #"[a-zA-Z]\w*" name)
          name
-         (str "_" (stringify-utf8 name)))
+         (str "_" (hexify name)))
        "-op"))
 
 (defn interleave-with-bar [terminals]
