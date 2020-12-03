@@ -1,6 +1,7 @@
 (ns timeless.tl.ops
   "Build an operator grammar from declarations."
-  (:require [clojure.string :as str]))
+  (:require [timeless.tl.utils :refer :all]
+            [clojure.string :as str]))
 
 
 (def predefined-op-declarations
@@ -40,11 +41,11 @@
                redefined-name (some predefined-names names)]
 
            (when redefined-name
-             (throw (Exception. (str "can't redefine the predefined name " (pr-str redefined-name)))))
+             (error (str "can't redefine the predefined name " (pr-str redefined-name))))
 
            (when (or (<= pr 1))
-             (throw (Exception. (str "op declaration must have precedence > 1: "
-                                     (pr-str op-declaration)))))
+             (error (str "op declaration must have precedence > 1: "
+                         (pr-str op-declaration))))
            op-declaration))
        (filter #(#{"#op" "#opr" "#opl"} (second %))
                declarations)))
@@ -121,14 +122,15 @@
         f (fn [prefix]
             (->> precedences
                  (map #(format "%s-%d" prefix %))
-                 interleave-with-bar))]
-    (str
-     large-gap
-     (format "right-section = %s" (f "right"))
-     large-gap
-     (format "left-section = %s" (f "left"))
-     large-gap
-     (format "<op> = %s" (f "op")))))
+                 interleave-with-bar))
+        complete-op-rules (str
+                           large-gap
+                           (format "right-section = %s" (f "right"))
+                           large-gap
+                           (format "left-section = %s" (f "left"))
+                           large-gap
+                           (format "<op> = %s" (f "op")))]
+    [complete-op-rules precedences]))
 
 
 ;; Assumes all the given op-declarations have the same precedence.
@@ -137,8 +139,8 @@
         assocs (map first op-declarations)]
     ;; Check all the given op-declarations have the same associativity.
     (when (> (count (set assocs)) 1)
-      (throw (Exception. (str "op declarations with precedence " pr
-                              " have multiple associativities " (pr-str assocs)))))
+      (error (str "op declarations with precedence " pr
+                  " have multiple associativities " (pr-str assocs))))
     (let [all-names (mapcat (fn [[_ _ & names]]
                               names)
                             op-declarations)]
@@ -156,9 +158,11 @@
        ))
 
 (defn build-operator-grammar [declarations]
-  (let [op-declarations (combine-and-sort-op-declarations declarations)]
-    (str 
-     (apply str (map build-grammar-for-each-op-but-last
-                     (partition 2 1 op-declarations)))
-     (build-grammar-for-last-op (last op-declarations))
-     (build-complete-op-rules op-declarations))))
+  (let [op-declarations (combine-and-sort-op-declarations declarations)
+        [complete-op-rules precedences] (build-complete-op-rules op-declarations)
+        op-grammar (str 
+                    (apply str (map build-grammar-for-each-op-but-last
+                                    (partition 2 1 op-declarations)))
+                    (build-grammar-for-last-op (last op-declarations))
+                    complete-op-rules)]
+    [op-grammar precedences]))

@@ -2,6 +2,7 @@
   "Load TL or TLS code."
   (:require [timeless.tl.parse :refer [parse]]
             [timeless.tl.extract :refer [extract-declarations]]
+            [timeless.tl.utils :refer :all]
             [clojure.string :as str]))
 
 
@@ -39,9 +40,9 @@
      (let [tl-source (try
                        (slurp path)
                        (catch Exception e
-                         (throw (Exception. (str "#include error at line " line-num
-                                                 " in file " parent-path
-                                                 ": " (.getMessage e))))))]
+                         (error (str "#include error at line " line-num
+                                     " in file " parent-path
+                                     ": " (.getMessage e)))))]
        (read-tl-source path tl-source)))))
 
 (defn load-include [parent-path annotated-include]
