@@ -32,7 +32,7 @@
     })
 
 (defn build-op-declarations [declarations]
-  (map (fn [[_ assoc precedence-str & names]]
+  (map (fn [[assoc precedence-str & names]]
          (let [pr (read-string precedence-str)
                op-declaration `(~assoc ; associativity: "#op" or "#opr" or "#opl"
                                 ~pr ; numeric precedence
@@ -47,7 +47,7 @@
              (error (str "op declaration must have precedence > 1: "
                          (pr-str op-declaration))))
            op-declaration))
-       (filter #(#{"#op" "#opr" "#opl"} (second %))
+       (filter #(#{"#op" "#opr" "#opl"} (first %))
                declarations)))
 
 (defn interleave-with-bar [terminals]
@@ -109,11 +109,11 @@
                  interleave-with-bar))
         complete-op-rules (str
                            large-gap
-                           (format "right-section = %s" (f "right"))
-                           large-gap
-                           (format "left-section = %s" (f "left"))
-                           large-gap
-                           (format "<op> = %s" (f "op")))]
+                           (format "right-section = %s\n" (f "right"))
+                           "\n"
+                           (format "left-section = %s\n" (f "left"))
+                           "\n"
+                           (format "<op> = %s\n" (f "op")))]
     [complete-op-rules precedences]))
 
 
@@ -141,17 +141,36 @@
        (sort-by second) ; sort by the numeric precedence
        ))
 
-;; TODO: check for collisions with op names
-(defn build-name-rule [declarations]
-  nil)
+(defn build-declared-name-rule [declarations op-declarations]
+  (let [ops (into #{} (mapcat (fn [[_ _ & rest]] ; ignore assoc and precedence
+                                rest)
+                              op-declarations))
+        names (mapcat (fn [[_ & rest]]
+                  rest)
+                (filter #(= "#name" (first %))
+                        declarations))
+        names-including-predefined (cons "∞" names)]
+
+    (doall
+     (map (fn [name]
+            (when (ops name)
+              (error (format "'%s' is declared as both name and operator" name))))
+          names))
+
+    (->> names-including-predefined
+         (map (partial format "'%s'"))
+         interleave-with-bar
+         (format "<declared-name> = ws (%s) ws\n")
+         (str large-gap))))
 
 (defn build-operator-grammar [declarations]
-  (let [op-declarations (combine-and-sort-op-declarations declarations)
+  (let [declarations (map rest declarations) ; remove leading :declare
+        op-declarations (combine-and-sort-op-declarations declarations)
         [complete-op-rules precedences] (build-complete-op-rules op-declarations)
         op-grammar (str 
                     (apply str (map build-grammar-for-each-op-but-last
                                     (partition 2 1 op-declarations)))
                     (build-grammar-for-last-op (last op-declarations))
                     complete-op-rules
-                    (build-declared-name-rule declarations))]
+                    (build-declared-name-rule declarations op-declarations))]
     [op-grammar precedences]))

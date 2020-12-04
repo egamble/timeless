@@ -19,13 +19,13 @@ embedded = op-10 gt-10
 Sets can't have empty elements.
 *)
 
-<set-element-segment> = (guard-op gt-1) | (arrow-op (embedded | gt-1))
+<clause-segment> = (guard-op gt-1) | (arrow-op (embedded | gt-1))
 
-<abbreviated-set-element> = set-element-segment+
-<unabbreviated-set-element> = (embedded | gt-1) set-element-segment*
+<abbreviated-clause> = clause-segment+
+<unabbreviated-clause> = (embedded | gt-1) clause-segment*
 
-set-element = abbreviated-set-element | unabbreviated-set-element
-set = (set-left set-right) | (set-left (set-element comma)* set-element set-right)
+clause = abbreviated-clause | unabbreviated-clause
+set = (set-left set-right) | (set-left (clause comma)* clause set-right)
 
 
 

@@ -5,7 +5,8 @@
             [instaparse.core :as insta]
             [clojure.string :as str]))
 
-;; TODO: use #name declarations
+
+;;; TODO: Next, find comparisons not in a :group to determine if they should be in an :embedded.
 
 
 ;;; Leave grouping parens exposed after parsing, i.e. all parens except those that denote sections, prefixized operators, and tuples. The exposed parens allow (1) correct post-processing of comparison chains, and (2) recognizing that comparison operations not surrounded by grouping parens that are in places allowed for embedded assertions become embedded assertions. It isn't easy to do this during parsing while still allowing operations lower in precedence than comparisons in those places.
@@ -25,11 +26,41 @@
                (cons right-exp
                      assertions))))))
 
-(defn transform-operation [& rest]
-  (apply vector :operation rest))
 
+
+
+(defn transform-left [exp op]
+  )
+
+(defn transform-right [exp op]
+  )
+
+
+
+;; Used for terminals of the form :operation-nnn.
+(defn transform-operation [left-exp op right-exp]
+  (vector :operation
+          (transform-left left-exp op)
+          op
+          (transform-right right-exp op)))
+
+;; Used for terminals of the form :op-nnn.
 (defn transform-op [& rest]
   (apply vector :op rest))
+
+(defn transform-left-section [left-exp op]
+  (vector :left-section
+          (transform-left left-exp op)
+          op))
+
+(defn transform-right-section [op right-exp]
+  (vector :right-section
+          op
+          (transform-right right-exp op)))
+
+(defn transform-embedded [& rest]
+  (apply vector :embedded [:name "_"] rest))
+
 
 ;; Returns: <assertions>
 (defn post-process [parsed precedences]
@@ -42,7 +73,8 @@
                                             transform-operation]
                                            [(keyword (str "op-" pr))
                                             transform-op]])
-                                     precedences)))]
+                                        precedences))
+                          (into [[:embedded transform-embedded]]))]
     (if (seq assertions)
       (map (partial insta/transform transform-map) assertions)
       (error "no expressions"))))
@@ -54,11 +86,11 @@
         grammar (str predefined-grammar op-grammar)
         _ (spit "generated-grammar.txt" grammar)
         parser (insta/parser grammar)
-        ;; Prepending a simple guard operation to make parsing the top-level guard
+        ;; A simple guard operation is prepended to make parsing the top-level guard
         ;; operations easier, and to provide better error messages when the top-level
         ;; guards are missing or malformed. This makes column numbers incorrect for
         ;; parsing errors in the first line. Need to find a way to fix this.
-        ;; Adding a newline at the end in case the last line is a comment without a newline.
+        ;; A newline is added at the end in case the last line is a comment without a newline.
         parsed (parser (str "_|_ " source "\n"))]
     (if (insta/failure? parsed)
       (println parsed)
