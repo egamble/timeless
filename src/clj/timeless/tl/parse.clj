@@ -1,6 +1,6 @@
 (ns timeless.tl.parse
   "Reform tokens to produce TLS S-expressions."
-  (:require [timeless.tl.ops :refer [build-operator-grammar]]
+  (:require [timeless.tl.grammar :refer [build-operator-grammar]]
             [timeless.tl.utils :refer :all]
             [instaparse.core :as insta]
             [clojure.string :as str]))
@@ -25,40 +25,11 @@
                (cons right-exp
                      assertions))))))
 
-(defn decode-op [[op]]
-  (let [op-str (str op)
-        ;; remove leading ":" and trailing "-op"
-        name (subs op-str 1 (- (count op-str) 3))]
-    [:op 
-     (if (= \_ (nth name 0))
-       (unhexify (subs name 1)) ; remove leading "_"
-       name)]))
+(defn transform-operation [& rest]
+  (apply vector :operation rest))
 
-(defn transform-operation [left-exp op right-exp]
-  [:operation left-exp (decode-op op) right-exp])
-
-(defn transform-left-section [exp op]
-  [:left-section exp (decode-op op)])
-
-(defn transform-right-section [op exp]
-  [:right-section (decode-op op) exp])
-
-(defn transform-prefix-op [op]
-  [:prefix-op (decode-op op)])
-
-(defn transform-embedded [op exp]
-  [:embedded (decode-op op) exp])
-
-(defn transform-set-element [& exps]
-  (apply vector :set-element (map (fn [exp]
-                                    (if (#{:_7c-op ; guard operator (|)
-                                           :_2d3e-op ; arrow operator (->)
-                                           :_e28692-op ; arrow operator (→)
-                                           }
-                                         (first exp))
-                                      (decode-op exp)
-                                      exp))
-                                  exps)))
+(defn transform-op [& rest]
+  (apply vector :op rest))
 
 ;; Returns: <assertions>
 (defn post-process [parsed precedences]
@@ -66,15 +37,12 @@
         f (fn [& rest]
             (apply vector :operation rest))
         transform-map (-> {}
-                          (into (map (fn [pr]
-                                       [(keyword (str "operation-" pr))
-                                        transform-operation])
-                                     precedences))
-                          (into [[:right-section transform-right-section]
-                                 [:left-section transform-left-section]
-                                 [:prefix-op transform-prefix-op]
-                                 [:embedded transform-embedded]
-                                 [:set-element transform-set-element]]))]
+                          (into (mapcat (fn [pr]
+                                          [[(keyword (str "operation-" pr))
+                                            transform-operation]
+                                           [(keyword (str "op-" pr))
+                                            transform-op]])
+                                     precedences)))]
     (if (seq assertions)
       (map (partial insta/transform transform-map) assertions)
       (error "no expressions"))))

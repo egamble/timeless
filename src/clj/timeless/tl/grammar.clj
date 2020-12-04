@@ -1,5 +1,5 @@
-(ns timeless.tl.ops
-  "Build an operator grammar from declarations."
+(ns timeless.tl.grammar
+  "Build a grammar from declarations."
   (:require [timeless.tl.utils :refer :all]
             [clojure.string :as str]))
 
@@ -50,12 +50,6 @@
        (filter #(#{"#op" "#opr" "#opl"} (second %))
                declarations)))
 
-(defn make-op-terminal [name]
-  (str (if (re-matches #"[a-zA-Z]\w*" name)
-         name
-         (str "_" (hexify name)))
-       "-op"))
-
 (defn interleave-with-bar [terminals]
   (->> (interleave terminals
                    (repeat " | "))
@@ -63,27 +57,22 @@
        (apply str)))
 
 (defn build-associative-grammar-for-each-op [assoc pr names] ; associativity, numeric precedence and op names
-  (let [op-terminals (map make-op-terminal names)]
-    (str
-     (case assoc
-       ("#op" "#opr")
-       (str
-        (format "<left-%d> = left-paren gt-%d op-%d right-paren\n" pr pr pr)
-        (format "<right-%d> = left-paren op-%d gte-%d right-paren\n" pr pr pr)
-        (format "operation-%d = gt-%d op-%d gte-%d\n" pr pr pr pr))
+  (str
+   (case assoc
+     ("#op" "#opr")
+     (str
+      (format "<left-%d> = left-paren gt-%d op-%d right-paren\n" pr pr pr)
+      (format "<right-%d> = left-paren op-%d gte-%d right-paren\n" pr pr pr)
+      (format "operation-%d = gt-%d op-%d gte-%d\n" pr pr pr pr))
 
-       "#opl"
-       (str
-        (format "<left-%d> = left-paren gte-%d op-%d right-paren\n" pr pr pr)
-        (format "<right-%d> = left-paren op-%d gt-%d right-paren\n" pr pr pr)
-        (format "operation-%d = gte-%d op-%d gt-%d\n" pr pr pr pr)))
-     
-     (format "\n<op-%d> = %s\n" pr (interleave-with-bar op-terminals))
-     "\n"
-     (->> (map (fn [op-terminal name]
-                 (format "%s = ws <'%s'> ws\n" op-terminal name))
-               op-terminals names)
-          (apply str)))))
+     "#opl"
+     (str
+      (format "<left-%d> = left-paren gte-%d op-%d right-paren\n" pr pr pr)
+      (format "<right-%d> = left-paren op-%d gt-%d right-paren\n" pr pr pr)
+      (format "operation-%d = gte-%d op-%d gt-%d\n" pr pr pr pr)))
+   
+   (format "\nop-%d = ws (%s) ws\n" pr (interleave-with-bar
+                                        (map (partial format "'%s'") names)))))
 
 
 (def large-gap "\n\n\n")
@@ -152,6 +141,10 @@
        (sort-by second) ; sort by the numeric precedence
        ))
 
+;; TODO: check for collisions with op names
+(defn build-name-rule [declarations]
+  nil)
+
 (defn build-operator-grammar [declarations]
   (let [op-declarations (combine-and-sort-op-declarations declarations)
         [complete-op-rules precedences] (build-complete-op-rules op-declarations)
@@ -159,5 +152,6 @@
                     (apply str (map build-grammar-for-each-op-but-last
                                     (partition 2 1 op-declarations)))
                     (build-grammar-for-last-op (last op-declarations))
-                    complete-op-rules)]
+                    complete-op-rules
+                    (build-declared-name-rule declarations))]
     [op-grammar precedences]))

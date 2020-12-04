@@ -50,16 +50,16 @@ string literal
 str = ws #'\".*\"' ws
 
 
-(*
-regular name
-*)
-name = !op ws #'[a-zA-Z_]\w*' ws
-
 
 (*
 number literal
 *)
 number = ws #'\d+(?:\.\d+)?' ws
+
+
+
+name = declared-name | regular-name
+<regular-name> = !op ws #'[a-zA-Z_]\w*' ws
 
 
 
@@ -90,11 +90,8 @@ The arrow operation is right associative.
 <right-0> = left-paren arrow-op (embedded | gte-0) right-paren
 operation-0 = (embedded | gt-0) arrow-op (embedded | gte-0)
 
-<arrow-op> = _2d3e-op | _e28692-op
-<op-0> = arrow-op
-
-_2d3e-op = ws <'->'> ws
-_e28692-op = ws <'→'> ws
+<arrow-op> = op-0
+op-0 = ws ('->' | '→') ws
 
 <gte-0> = exp | _gte-0
 <gt-0> = exp | _gt-0
@@ -111,10 +108,8 @@ The guard operation is left associative.
 <right-1> = left-paren guard-op gt-1 right-paren
 operation-1 = (embedded | gte-1) guard-op gt-1
 
-<guard-op> = _7c-op
-<op-1> = guard-op
-
-_7c-op = ws <'|'> ws
+<guard-op> = op-1
+op-1 = ws '|' ws
 
 <gte-1> = exp | _gte-1
 <gt-1> = exp | _gt-1
