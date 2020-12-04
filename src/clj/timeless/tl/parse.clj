@@ -6,12 +6,18 @@
             [clojure.string :as str]))
 
 
-;;; TODO: Next, find comparisons not in a :group to determine if they should be in an :embedded.
+;;; Next:
+;;; - Find comparisons not in a :group to determine if they should be in an :embedded.
+;;; - Find chains.
+;;; - Remove :groups.
+;;; - For instaparse errors, find a way to suppress the "Expected one of:" part, which is unhelpful.
+;;; - Make grammar for the rest of the language, e.g. .., quote, etc.
+;;; - Use insta/add-line-and-column-info-to-metadata so line/column info is available to generate errors when post-processing.
+;;; - Write command line script for generating TLS.
 
 
 ;;; Leave grouping parens exposed after parsing, i.e. all parens except those that denote sections, prefixized operators, and tuples. The exposed parens allow (1) correct post-processing of comparison chains, and (2) recognizing that comparison operations not surrounded by grouping parens that are in places allowed for embedded assertions become embedded assertions. It isn't easy to do this during parsing while still allowing operations lower in precedence than comparisons in those places.
 
-;;; Use insta/add-line-and-column-info-to-metadata so line/column info is available to generate errors when post-processing.
 
 ;; Returns: <assertions>
 (defn extract-assertions [parsed]
@@ -30,10 +36,10 @@
 
 
 (defn transform-left [exp op]
-  )
+  exp)
 
 (defn transform-right [exp op]
-  )
+  exp)
 
 
 
