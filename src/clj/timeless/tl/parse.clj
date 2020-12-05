@@ -6,7 +6,6 @@
 
 
 ;;; Next:
-;;; - Find comparisons not in a :group to determine if they should be in an :embedded.
 ;;; - Find chains.
 ;;; - Remove :groups.
 ;;; - For instaparse errors, find a way to suppress the "Expected one of:" part, which is unhelpful.
@@ -32,28 +31,6 @@
                      assertions))))))
 
 
-(defn transform-operation-nnn [& rest]
-  (apply vector :operation rest))
-
-(defn transform-op-nnn [& rest]
-  (apply vector :op rest))
-
-(defn transform-embedded [& rest]
-  (apply vector :embedded [:name "_"] rest))
-
-(defn remove-precedences-and-complete-embeddeds [precedences assertions]
-  (let [f (fn [& rest]
-            (apply vector :operation rest))
-        transform-map (-> {}
-                          (into (mapcat (fn [pr]
-                                          [[(keyword (str "operation-" pr))
-                                            transform-operation-nnn]
-                                           [(keyword (str "op-" pr))
-                                            transform-op-nnn]])
-                                        precedences))
-                          (into [[:embedded transform-embedded]]))]
-    (map (partial insta/transform transform-map) assertions)))
-
 
 (defn is-arrow-op [[_ op-name]]
   (#{"->" "→"} op-name))
@@ -64,48 +41,78 @@
 (def comparison-op-names
   #{"=" "≠" "<" ">" "≤" "≥" "⊂" "⊃" "∈" "∉" "!=" "<=" ">=" "<<" ">>" "@" "!@"})
 
-(defn is-comparison-operation [[key _ [_ op-name] _]]
-  (and (= key :operation)
-       (comparison-op-names op-name)))
+(defn is-comparison-operation [exp]
+  (and (seq? exp)
+       (let [[key _ op] exp]
+         (and (= key :operation)
+              (comparison-op-names (second op))))))
+
+(defn transform-if-comparison [exp]
+  (if (is-comparison-operation exp)
+    (apply vector :embedded (rest exp))
+    exp))
 
 (defn transform-left [exp op]
-  (if (and (or (is-arrow-op op)
-               (is-guard-op op))
-           (is-comparison-operation exp))
-    (apply vector :embedded (rest exp))
+  (if (or (is-arrow-op op)
+          (is-guard-op op))
+    (transform-if-comparison exp)
     exp))
 
 (defn transform-right [exp op]
-  (if (and (is-arrow-op op)
-           (is-comparison-operation exp))
-    (apply vector :embedded (rest exp))
+  (if (is-arrow-op op)
+    (transform-if-comparison exp)
     exp))
 
-(defn transform-operation [left-exp op right-exp]
-  (vector :operation
-          (transform-left left-exp op)
-          op
-          (transform-right right-exp op)))
+(defn transform-operation-nnn [left-exp op right-exp]
+  [:operation
+   (transform-left left-exp op)
+   op
+   (transform-right right-exp op)])
 
 (defn transform-left-section [left-exp op]
-  (vector :left-section
-          (transform-left left-exp op)
-          op))
+  [:left-section
+   (transform-left left-exp op)
+   op])
 
 (defn transform-right-section [op right-exp]
-  (vector :right-section
-          op
-          (transform-right right-exp op)))
+  [:right-section
+   op
+   (transform-right right-exp op)])
 
-;; TODO: Transform if the only clause element is a comparison operation, or either side of an arrow-op, or the left side of a guard-op. Note that for a->b|c->d, the grouping is: (a -> ((b|c) -> d)).
-(defn transform-clause [& rest]
-  (apply vector :clause rest))
+(defn transform-op-nnn [op-name]
+  [:op op-name])
+
+(defn transform-embedded [& rest]
+  (apply vector :embedded [:name "_"] rest))
+
+(defn transform-seq [& rest]
+  (apply vector :seq (map transform-if-comparison rest)))
+
+(defn transform-tuple [& rest]
+  (apply vector :tuple (map transform-if-comparison rest)))
+
+(defn transform-empty-element []
+  :empty-element)
 
 
-(defn find-all-embeddeds [assertions]
-  (let [transform-map {:operation transform-operation
-                       :left-section transform-left-section
-                       :right-section transform-right-section}]
+
+(defn do-all-transformations [assertions precedences]
+  (let [f (fn [& rest]
+            (apply vector :operation rest))
+        transform-map (-> {}
+                          (into (mapcat (fn [pr]
+                                          [[(keyword (str "operation-" pr))
+                                            transform-operation-nnn]
+                                           [(keyword (str "op-" pr))
+                                            transform-op-nnn]])
+                                        precedences))
+                          (into [[:left-section transform-left-section]
+                                 [:right-section transform-right-section]
+                                 [:embedded transform-embedded]
+                                 [:clause-maybe-embedded transform-if-comparison]
+                                 [:seq transform-seq]
+                                 [:tuple transform-tuple]
+                                 [:empty-element transform-empty-element]]))]
     (map (partial insta/transform transform-map) assertions)))
 
 
@@ -113,9 +120,7 @@
 (defn post-process [parsed precedences]
   (let [assertions (extract-assertions parsed)]
     (if (seq assertions)
-      (->> assertions
-           (remove-precedences-and-complete-embeddeds precedences)
-           find-all-embeddeds)
+      (do-all-transformations assertions precedences)
       (error "no expressions"))))
 
 

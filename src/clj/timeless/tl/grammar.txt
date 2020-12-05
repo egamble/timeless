@@ -14,15 +14,15 @@ prefix-op = left-paren op right-paren
 embedded = op-10 gt-10
 
 
-
 (*
 Sets can't have empty elements.
 *)
 
-<clause-segment> = (guard-op gt-1) | (arrow-op (embedded | gt-1))
+clause-maybe-embedded = gt-1
+<clause-segment> = (guard-op gt-1) | (arrow-op (embedded | clause-maybe-embedded))
 
 <abbreviated-clause> = clause-segment+
-<unabbreviated-clause> = (embedded | gt-1) clause-segment*
+<unabbreviated-clause> = (embedded | clause-maybe-embedded) clause-segment*
 
 clause = abbreviated-clause | unabbreviated-clause
 set = (set-left set-right) | (set-left (clause comma)* clause set-right)
