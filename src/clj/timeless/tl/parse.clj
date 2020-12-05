@@ -2,8 +2,7 @@
   "Reform tokens to produce TLS S-expressions."
   (:require [timeless.tl.grammar :refer [build-operator-grammar]]
             [timeless.tl.utils :refer :all]
-            [instaparse.core :as insta]
-            [clojure.string :as str]))
+            [instaparse.core :as insta]))
 
 
 ;;; Next:
@@ -86,7 +85,7 @@
       (error "no expressions"))))
 
 ;; Returns: <assertions>
-(defn parse [path declarations source]
+(defn parse [declarations source]
   (let [predefined-grammar (slurp  "src/clj/timeless/tl/grammar.txt")
         [op-grammar precedences] (build-operator-grammar declarations)
         grammar (str predefined-grammar op-grammar)

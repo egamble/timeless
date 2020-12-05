@@ -1,7 +1,6 @@
 (ns timeless.tl.grammar
   "Build a grammar from declarations."
-  (:require [timeless.tl.utils :refer :all]
-            [clojure.string :as str]))
+  (:require [timeless.tl.utils :refer :all]))
 
 
 (def predefined-op-declarations
@@ -164,8 +163,7 @@
          (str large-gap))))
 
 (defn build-operator-grammar [declarations]
-  (let [declarations (map rest declarations) ; remove leading :declare
-        op-declarations (combine-and-sort-op-declarations declarations)
+  (let [op-declarations (combine-and-sort-op-declarations declarations)
         [complete-op-rules precedences] (build-complete-op-rules op-declarations)
         op-grammar (str 
                     (apply str (map build-grammar-for-each-op-but-last
