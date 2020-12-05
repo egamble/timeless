@@ -5,16 +5,12 @@
             [instaparse.core :as insta]))
 
 
-;;; Next:
+;;; TODO:
 ;;; - Find chains.
-;;; - Remove :groups.
-;;; - For instaparse errors, find a way to suppress the "Expected one of:" part, which is unhelpful.
 ;;; - Make grammar for the rest of the language, e.g. .., quote, etc.
+;;; - For instaparse errors, find a way to suppress the "Expected one of:" part, which is unhelpful.
 ;;; - Use insta/add-line-and-column-info-to-metadata so line/column info is available to generate errors when post-processing.
 ;;; - Write command line script for generating TLS.
-
-
-;;; Leave grouping parens exposed after parsing, i.e. all parens except those that denote sections, prefixized operators, and tuples. The exposed parens allow (1) correct post-processing of comparison chains, and (2) recognizing that comparison operations not surrounded by grouping parens that are in places allowed for embedded assertions become embedded assertions. It isn't easy to do this during parsing while still allowing operations lower in precedence than comparisons in those places.
 
 
 ;; Returns: <assertions>
@@ -31,6 +27,16 @@
                      assertions))))))
 
 
+(def comparison-op-names
+  #{"=" "≠" "<" ">" "≤" "≥" "⊂" "⊃" "∈" "∉" "!=" "<=" ">=" "<<" ">>" "@" "!@"})
+
+(defn comparison->embedded [exp]
+  (if (and (vector? exp)
+           (let [[key _ op] exp]
+             (and (= key :operation)
+                  (comparison-op-names (second op)))))
+    (apply vector :embedded (rest exp))
+    exp))
 
 (defn is-arrow-op [[_ op-name]]
   (#{"->" "→"} op-name))
@@ -38,29 +44,15 @@
 (defn is-guard-op [[_ op-name]]
   (= "|" op-name))
 
-(def comparison-op-names
-  #{"=" "≠" "<" ">" "≤" "≥" "⊂" "⊃" "∈" "∉" "!=" "<=" ">=" "<<" ">>" "@" "!@"})
-
-(defn is-comparison-operation [exp]
-  (and (seq? exp)
-       (let [[key _ op] exp]
-         (and (= key :operation)
-              (comparison-op-names (second op))))))
-
-(defn transform-if-comparison [exp]
-  (if (is-comparison-operation exp)
-    (apply vector :embedded (rest exp))
-    exp))
-
 (defn transform-left [exp op]
   (if (or (is-arrow-op op)
           (is-guard-op op))
-    (transform-if-comparison exp)
+    (comparison->embedded exp)
     exp))
 
 (defn transform-right [exp op]
   (if (is-arrow-op op)
-    (transform-if-comparison exp)
+    (comparison->embedded exp)
     exp))
 
 (defn transform-operation-nnn [left-exp op right-exp]
@@ -68,6 +60,9 @@
    (transform-left left-exp op)
    op
    (transform-right right-exp op)])
+
+(defn transform-op-nnn [op-name]
+  [:op op-name])
 
 (defn transform-left-section [left-exp op]
   [:left-section
@@ -79,40 +74,42 @@
    op
    (transform-right right-exp op)])
 
-(defn transform-op-nnn [op-name]
-  [:op op-name])
-
-(defn transform-embedded [& rest]
+(defn transform-truncated-embedded [& rest]
   (apply vector :embedded [:name "_"] rest))
-
-(defn transform-seq [& rest]
-  (apply vector :seq (map transform-if-comparison rest)))
-
-(defn transform-tuple [& rest]
-  (apply vector :tuple (map transform-if-comparison rest)))
 
 (defn transform-empty-element []
   :empty-element)
 
 
-
-(defn do-all-transformations [assertions precedences]
-  (let [f (fn [& rest]
-            (apply vector :operation rest))
-        transform-map (-> {}
+(defn do-all-transformations [precedences assertions]
+  (let [transform-map (-> {}
                           (into (mapcat (fn [pr]
                                           [[(keyword (str "operation-" pr))
                                             transform-operation-nnn]
                                            [(keyword (str "op-" pr))
                                             transform-op-nnn]])
                                         precedences))
-                          (into [[:left-section transform-left-section]
+                          (into [[:clause-maybe-embedded comparison->embedded]
+                                 [:element-maybe-embedded comparison->embedded]
+                                 [:left-section transform-left-section]
                                  [:right-section transform-right-section]
-                                 [:embedded transform-embedded]
-                                 [:clause-maybe-embedded transform-if-comparison]
-                                 [:seq transform-seq]
-                                 [:tuple transform-tuple]
+                                 [:truncated-embedded transform-truncated-embedded]
                                  [:empty-element transform-empty-element]]))]
+    (map (partial insta/transform transform-map) assertions)))
+
+
+;;; The :group keyword is used to mark all parens except those that denote sections,
+;;; prefixized operators, and tuples. The :group markers can only be removed
+;;; (via the remove-groups transformation) after:
+;;; (1) comparison chains have been identified and marked, and
+;;; (2) comparison operations that are not within a :group expression, and that are
+;;;     in places allowed for embedded assertions, are identified and marked by
+;;;     changing from :operation to :embedded.
+;;; It isn't easy to identify embedded and chain comparisons during parsing while
+;;; still allowing operations lower in precedence than comparisons in those places.
+
+(defn remove-groups [assertions]
+  (let [transform-map {:group identity}]
     (map (partial insta/transform transform-map) assertions)))
 
 
@@ -120,7 +117,9 @@
 (defn post-process [parsed precedences]
   (let [assertions (extract-assertions parsed)]
     (if (seq assertions)
-      (do-all-transformations assertions precedences)
+      (->> assertions
+           (do-all-transformations precedences)
+           remove-groups)
       (error "no expressions"))))
 
 

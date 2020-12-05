@@ -11,7 +11,7 @@ prefix-op = left-paren op right-paren
 
 
 
-embedded = op-10 gt-10
+truncated-embedded = op-10 gt-10
 
 
 (*
@@ -19,10 +19,12 @@ Sets can't have empty elements.
 *)
 
 clause-maybe-embedded = gt-1
-<clause-segment> = (guard-op gt-1) | (arrow-op (embedded | clause-maybe-embedded))
+
+<clause-exp> = truncated-embedded | clause-maybe-embedded
+<clause-segment> = (guard-op gt-1) | (arrow-op clause-exp)
 
 <abbreviated-clause> = clause-segment+
-<unabbreviated-clause> = (embedded | clause-maybe-embedded) clause-segment*
+<unabbreviated-clause> = clause-exp clause-segment*
 
 clause = abbreviated-clause | unabbreviated-clause
 set = (set-left set-right) | (set-left (clause comma)* clause set-right)
@@ -35,7 +37,9 @@ Seqs and tuple can have empty elements, as sections.
 There is no way to make a seq or tuple section with a single empty (epsilon) element.
 *)
 
-<element-not-empty> = embedded | gte-0
+element-maybe-embedded = gte-0
+
+<element-not-empty> = truncated-embedded | element-maybe-embedded
 <element> = element-not-empty | empty-element
 empty-element = epsilon
 
@@ -86,9 +90,9 @@ name = declared-name | regular-name
 The arrow operation is right associative.
 *)
 
-<left-0> = left-paren (embedded | gt-0) arrow-op right-paren
-<right-0> = left-paren arrow-op (embedded | gte-0) right-paren
-operation-0 = (embedded | gt-0) arrow-op (embedded | gte-0)
+<left-0> = left-paren (truncated-embedded | gt-0) arrow-op right-paren
+<right-0> = left-paren arrow-op (truncated-embedded | gte-0) right-paren
+operation-0 = (truncated-embedded | gt-0) arrow-op (truncated-embedded | gte-0)
 
 <arrow-op> = op-0
 op-0 = ws ('->' | '→') ws
@@ -104,9 +108,9 @@ op-0 = ws ('->' | '→') ws
 The guard operation is left associative.
 *)
 
-<left-1> = left-paren (embedded | gte-1) guard-op right-paren
+<left-1> = left-paren (truncated-embedded | gte-1) guard-op right-paren
 <right-1> = left-paren guard-op gt-1 right-paren
-operation-1 = (embedded | gte-1) guard-op gt-1
+operation-1 = (truncated-embedded | gte-1) guard-op gt-1
 
 <guard-op> = op-1
 op-1 = ws '|' ws
