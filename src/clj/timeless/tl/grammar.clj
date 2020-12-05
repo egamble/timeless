@@ -27,6 +27,7 @@
     "Any" "Num" "Int" "Bool" "Sym" "Tag" "Arr" "Set" "Fn" "Seq" "Str" "Char"
     "Dm" "Im"
     "size" "infinity" "∞"
+    "true" "false"
     "_"
     })
 

@@ -94,7 +94,9 @@
                                  [:left-section transform-left-section]
                                  [:right-section transform-right-section]
                                  [:truncated-embedded transform-truncated-embedded]
-                                 [:empty-element transform-empty-element]]))]
+                                 [:empty-element transform-empty-element]
+                                 [:number read-string]
+                                 [:str read-string]]))]
     (map (partial insta/transform transform-map) assertions)))
 
 
