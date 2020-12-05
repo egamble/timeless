@@ -32,26 +32,60 @@
                      assertions))))))
 
 
+(defn transform-operation-nnn [& rest]
+  (apply vector :operation rest))
 
+(defn transform-op-nnn [& rest]
+  (apply vector :op rest))
+
+(defn transform-embedded [& rest]
+  (apply vector :embedded [:name "_"] rest))
+
+(defn remove-precedences-and-complete-embeddeds [precedences assertions]
+  (let [f (fn [& rest]
+            (apply vector :operation rest))
+        transform-map (-> {}
+                          (into (mapcat (fn [pr]
+                                          [[(keyword (str "operation-" pr))
+                                            transform-operation-nnn]
+                                           [(keyword (str "op-" pr))
+                                            transform-op-nnn]])
+                                        precedences))
+                          (into [[:embedded transform-embedded]]))]
+    (map (partial insta/transform transform-map) assertions)))
+
+
+(defn is-arrow-op [[_ op-name]]
+  (#{"->" "→"} op-name))
+
+(defn is-guard-op [[_ op-name]]
+  (= "|" op-name))
+
+(def comparison-op-names
+  #{"=" "≠" "<" ">" "≤" "≥" "⊂" "⊃" "∈" "∉" "!=" "<=" ">=" "<<" ">>" "@" "!@"})
+
+(defn is-comparison-operation [[key _ [_ op-name] _]]
+  (and (= key :operation)
+       (comparison-op-names op-name)))
 
 (defn transform-left [exp op]
-  exp)
+  (if (and (or (is-arrow-op op)
+               (is-guard-op op))
+           (is-comparison-operation exp))
+    (apply vector :embedded (rest exp))
+    exp))
 
 (defn transform-right [exp op]
-  exp)
+  (if (and (is-arrow-op op)
+           (is-comparison-operation exp))
+    (apply vector :embedded (rest exp))
+    exp))
 
-
-
-;; Used for terminals of the form :operation-nnn.
 (defn transform-operation [left-exp op right-exp]
   (vector :operation
           (transform-left left-exp op)
           op
           (transform-right right-exp op)))
-
-;; Used for terminals of the form :op-nnn.
-(defn transform-op [& rest]
-  (apply vector :op rest))
 
 (defn transform-left-section [left-exp op]
   (vector :left-section
@@ -63,26 +97,27 @@
           op
           (transform-right right-exp op)))
 
-(defn transform-embedded [& rest]
-  (apply vector :embedded [:name "_"] rest))
+;; TODO: Transform if the only clause element is a comparison operation, or either side of an arrow-op, or the left side of a guard-op. Note that for a->b|c->d, the grouping is: (a -> ((b|c) -> d)).
+(defn transform-clause [& rest]
+  (apply vector :clause rest))
+
+
+(defn find-all-embeddeds [assertions]
+  (let [transform-map {:operation transform-operation
+                       :left-section transform-left-section
+                       :right-section transform-right-section}]
+    (map (partial insta/transform transform-map) assertions)))
 
 
 ;; Returns: <assertions>
 (defn post-process [parsed precedences]
-  (let [assertions (extract-assertions parsed)
-        f (fn [& rest]
-            (apply vector :operation rest))
-        transform-map (-> {}
-                          (into (mapcat (fn [pr]
-                                          [[(keyword (str "operation-" pr))
-                                            transform-operation]
-                                           [(keyword (str "op-" pr))
-                                            transform-op]])
-                                        precedences))
-                          (into [[:embedded transform-embedded]]))]
+  (let [assertions (extract-assertions parsed)]
     (if (seq assertions)
-      (map (partial insta/transform transform-map) assertions)
+      (->> assertions
+           (remove-precedences-and-complete-embeddeds precedences)
+           find-all-embeddeds)
       (error "no expressions"))))
+
 
 ;; Returns: <assertions>
 (defn parse [declarations source]
