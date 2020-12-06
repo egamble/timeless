@@ -81,7 +81,15 @@
   :empty-element)
 
 
-(defn do-all-transformations [precedences assertions]
+;;; do-transformations:
+;;; (1) removes the precedence suffix from :operation-nnn and :op-nnn
+;;; (2) finds and marks embedded assertions
+;;; (3) adds "_" as the left side of truncated embedded assertions
+;;; (4) makes :empty-element a single keyword rather than a vector
+;;; (5) replaces :number vectors with literal numbers
+;;; (6) replaces :str vectors with literal strings
+
+(defn do-transformations [precedences assertions]
   (let [transform-map (-> {}
                           (into (mapcat (fn [pr]
                                           [[(keyword (str "operation-" pr))
@@ -100,13 +108,25 @@
     (map (partial insta/transform transform-map) assertions)))
 
 
-;;; The :group keyword is used to mark all parens except those that denote sections,
-;;; prefixized operators, and tuples. The :group markers can only be removed
-;;; (via the remove-groups transformation) after:
-;;; (1) comparison chains have been identified and marked, and
-;;; (2) comparison operations that are not within a :group expression, and that are
+(defn comparison->chain [left-exp op right-exp]
+  ;; TODO
+  [:operation left-exp op right-exp])
+
+;;; find-chains is done after embedded assertions are found and marked, so that
+;;; excluding embedded assertions from consideration as chains is simpler.
+
+(defn find-chains [assertions]
+(let [transform-map {:operation comparison->chain}]
+    (map (partial insta/transform transform-map) assertions)))
+
+
+;;; remove-groups removes :group markers.
+;;; A :group expression is used to mark all parens except those that denote sections,
+;;; prefixized operators, and tuples. The :group markers can only be removed after:
+;;; (1) comparison operations that are not within a :group expression, and that are
 ;;;     in places allowed for embedded assertions, are identified and marked by
-;;;     changing from :operation to :embedded.
+;;;     changing from :operation to :embedded, and
+;;; (2) comparison chains have been identified and marked.
 ;;; It isn't easy to identify embedded and chain comparisons during parsing while
 ;;; still allowing operations lower in precedence than comparisons in those places.
 
@@ -120,7 +140,8 @@
   (let [assertions (extract-assertions parsed)]
     (if (seq assertions)
       (->> assertions
-           (do-all-transformations precedences)
+           (do-transformations precedences)
+           find-chains
            remove-groups)
       (error "no expressions"))))
 
