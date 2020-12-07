@@ -6,6 +6,7 @@
 
 
 ;;; TODO:
+;;; - Change the grammar to prevent ungrouped "chains" of non-associative ops, except comparison ops.
 ;;; - Grammar for .. .
 ;;; - Grammar for quote, etc.
 ;;; - Grammar for any remaining language features.
