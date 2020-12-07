@@ -64,7 +64,6 @@
       (format "<left-%d> = left-paren gt-%d op-%d right-paren\n" pr pr pr)
       (format "<right-%d> = left-paren op-%d gte-%d right-paren\n" pr pr pr)
       (format "operation-%d = gt-%d op-%d gte-%d\n" pr pr pr pr))
-
      "#opl"
      (str
       (format "<left-%d> = left-paren gte-%d op-%d right-paren\n" pr pr pr)
