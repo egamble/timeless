@@ -28,6 +28,7 @@
     "Dm" "Im"
     "size" "infinity" "∞"
     "true" "false"
+    "null"
     "_"
     })
 
@@ -66,21 +67,25 @@
                 assoc)]
     (str
      (case assoc
+
        "comparison"
        (str
         (format "<left-10> = left-paren gt-10 op-10 right-paren\n")
         (format "<right-10> = left-paren op-10 gt-10 right-paren\n")
         (format "operation-10 = gt-10 op-10 gte-10\n"))
+
        "#op"
        (str
         (format "<left-%d> = left-paren gt-%d op-%d right-paren\n" pr pr pr)
         (format "<right-%d> = left-paren op-%d gt-%d right-paren\n" pr pr pr)
         (format "operation-%d = gt-%d op-%d gt-%d\n" pr pr pr pr))
+
        "#opr"
        (str
         (format "<left-%d> = left-paren gt-%d op-%d right-paren\n" pr pr pr)
         (format "<right-%d> = left-paren op-%d gte-%d right-paren\n" pr pr pr)
         (format "operation-%d = gt-%d op-%d gte-%d\n" pr pr pr pr))
+
        "#opl"
        (str
         (format "<left-%d> = left-paren gte-%d op-%d right-paren\n" pr pr pr)

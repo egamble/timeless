@@ -8,9 +8,8 @@
 ;;; TODO:
 ;;; - Grammar for .. .
 ;;; - Grammar for quote, etc.
-;;; - Grammar for any remaining language features.
 ;;; - For instaparse errors, find a way to suppress the "Expected one of:" part, which is unhelpful.
-;;; - Use insta/add-line-and-column-info-to-metadata so line/column info is available to generate errors when post-processing.
+;;; - Use insta/add-line-and-column-info-to-metadata so line/column info is available to generate errors when post-processing. Also write line/column info to the TLS file for use in run-time errors.
 ;;; - Write command line script for generating TLS.
 
 
