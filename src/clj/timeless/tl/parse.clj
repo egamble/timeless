@@ -6,7 +6,6 @@
 
 
 ;;; TODO:
-;;; - Change the grammar to prevent ungrouped "chains" of non-associative ops, except comparison ops.
 ;;; - Grammar for .. .
 ;;; - Grammar for quote, etc.
 ;;; - Grammar for any remaining language features.
@@ -32,8 +31,7 @@
 ;;; do-transformations:
 ;;; (1) removes the precedence suffix from :operation-nnn and :op-nnn, except for :op-0, :op-1 and :op-10
 ;;; (2) changes [:op-0 ...] to :arrow-op and [:op-1 ...] to :guard-op
-;;; (3) changes :op-10 to :comparison-op to simplify searching for embedded assertions and chains,
-;;;     and to detect right sections of chains, which is a syntax error
+;;; (3) changes :op-10 to :comparison-op to simplify searching for embedded assertions and chains
 ;;;     (This also allows user-defined comparison ops to form embedded assertions and chains.)
 ;;; (4) makes :empty-element a single keyword rather than a vector
 ;;; (5) replaces :number vectors with literal numbers
@@ -123,9 +121,6 @@
 ;;; find-chains is called after embedded assertions are found and marked, so that
 ;;; excluding embedded assertions from consideration as chains is simpler.
 
-;;; find-chains also detects and generates an error for right sections of chains.
-;;; (Left sections of chains are already prevented by the grammar.)
-
 (defn is-comparison-or-chain [exp]
   (or (is-comparison exp)
       (and (vector? exp)
@@ -137,14 +132,8 @@
     (apply vector :chain left-exp op (rest right-exp))
     [:operation left-exp op right-exp]))
 
-(defn chain-right-section-error [op exp]
-  (if (and (is-comparison-op op)
-           (is-comparison-or-chain exp))
-    (error "can't omit the left expression from a chain to form a section")))
-
 (defn find-chains [assertions]
-  (let [transform-map {:operation comparison-operation->chain
-                       :right-section chain-right-section-error}]
+  (let [transform-map {:operation comparison-operation->chain}]
     (map (partial insta/transform transform-map) assertions)))
 
 

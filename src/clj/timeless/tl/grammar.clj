@@ -57,22 +57,38 @@
        (apply str)))
 
 (defn build-associative-grammar-for-each-op [assoc pr names] ; associativity, numeric precedence and op names
-  (str
-   (case assoc
-     ("#op" "#opr")
-     (str
-      (format "<left-%d> = left-paren gt-%d op-%d right-paren\n" pr pr pr)
-      (format "<right-%d> = left-paren op-%d gte-%d right-paren\n" pr pr pr)
-      (format "operation-%d = gt-%d op-%d gte-%d\n" pr pr pr pr))
-     "#opl"
-     (str
-      (format "<left-%d> = left-paren gte-%d op-%d right-paren\n" pr pr pr)
-      (format "<right-%d> = left-paren op-%d gt-%d right-paren\n" pr pr pr)
-      (format "operation-%d = gte-%d op-%d gt-%d\n" pr pr pr pr)))
-   
-   (format "\nop-%d = ws (%s) ws\n" pr (interleave-with-bar
-                                        (map (partial format "'%s'") names)))))
 
+  ;; Force the associativity of comparison operators, i.e. those with precedence level 10, to be
+  ;; right associative so they can form chains, despite being formally non-associative.
+  ;; The associativity of comparison operators is only right associative for full operations, not sections.
+  (let [assoc (if (= pr 10)
+                "comparison"
+                assoc)]
+    (str
+     (case assoc
+       "comparison"
+       (str
+        (format "<left-10> = left-paren gt-10 op-10 right-paren\n")
+        (format "<right-10> = left-paren op-10 gt-10 right-paren\n")
+        (format "operation-10 = gt-10 op-10 gte-10\n"))
+       "#op"
+       (str
+        (format "<left-%d> = left-paren gt-%d op-%d right-paren\n" pr pr pr)
+        (format "<right-%d> = left-paren op-%d gt-%d right-paren\n" pr pr pr)
+        (format "operation-%d = gt-%d op-%d gt-%d\n" pr pr pr pr))
+       "#opr"
+       (str
+        (format "<left-%d> = left-paren gt-%d op-%d right-paren\n" pr pr pr)
+        (format "<right-%d> = left-paren op-%d gte-%d right-paren\n" pr pr pr)
+        (format "operation-%d = gt-%d op-%d gte-%d\n" pr pr pr pr))
+       "#opl"
+       (str
+        (format "<left-%d> = left-paren gte-%d op-%d right-paren\n" pr pr pr)
+        (format "<right-%d> = left-paren op-%d gt-%d right-paren\n" pr pr pr)
+        (format "operation-%d = gte-%d op-%d gt-%d\n" pr pr pr pr)))
+
+     (format "\nop-%d = ws (%s) ws\n" pr (interleave-with-bar
+                                          (map (partial format "'%s'") names))))))
 
 (def large-gap "\n\n\n")
 
