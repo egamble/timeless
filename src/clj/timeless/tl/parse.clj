@@ -6,6 +6,7 @@
 
 
 ;;; TODO:
+;;; - Don't allow chains as embedded assertions, i.e. embedded assertions the right side of which is a comparison operation not in a group.
 ;;; - Grammar for .. .
 ;;; - Grammar for quote, etc.
 ;;; - For instaparse errors, find a way to suppress the "Expected one of:" part, which is unhelpful.
