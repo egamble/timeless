@@ -1,7 +1,7 @@
 <S> = operation-1
 
 
-<exp> = group | application | section | set | seq | tuple | str | name | number
+<exp> = group | application | section | set | seq | tuple | str | name | number | quote | unquote
 
 
 group = left-paren gte-0 right-paren
@@ -39,12 +39,19 @@ There is no way to make a seq or tuple section with a single empty (epsilon) ele
 
 element-maybe-embedded = gte-0
 
-<element-not-empty> = truncated-embedded | element-maybe-embedded
-<element> = element-not-empty | empty-element
+<element> = truncated-embedded | element-maybe-embedded
+<element-maybe-empty> = element | empty-element
 empty-element = epsilon
 
-seq = (seq-left element-not-empty? seq-right) | (seq-left (element comma)+ element seq-right)
-tuple = left-paren (element comma)+ element right-paren
+seq = seq-left
+      (
+      element? |
+      ((element-maybe-empty comma)+ element-maybe-empty) |
+      (element (comma element)? range element?)
+      )
+      seq-right
+
+tuple = left-paren (element-maybe-empty comma)+ element-maybe-empty right-paren
 
 
 
@@ -73,8 +80,6 @@ name = declared-name | regular-name
 <ws-only> = <#'\s+'>
 <comment> = <#'#.*\n'>
 
-
-
 <set-left> = ws <'{'> ws
 <set-right> = ws <'}'> ws
 
@@ -83,6 +88,17 @@ name = declared-name | regular-name
 
 <left-paren> = ws <'('> ws
 <right-paren> = ws <')'> ws
+
+range = ws <'..'> ws
+
+<quote-op> = ws <"'"> ws
+<unquote-op> = ws <"~"> ws
+
+
+
+<quotable> = group | set | seq | tuple | str | name | number | op
+quote = quote-op quotable
+unquote = unquote-op quotable
 
 
 
@@ -118,4 +134,3 @@ op-1 = ws '|' ws
 <gte-1> = exp | _gte-1
 <gt-1> = exp | _gt-1
 <_gte-1> = operation-1 | _gt-1
-<_gt-1> = _gte-10

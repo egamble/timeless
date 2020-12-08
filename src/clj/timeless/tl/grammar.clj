@@ -1,6 +1,7 @@
 (ns timeless.tl.grammar
   "Build a grammar from declarations."
-  (:require [timeless.tl.utils :refer :all]))
+  (:require [timeless.tl.utils :refer :all]
+            [clojure.string :as str]))
 
 
 (def predefined-op-declarations
@@ -57,12 +58,12 @@
        butlast
        (apply str)))
 
-(defn build-associative-grammar-for-each-op [assoc pr names] ; associativity, numeric precedence and op names
+(defn build-associative-grammar-for-each-op [assoc pr names] ; associativity, encoded precedence and op names
 
   ;; Force the associativity of comparison operators, i.e. those with precedence level 10, to be
   ;; right associative so they can form chains, despite being formally non-associative.
   ;; The associativity of comparison operators is only right associative for full operations, not sections.
-  (let [assoc (if (= pr 10)
+  (let [assoc (if (= pr "10")
                 "comparison"
                 assoc)]
     (str
@@ -76,56 +77,56 @@
 
        "#op"
        (str
-        (format "<left-%d> = left-paren gt-%d op-%d right-paren\n" pr pr pr)
-        (format "<right-%d> = left-paren op-%d gt-%d right-paren\n" pr pr pr)
-        (format "operation-%d = gt-%d op-%d gt-%d\n" pr pr pr pr))
+        (format "<left-%s> = left-paren gt-%s op-%s right-paren\n" pr pr pr)
+        (format "<right-%s> = left-paren op-%s gt-%s right-paren\n" pr pr pr)
+        (format "operation-%s = gt-%s op-%s gt-%s\n" pr pr pr pr))
 
        "#opr"
        (str
-        (format "<left-%d> = left-paren gt-%d op-%d right-paren\n" pr pr pr)
-        (format "<right-%d> = left-paren op-%d gte-%d right-paren\n" pr pr pr)
-        (format "operation-%d = gt-%d op-%d gte-%d\n" pr pr pr pr))
+        (format "<left-%s> = left-paren gt-%s op-%s right-paren\n" pr pr pr)
+        (format "<right-%s> = left-paren op-%s gte-%s right-paren\n" pr pr pr)
+        (format "operation-%s = gt-%s op-%s gte-%s\n" pr pr pr pr))
 
        "#opl"
        (str
-        (format "<left-%d> = left-paren gte-%d op-%d right-paren\n" pr pr pr)
-        (format "<right-%d> = left-paren op-%d gt-%d right-paren\n" pr pr pr)
-        (format "operation-%d = gte-%d op-%d gt-%d\n" pr pr pr pr)))
+        (format "<left-%s> = left-paren gte-%s op-%s right-paren\n" pr pr pr)
+        (format "<right-%s> = left-paren op-%s gt-%s right-paren\n" pr pr pr)
+        (format "operation-%s = gte-%s op-%s gt-%s\n" pr pr pr pr)))
 
-     (format "\nop-%d = ws (%s) ws\n" pr (interleave-with-bar
+     (format "\nop-%s = ws (%s) ws\n" pr (interleave-with-bar
                                           (map (partial format "'%s'") names))))))
 
 (def large-gap "\n\n\n")
 
 (defn build-grammar-for-each-op-but-last [[[assoc pr & names] [_ next-pr & _]]]
-  ;; pr is the numeric precedence of the current op declaration and
-  ;; next-pr is the precedence of the next op declaration
-  (when (not (#{0 1} pr))
+  ;; pr is the encoded precedence of the current op declaration and
+  ;; next-pr is the encoded precedence of the next op declaration
+  (when (not (#{"0" "1"} pr))
     (str
      large-gap
      (build-associative-grammar-for-each-op assoc pr names)
      "\n"
-     (format "<gte-%d> = exp | _gte-%d\n" pr pr)
-     (format "<gt-%d> = exp | _gt-%d\n" pr pr)
-     (format "<_gte-%d> = operation-%d | _gt-%d\n" pr pr pr)
-     (format "<_gt-%d> = _gte-%d\n" pr next-pr))))
+     (format "<gte-%s> = exp | _gte-%s\n" pr pr)
+     (format "<gt-%s> = exp | _gt-%s\n" pr pr)
+     (format "<_gte-%s> = operation-%s | _gt-%s\n" pr pr pr)
+     (format "<_gt-%s> = _gte-%s\n" pr next-pr))))
 
 (defn build-grammar-for-last-op [[assoc pr & names]]
-  ;; pr is the numeric precedence
+  ;; pr is the encoded precedence
   (str
    large-gap
    (build-associative-grammar-for-each-op assoc pr names)
    "\n"
-   (format "<gte-%d> = exp | _gte-%d\n" pr pr)
-   (format "<gt-%d> = exp\n" pr)
-   (format "<_gte-%d> = operation-%d\n" pr pr)))
+   (format "<gte-%s> = exp | _gte-%s\n" pr pr)
+   (format "<gt-%s> = exp\n" pr)
+   (format "<_gte-%s> = operation-%s\n" pr pr)))
 
 
 (defn build-complete-op-rules [op-declarations]
   (let [precedences (map second op-declarations)
         f (fn [prefix]
             (->> precedences
-                 (map #(format "%s-%d" prefix %))
+                 (map #(format "%s-%s" prefix %))
                  interleave-with-bar))
         complete-op-rules (str
                            large-gap
@@ -151,6 +152,14 @@
       `(~(first assocs) ~pr ~@all-names))))
 
 
+;; Convert a numeric precedence, either integer or float, to a string that satisfies
+;; the syntax of instaparse terminals.
+(defn encode-precedence [pr]
+  (str/replace (str pr) \. \-))
+
+(defn encode-declaration-precedence [[assoc pr & op-names]]
+  `(~assoc ~(encode-precedence pr) ~@op-names))
+
 (defn combine-and-sort-op-declarations [declarations]
   (->> declarations
        build-op-declarations
@@ -159,21 +168,21 @@
        vals
        (map reduce-op-declarations)
        (sort-by second) ; sort by the numeric precedence
-       ))
+       (map encode-declaration-precedence)))
 
 (defn build-declared-name-rule [declarations op-declarations]
-  (let [ops (into #{} (mapcat (fn [[_ _ & rest]] ; ignore assoc and precedence
-                                rest)
-                              op-declarations))
-        names (mapcat (fn [[_ & rest]]
-                  rest)
+  (let [op-names (into #{} (mapcat (fn [[_ _ & r]] ; ignore assoc and precedence
+                                     r)
+                                   op-declarations))
+        names (mapcat (fn [[_ & r]]
+                        r)
                 (filter #(= "#name" (first %))
                         declarations))
         names-including-predefined (cons "∞" names)]
 
     (doall
      (map (fn [name]
-            (when (ops name)
+            (when (op-names name)
               (error (format "'%s' is declared as both name and operator" name))))
           names))
 
@@ -185,11 +194,12 @@
 
 (defn build-operator-grammar [declarations]
   (let [op-declarations (combine-and-sort-op-declarations declarations)
-        [complete-op-rules precedences] (build-complete-op-rules op-declarations)
-        op-grammar (str 
+        [complete-op-rules encoded-precedences] (build-complete-op-rules op-declarations)
+        op-grammar (str
+                    (format "<_gt-1> = _gte-%s\n" (third encoded-precedences)) ; skip precedences 0 and 1
                     (apply str (map build-grammar-for-each-op-but-last
                                     (partition 2 1 op-declarations)))
                     (build-grammar-for-last-op (last op-declarations))
                     complete-op-rules
                     (build-declared-name-rule declarations op-declarations))]
-    [op-grammar precedences]))
+    [op-grammar encoded-precedences]))

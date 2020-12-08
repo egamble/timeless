@@ -2,14 +2,11 @@
   "Reform tokens to produce TLS S-expressions."
   (:require [timeless.tl.grammar :refer [build-operator-grammar]]
             [timeless.tl.utils :refer :all]
-            [instaparse.core :as insta]))
+            [instaparse.core :as insta]
+            [clojure.string :as str]))
 
 
 ;;; TODO:
-;;; - Don't allow chains as embedded assertions, i.e. embedded assertions the right side of which is a comparison operation not in a group.
-;;; - Grammar for .. .
-;;; - Grammar for quote, etc.
-;;; - For instaparse errors, find a way to suppress the "Expected one of:" part, which is unhelpful.
 ;;; - Use insta/add-line-and-column-info-to-metadata so line/column info is available to generate errors when post-processing. Also write line/column info to the TLS file for use in run-time errors.
 ;;; - Write command line script for generating TLS.
 
@@ -28,21 +25,35 @@
                      assertions))))))
 
 
+(defn is-application [exp]
+  (and (vector? exp)
+       (= :application (first exp))))
+
+(defn transform-application [& exps]
+  (apply vector
+         :application
+         (mapcat (fn [exp]
+                   (if (is-application exp)
+                     (rest exp)
+                     (list exp)))
+                 exps)))
+
 ;;; do-transformations:
 ;;; (1) removes the precedence suffix from :operation-nnn and :op-nnn, except for :op-0, :op-1 and :op-10
 ;;; (2) changes [:op-0 ...] to :arrow-op and [:op-1 ...] to :guard-op
 ;;; (3) changes :op-10 to :comparison-op to simplify searching for embedded assertions and chains
 ;;;     (This also allows user-defined comparison ops to form embedded assertions and chains.)
-;;; (4) makes :empty-element a single keyword rather than a vector
+;;; (4) makes :empty-element and :range single keywords rather than vectors
 ;;; (5) replaces :number vectors with literal numbers
 ;;; (6) replaces :str vectors with literal strings
+;;; (7) collapses nested :applications
 
-(defn do-transformations [precedences assertions]
-  (let [transform-operation-nnn (fn [& rest] (apply vector :operation rest))
+(defn do-transformations [encoded-precedences assertions]
+  (let [transform-operation-nnn (fn [& exps] (apply vector :operation exps))
         transform-op-nnn (fn [op-name] [:op op-name])
         transform-map (-> {}
                           (into (mapcat (fn [pr]
-                                          (if (#{0 1 10} pr)
+                                          (if (#{"0" "1" "10"} pr)
                                             [[(keyword (str "operation-" pr))
                                               transform-operation-nnn]]
 
@@ -50,13 +61,15 @@
                                               transform-operation-nnn]
                                              [(keyword (str "op-" pr))
                                               transform-op-nnn]]))
-                                        precedences))
+                                        encoded-precedences))
                           (into [[:op-0 (constantly :arrow-op)]
                                  [:op-1 (constantly :guard-op)]
                                  [:op-10 (fn [op-name] [:comparison-op op-name])]
                                  [:empty-element (constantly :empty-element)]
+                                 [:range (constantly :range)]
                                  [:number read-string]
-                                 [:str read-string]]))]
+                                 [:str read-string]
+                                 [:application transform-application]]))]
     (map (partial insta/transform transform-map) assertions)))
 
 
@@ -71,7 +84,10 @@
 
 (defn comparison->embedded [exp]
   (if (is-comparison exp)
-    (apply vector :embedded (rest exp))
+    (let [[_ _ _ right-exp] exp]
+      (if (is-comparison right-exp)
+        (error "an embedded assertion can't be a comparison chain")
+        (apply vector :embedded (rest exp))))
     exp))
 
 (defn transform-left [exp op]
@@ -100,8 +116,8 @@
    op
    (transform-right right-exp op)])
 
-(defn transform-truncated-embedded [& rest]
-  (apply vector :embedded [:name "_"] rest))
+(defn transform-truncated-embedded [& exps]
+  (apply vector :embedded [:name "_"] exps))
 
 
 ;;; find-embedded-assertions:
@@ -157,11 +173,11 @@
 
 
 ;; Returns: <assertions>
-(defn post-process [parsed precedences]
+(defn post-process [parsed encoded-precedences]
   (let [assertions (extract-assertions parsed)]
     (if (seq assertions)
       (->> assertions
-           (do-transformations precedences)
+           (do-transformations encoded-precedences)
            find-embedded-assertions
            find-chains
            remove-groups)
@@ -171,7 +187,7 @@
 ;; Returns: <assertions>
 (defn parse [declarations source]
   (let [predefined-grammar (slurp  "src/clj/timeless/tl/grammar.txt")
-        [op-grammar precedences] (build-operator-grammar declarations)
+        [op-grammar encoded-precedences] (build-operator-grammar declarations)
         grammar (str predefined-grammar op-grammar)
         _ (spit "generated-grammar.txt" grammar)
         parser (insta/parser grammar)
@@ -182,5 +198,9 @@
         ;; A newline is added at the end in case the last line is a comment without a newline.
         parsed (parser (str "_|_ " source "\n"))]
     (if (insta/failure? parsed)
-      (println parsed)
-      (post-process parsed precedences))))
+      (-> parsed
+          pr-str
+          (str/split #"\nExpected one of:")
+          first
+          println)
+      (post-process parsed encoded-precedences))))
