@@ -7,31 +7,41 @@
 
 
 ;;; TODO:
-;;; - Use insta/add-line-and-column-info-to-metadata so line/column info is available to generate errors when post-processing. Also write line/column info to the TLS file for use in run-time errors.
 ;;; - Write command line script for generating TLS.
+
+
+;; Move the metadata map of each vector into the vector, as the second element.
+(defn move-metadata [exp]
+  (if (sequential? exp)
+    (apply vector
+           (first exp)
+           (meta exp)
+           (map move-metadata (rest exp)))
+    exp))
 
 
 ;; Returns: <assertions>
 (defn extract-assertions [parsed]
-  (loop [exp (first parsed)
+  (loop [exp parsed
          assertions ()]
-    (let [[_ left-exp op right-exp] exp]
+    (let [[_ m left-exp op right-exp] exp]
       (if (= left-exp [:name "_"])
         (if (= right-exp [:name "_"])
           assertions
-          (error "no top-level guard operation"))
+          (error-meta m "no top-level guard operation"))
         (recur left-exp
                (cons right-exp
                      assertions))))))
 
 
 (defn is-application [exp]
-  (and (vector? exp)
+  (and (sequential? exp)
        (= :application (first exp))))
 
-(defn transform-application [& exps]
+(defn transform-application [m & exps]
   (apply vector
          :application
+         m
          (mapcat (fn [exp]
                    (if (is-application exp)
                      (rest exp)
@@ -40,17 +50,16 @@
 
 ;;; do-transformations:
 ;;; (1) removes the precedence suffix from :operation-nnn and :op-nnn, except for :op-0, :op-1 and :op-10
-;;; (2) changes [:op-0 ...] to :arrow-op and [:op-1 ...] to :guard-op
+;;; (2) changes :op-0 to :arrow-op and :op-1 to :guard-op, also removing the op-name string
 ;;; (3) changes :op-10 to :comparison-op to simplify searching for embedded assertions and chains
 ;;;     (This also allows user-defined comparison ops to form embedded assertions and chains.)
-;;; (4) makes :empty-element and :range single keywords rather than vectors
-;;; (5) replaces :number vectors with literal numbers
-;;; (6) replaces :str vectors with literal strings
+;;; (5) replaces the exp of :number with a literal number
+;;; (6) replaces the exp of :str with a literal string
 ;;; (7) collapses nested :applications
 
 (defn do-transformations [encoded-precedences assertions]
-  (let [transform-operation-nnn (fn [& exps] (apply vector :operation exps))
-        transform-op-nnn (fn [op-name] [:op op-name])
+  (let [transform-operation-nnn (fn [m & exps] (apply vector :operation m exps))
+        transform-op-nnn (fn [m op-name] [:op m op-name])
         transform-map (-> {}
                           (into (mapcat (fn [pr]
                                           (if (#{"0" "1" "10"} pr)
@@ -62,62 +71,63 @@
                                              [(keyword (str "op-" pr))
                                               transform-op-nnn]]))
                                         encoded-precedences))
-                          (into [[:op-0 (constantly :arrow-op)]
-                                 [:op-1 (constantly :guard-op)]
-                                 [:op-10 (fn [op-name] [:comparison-op op-name])]
-                                 [:empty-element (constantly :empty-element)]
-                                 [:range (constantly :range)]
-                                 [:number read-string]
-                                 [:str read-string]
+                          (into [[:op-0 (fn [m _] [:arrow-op m])]
+                                 [:op-1 (fn [m _] [:guard-op m])]
+                                 [:op-10 (fn [m op-name] [:comparison-op m op-name])]
+                                 [:number (fn [m exp] [:number m (read-string exp)])]
+                                 [:str (fn [m exp] [:str m (read-string exp)])]
                                  [:application transform-application]]))]
     (map (partial insta/transform transform-map) assertions)))
 
 
 (defn is-comparison-op [op]
-  (and (vector? op)
+  (and (sequential? op)
        (= :comparison-op (first op))))
 
 (defn is-comparison [exp]
-  (and (vector? exp)
+  (and (sequential? exp)
        (= :operation (first exp))
-       (is-comparison-op (third exp))))
+       (is-comparison-op (fourth exp))))
 
 (defn comparison->embedded [exp]
   (if (is-comparison exp)
-    (let [[_ _ _ right-exp] exp]
+    (let [[_ m _ _ right-exp] exp]
       (if (is-comparison right-exp)
-        (error "an embedded assertion can't be a comparison chain")
+        (error m "an embedded assertion can't be a comparison chain")
         (apply vector :embedded (rest exp))))
     exp))
 
 (defn transform-left [exp op]
-  (if (#{:arrow-op :guard-op} op)
+  (if (#{:arrow-op :guard-op} (first op))
     (comparison->embedded exp)
     exp))
 
 (defn transform-right [exp op]
-  (if (= :arrow-op op)
+  (if (= :arrow-op (first op))
     (comparison->embedded exp)
     exp))
 
-(defn transform-operation [left-exp op right-exp]
+(defn transform-operation [m left-exp op right-exp]
   [:operation
+   m
    (transform-left left-exp op)
    op
    (transform-right right-exp op)])
 
-(defn transform-left-section [left-exp op]
+(defn transform-left-section [m left-exp op]
   [:left-section
+   m
    (transform-left left-exp op)
    op])
 
-(defn transform-right-section [op right-exp]
+(defn transform-right-section [m op right-exp]
   [:right-section
+   m
    op
    (transform-right right-exp op)])
 
-(defn transform-truncated-embedded [& exps]
-  (apply vector :embedded [:name "_"] exps))
+(defn transform-truncated-embedded [m & exps]
+  (apply vector :embedded m [:name "_"] exps))
 
 
 ;;; find-embedded-assertions:
@@ -125,8 +135,8 @@
 ;;; (2) adds "_" as the left side of truncated embedded assertions
 
 (defn find-embedded-assertions [assertions]
-  (let [transform-map  {:clause-maybe-embedded comparison->embedded
-                        :element-maybe-embedded comparison->embedded
+  (let [transform-map  {:clause-maybe-embedded (fn [_ exp] (comparison->embedded exp))
+                        :element-maybe-embedded (fn [_ exp] comparison->embedded)
                         :operation transform-operation
                         :left-section transform-left-section
                         :right-section transform-right-section
@@ -139,14 +149,14 @@
 
 (defn is-comparison-or-chain [exp]
   (or (is-comparison exp)
-      (and (vector? exp)
+      (and (sequential? exp)
            (= :chain (first exp)))))
 
-(defn comparison-operation->chain [left-exp op right-exp]
+(defn comparison-operation->chain [m left-exp op right-exp]
   (if (and (is-comparison-op op)
            (is-comparison-or-chain right-exp))
-    (apply vector :chain left-exp op (rest right-exp))
-    [:operation left-exp op right-exp]))
+    (apply vector :chain m left-exp op (rest right-exp))
+    [:operation m left-exp op right-exp]))
 
 (defn find-chains [assertions]
   (let [transform-map {:operation comparison-operation->chain}]
@@ -167,14 +177,17 @@
 ;;; the :comparison-op marker is no longer needed.
 
 (defn remove-groups [assertions]
-  (let [transform-map {:group identity
-                       :comparison-op (fn [op-name] [:op op-name])}]
+  (let [transform-map {:group (fn [_ exp] exp)
+                       :comparison-op (fn [m op-name] [:op m op-name])}]
     (map (partial insta/transform transform-map) assertions)))
 
 
 ;; Returns: <assertions>
 (defn post-process [parsed encoded-precedences]
-  (let [assertions (extract-assertions parsed)]
+  (let [assertions (-> parsed
+                       first
+                       move-metadata
+                       extract-assertions)]
     (if (seq assertions)
       (->> assertions
            (do-transformations encoded-precedences)
@@ -191,12 +204,14 @@
         grammar (str predefined-grammar op-grammar)
         _ (spit "generated-grammar.txt" grammar)
         parser (insta/parser grammar)
-        ;; A simple guard operation is prepended to make parsing the top-level guard
-        ;; operations easier, and to provide better error messages when the top-level
+        ;; A simple guard operation is prepended to the source to make parsing the top-level
+        ;; guard operations easier, and to provide better error messages when the top-level
         ;; guards are missing or malformed. This makes column numbers incorrect for
         ;; parsing errors in the first line. Need to find a way to fix this.
         ;; A newline is added at the end in case the last line is a comment without a newline.
-        parsed (parser (str "_|_ " source "\n"))]
+        source (str "_|_ " source "\n")
+        parsed (insta/add-line-and-column-info-to-metadata source
+                                                           (parser source))]
     (if (insta/failure? parsed)
       (-> parsed
           pr-str
