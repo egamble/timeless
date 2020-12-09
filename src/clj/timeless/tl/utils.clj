@@ -6,7 +6,7 @@
   (throw (Exception. msg)))
 
 (defn error-meta [m msg]
-  (error (str msg " at line " (m :start-line) ", column " (m :start-column))))
+  (error (str msg " at line " (:l m) ", column " (:c m))))
 
 (defn third [s]
   (nth s 2))

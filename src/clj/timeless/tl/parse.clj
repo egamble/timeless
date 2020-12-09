@@ -10,33 +10,41 @@
 ;;; - Write command line script for generating TLS.
 
 
-;; Move the metadata map of each vector into the vector, as the second element.
+;; Extract and simplify the metadata map.
+(defn extract-meta [exp]
+  (let [m (meta exp)]
+    {:l (:instaparse.gll/start-line m)
+     :c (:instaparse.gll/start-column m)}))
+
+;; Move a simplified version of the metadata map of each vector into the vector, as the second element.
 (defn move-metadata [exp]
   (if (sequential? exp)
     (apply vector
            (first exp)
-           (meta exp)
+           (extract-meta exp)
            (map move-metadata (rest exp)))
     exp))
 
 
 ;; Returns: <assertions>
 (defn extract-assertions [parsed]
-  (loop [exp parsed
-         assertions ()]
-    (let [[_ m left-exp op right-exp] exp]
-      (if (= left-exp [:name "_"])
-        (if (= right-exp [:name "_"])
-          assertions
-          (error-meta m "no top-level guard operation"))
-        (recur left-exp
-               (cons right-exp
-                     assertions))))))
+  (let [f (fn [[k _ n]]
+            (and (= k :name)
+                 (= n "_")))]
+    (loop [exp parsed
+           assertions ()]
+      (let [[_ m left-exp op right-exp] exp]
+        (if (f left-exp)
+          (if (f right-exp)
+            assertions
+            (error-meta m "no top-level guard operation"))
+          (recur left-exp
+                 (cons right-exp
+                       assertions)))))))
 
 
 (defn is-application [exp]
-  (and (sequential? exp)
-       (= :application (first exp))))
+  (= :application (first exp)))
 
 (defn transform-application [m & exps]
   (apply vector
@@ -81,19 +89,17 @@
 
 
 (defn is-comparison-op [op]
-  (and (sequential? op)
-       (= :comparison-op (first op))))
+  (= :comparison-op (first op)))
 
 (defn is-comparison [exp]
-  (and (sequential? exp)
-       (= :operation (first exp))
+  (and (= :operation (first exp))
        (is-comparison-op (fourth exp))))
 
 (defn comparison->embedded [exp]
   (if (is-comparison exp)
     (let [[_ m _ _ right-exp] exp]
       (if (is-comparison right-exp)
-        (error m "an embedded assertion can't be a comparison chain")
+        (error-meta m "an embedded assertion can't be a comparison chain")
         (apply vector :embedded (rest exp))))
     exp))
 
@@ -149,8 +155,7 @@
 
 (defn is-comparison-or-chain [exp]
   (or (is-comparison exp)
-      (and (sequential? exp)
-           (= :chain (first exp)))))
+      (= :chain (first exp))))
 
 (defn comparison-operation->chain [m left-exp op right-exp]
   (if (and (is-comparison-op op)
