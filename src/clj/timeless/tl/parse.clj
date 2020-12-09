@@ -33,11 +33,11 @@
                  (= n "_")))]
     (loop [exp parsed
            assertions ()]
-      (let [[_ m left-exp op right-exp] exp]
+      (let [[_ _ left-exp op right-exp] exp]
         (if (f left-exp)
           (if (f right-exp)
             assertions
-            (error-meta m "no top-level guard operation"))
+            (error "no top-level guard operation"))
           (recur left-exp
                  (cons right-exp
                        assertions)))))))
