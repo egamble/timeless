@@ -7,6 +7,7 @@
 
 
 ;;; TODO:
+;;; - Find a way to not include ws in the line/column info.
 ;;; - Write command line script for generating TLS.
 
 
@@ -142,7 +143,7 @@
 
 (defn find-embedded-assertions [assertions]
   (let [transform-map  {:clause-maybe-embedded (fn [_ exp] (comparison->embedded exp))
-                        :element-maybe-embedded (fn [_ exp] comparison->embedded)
+                        :element-maybe-embedded (fn [_ exp] (comparison->embedded exp))
                         :operation transform-operation
                         :left-section transform-left-section
                         :right-section transform-right-section
