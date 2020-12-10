@@ -7,7 +7,6 @@
 
 
 ;;; TODO:
-;;; - Find a way to not include ws in the line/column info.
 ;;; - Write command line script for generating TLS.
 
 
