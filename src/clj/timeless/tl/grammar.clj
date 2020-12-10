@@ -71,30 +71,31 @@
 
        "comparison"
        (str
-        (format "<left-10> = left-paren gt-10 op-10 right-paren\n")
-        (format "<right-10> = left-paren op-10 gt-10 right-paren\n")
-        (format "operation-10 = gt-10 op-10 gte-10\n"))
+        (format "<left-10> = left-paren gt-10 op-ws-10 right-paren\n")
+        (format "<right-10> = left-paren op-ws-10 gt-10 right-paren\n")
+        (format "operation-10 = gt-10 op-ws-10 gte-10\n"))
 
        "#op"
        (str
-        (format "<left-%s> = left-paren gt-%s op-%s right-paren\n" pr pr pr)
-        (format "<right-%s> = left-paren op-%s gt-%s right-paren\n" pr pr pr)
-        (format "operation-%s = gt-%s op-%s gt-%s\n" pr pr pr pr))
+        (format "<left-%s> = left-paren gt-%s op-ws-%s right-paren\n" pr pr pr)
+        (format "<right-%s> = left-paren op-ws-%s gt-%s right-paren\n" pr pr pr)
+        (format "operation-%s = gt-%s op-ws-%s gt-%s\n" pr pr pr pr))
 
        "#opr"
        (str
-        (format "<left-%s> = left-paren gt-%s op-%s right-paren\n" pr pr pr)
-        (format "<right-%s> = left-paren op-%s gte-%s right-paren\n" pr pr pr)
-        (format "operation-%s = gt-%s op-%s gte-%s\n" pr pr pr pr))
+        (format "<left-%s> = left-paren gt-%s op-ws-%s right-paren\n" pr pr pr)
+        (format "<right-%s> = left-paren op-ws-%s gte-%s right-paren\n" pr pr pr)
+        (format "operation-%s = gt-%s op-ws-%s gte-%s\n" pr pr pr pr))
 
        "#opl"
        (str
-        (format "<left-%s> = left-paren gte-%s op-%s right-paren\n" pr pr pr)
-        (format "<right-%s> = left-paren op-%s gt-%s right-paren\n" pr pr pr)
-        (format "operation-%s = gte-%s op-%s gt-%s\n" pr pr pr pr)))
+        (format "<left-%s> = left-paren gte-%s op-ws-%s right-paren\n" pr pr pr)
+        (format "<right-%s> = left-paren op-ws-%s gt-%s right-paren\n" pr pr pr)
+        (format "operation-%s = gte-%s op-ws-%s gt-%s\n" pr pr pr pr)))
 
-     (format "\nop-%s = ws (%s) ws\n" pr (interleave-with-bar
-                                          (map (partial format "'%s'") names))))))
+     (format "\n<op-ws-%s> = ws op-%s ws\n" pr pr)
+     (format "op-%s = %s\n" pr (interleave-with-bar
+                                  (map (partial format "'%s'") names))))))
 
 (def large-gap "\n\n\n")
 
@@ -189,7 +190,7 @@
     (->> names-including-predefined
          (map (partial format "'%s'"))
          interleave-with-bar
-         (format "<declared-name> = ws (%s) ws\n")
+         (format "<declared-name> = %s\n")
          (str large-gap))))
 
 (defn build-operator-grammar [declarations]

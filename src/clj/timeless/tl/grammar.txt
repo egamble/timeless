@@ -1,7 +1,7 @@
 <S> = operation-1
 
 
-<exp> = group | application | section | set | seq | tuple | str | name | number | quote | unquote
+<exp> = group | application | section | set | seq | tuple | str-ws | name-ws | number-ws | quote | unquote
 
 
 group = left-paren gte-0 right-paren
@@ -47,7 +47,7 @@ seq = seq-left
       (
       element? |
       ((element-maybe-empty comma)+ element-maybe-empty) |
-      (element (comma element)? range element?)
+      (element (comma element)? range-ws element?)
       )
       seq-right
 
@@ -58,19 +58,22 @@ tuple = left-paren (element-maybe-empty comma)+ element-maybe-empty right-paren
 (*
 string literal
 *)
-str = ws #'\".*\"' ws
+<str-ws> = ws str ws
+str = #'\".*\"'
 
 
 
 (*
 number literal
 *)
-number = ws #'\d+(?:\.\d+)?' ws
+<number-ws> = ws number ws
+number = #'\d+(?:\.\d+)?'
 
 
 
+<name-ws> = ws name ws
 name = declared-name | regular-name
-<regular-name> = !op ws #'[a-zA-Z_]\w*' ws
+<regular-name> = !op #'[a-zA-Z_]\w*'
 
 
 
@@ -89,14 +92,15 @@ name = declared-name | regular-name
 <left-paren> = ws <'('> ws
 <right-paren> = ws <')'> ws
 
-range = ws <'..'> ws
+<range-ws> = ws range ws
+range = '..'
 
 <quote-op> = ws <"'"> ws
 <unquote-op> = ws <"~"> ws
 
 
 
-<quotable> = group | set | seq | tuple | str | name | number | op
+<quotable> = group | set | seq | tuple | str-ws | name-ws | number-ws | op
 quote = quote-op quotable
 unquote = unquote-op quotable
 
@@ -110,8 +114,9 @@ The arrow operation is right associative.
 <right-0> = left-paren arrow-op (truncated-embedded | gte-0) right-paren
 operation-0 = (truncated-embedded | gt-0) arrow-op (truncated-embedded | gte-0)
 
-<arrow-op> = op-0
-op-0 = ws ('->' | '→') ws
+<arrow-op> = op-ws-0
+<op-ws-0> = ws op-0 ws
+op-0 = '->' | '→'
 
 <gte-0> = exp | _gte-0
 <gt-0> = exp | _gt-0
@@ -128,8 +133,9 @@ The guard operation is left associative.
 <right-1> = left-paren guard-op gt-1 right-paren
 operation-1 = (truncated-embedded | gte-1) guard-op gt-1
 
-<guard-op> = op-1
-op-1 = ws '|' ws
+<guard-op> = op-ws-1
+<op-ws-1> = ws op-1 ws
+op-1 = '|'
 
 <gte-1> = exp | _gte-1
 <gt-1> = exp | _gt-1
