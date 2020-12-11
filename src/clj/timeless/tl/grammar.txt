@@ -1,7 +1,7 @@
 <S> = operation-1
 
 
-<exp> = group | application | section | set | seq | tuple | str-ws | name-ws | number-ws | quote | unquote
+<exp> = group | application | section | set | seq | str-ws | name-ws | number-ws | quote | unquote
 
 
 group = left-paren gte-0 right-paren
@@ -27,14 +27,19 @@ clause-maybe-embedded = gt-1
 <unabbreviated-clause> = clause-exp clause-segment*
 
 clause = abbreviated-clause | unabbreviated-clause
-set = (set-left set-right) | (set-left (clause comma)* clause set-right)
+set = set-left
+      (
+      epsilon |
+      ((clause comma)* clause)
+      )
+      set-right
 
 
 
 (*
-Seqs and tuple can have empty elements, as sections.
+Seqs can have empty elements, as sections.
 
-There is no way to make a seq or tuple section with a single empty (epsilon) element.
+There is no way to make a seq section with a single empty (epsilon) element.
 *)
 
 element-maybe-embedded = gte-0
@@ -50,8 +55,6 @@ seq = seq-left
       (element (comma element)? range-ws element?)
       )
       seq-right
-
-tuple = left-paren (element-maybe-empty comma)+ element-maybe-empty right-paren
 
 
 
@@ -100,7 +103,7 @@ range = '..'
 
 
 
-<quotable> = group | set | seq | tuple | str-ws | name-ws | number-ws | op
+<quotable> = group | set | seq | str-ws | name-ws | number-ws | op
 quote = quote-op quotable
 unquote = unquote-op quotable
 
