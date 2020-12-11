@@ -31,11 +31,11 @@
                        (map pr-str forms))
              "\n")))
 
-(defn tl->tls [in-path out-path]
+(defn tl->tls [in-path out-path generated-grammar-file]
   (let [source (slurp in-path)
         declarations (extract-declarations source)
-        assertions (parse declarations source)]
+        assertions (parse declarations source generated-grammar-file)]
     (write-tls-file out-path assertions)))
 
-(defn -main [in-file out-file]
-  (tl->tls in-file out-file))
+(defn -main [in-file out-file generated-grammar-file]
+  (tl->tls in-file out-file generated-grammar-file))

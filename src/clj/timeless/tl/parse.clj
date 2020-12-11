@@ -6,10 +6,6 @@
             [clojure.string :as str]))
 
 
-;;; TODO:
-;;; - Write command line script for generating TLS.
-
-
 ;; Extract and simplify the metadata map.
 (defn extract-meta [exp]
   (let [m (meta exp)]
@@ -203,11 +199,11 @@
 
 
 ;; Returns: <assertions>
-(defn parse [declarations source]
+(defn parse [declarations source generated-grammar-file]
   (let [predefined-grammar (slurp  "src/clj/timeless/tl/grammar.txt")
         [op-grammar encoded-precedences] (build-operator-grammar declarations)
         grammar (str predefined-grammar op-grammar)
-        _ (spit "generated-grammar.txt" grammar)
+        _ (spit generated-grammar-file grammar)
         parser (insta/parser grammar)
         ;; A simple guard operation is prepended to the source to make parsing the top-level
         ;; guard operations easier, and to provide better error messages when the top-level
