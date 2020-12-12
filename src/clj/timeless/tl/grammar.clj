@@ -55,6 +55,10 @@
        (filter #(#{"#op" "#opr" "#opl"} (first %))
                declarations)))
 
+(defn map->terminal-str [name]
+  ;; TODO: escape backslashes and maybe single quotes
+  (str "'" name "'"))
+
 (defn interleave-with-bar [terminals]
   (->> (interleave terminals
                    (repeat " | "))
@@ -97,7 +101,7 @@
         (format "operation-%s = gte-%s ws op-%s ws gt-%s\n" pr pr pr pr)))
 
      (format "\nop-%s = %s\n" pr (interleave-with-bar
-                                  (map (partial format "'%s'") names))))))
+                                  (map name->terminal-str names))))))
 
 (def large-gap "\n\n\n")
 
@@ -190,7 +194,7 @@
           names))
 
     (->> names-including-predefined
-         (map (partial format "'%s'"))
+         (map name->terminal-str)
          interleave-with-bar
          (format "<declared-name> = %s\n")
          (str large-gap))))
