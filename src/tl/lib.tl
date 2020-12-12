@@ -87,17 +87,17 @@
 {0 -> _    -> [],
  n -> x:xs -> x:take(dec n)xs}
 
-| map = Fn=>Seq=>Seq ∩
+| map = Any=>Seq=>Seq ∩
 {_ -> []   -> [],
  f -> x:xs -> f x : map f xs}
 
 | filter = Set=>Seq=>Seq ∩
 {_ -> []   -> [],
- S -> x:xs -> x∈S?x:r:?r | r=filter S xs}
+ S -> x:xs -> x∈S ? x:r $ r | r=filter S xs}
 
 | remove = Set=>Seq=>Seq ∩
 {_ -> []   -> [],
- S -> x:xs -> x∈S?r:?x:r | r=remove S xs}
+ S -> x:xs -> x∈S ? r $ x:r | r=remove S xs}
 
 | reduce = foldl = SetOf(Any=>Any=>Any)=>Any=>Seq=>Any ∩
 {_ -> z -> []   -> z,
@@ -113,7 +113,7 @@
 | zip =
 {a∈Seq -> b∈Seq
   -> [] | a=[] ∨ b=[],
-  -> (x,y): zip xs ys
+  -> [x,y]: zip xs ys
   | a=x:xs
     b=y:ys}
 
