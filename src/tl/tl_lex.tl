@@ -5,12 +5,12 @@
 
 | index_lines =
 {s ∈ Str | N = {newline} ->
- zip (1..∞) (remove N (lex_split N s))}
+ zip [1..] (remove N (lex_split N s))}
 
 | index_cols =
-{(line_index ≥ 1, line ∈ Str) ->
- map {(col_index, c) -> (line_index, col_index, c)}
-     (zip (1..∞) line)}
+{[line_index ≥ 1, line ∈ Str] ->
+ map {[col_index, c] -> [line_index, col_index, c]}
+     (zip [1..] line)}
 
 | tag_with_line_col =
 {s ∈ Str ->

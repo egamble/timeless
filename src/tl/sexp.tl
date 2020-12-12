@@ -1,7 +1,6 @@
-#use lib
-#use lex_split
-
 # A parser that recognizes S-expressions and builds an AST
+
+# Requires lib.tl and lex_split.tl.
 
 # space, tab, newline
 | WS             = Im " 	
@@ -26,7 +25,7 @@
 | parse =
 {[]                       -> [],
  t:ts | t ∉ Paren         -> t : parse ts,
- '(' ++ body ++ ')' ++ ts -> parse body : parse ts}
+ "(" ++ body ++ ")" ++ ts -> parse body : parse ts}
 
 | lex_parse = parse ∘ lex
 
@@ -35,5 +34,5 @@
 # The generated AST is ignored in this example definition of stdout.
 
 | out =
-{∈ Sexp -> 'match',
- ∉ Sexp -> 'no match'}
+{∈ Sexp -> "match",
+ ∉ Sexp -> "no match"}
