@@ -8,11 +8,8 @@
 
 | SeqOf = {S∈Set -> {s ∈ Seq | Im s ⊂ S}}
 
-#pr> = ∧ ∨ --> ->
-#pr= ∧ &&
-#pr= ∨ ||
-
-#opa ∧ ∨ && ||
+#opl 6 ∧ &&
+#opl 5 ∨ ||
 
 | (∧) = (&&) =
 {true  -> true  -> true,
@@ -30,8 +27,7 @@
  true  -> null  -> true,
  null  -> true  -> true}
 
-#opr ⟶ -->
-#pr= ⟶ -->
+#opr 4 --> ⟶
 
 | (⟶) = (-->) =
 {true  -> true  -> true,
@@ -41,33 +37,29 @@
  false -> null  -> true,
  null  -> true  -> true}
 
-#pr> -> ? $ |
+#op 3 ?
 
-#op ?
 | (?) =
 {true -> then -> else -> then,
  true -> then -> null -> then,
  false -> then -> else -> else,
  false -> null -> else -> else}
 
-#pr> ∘ \ => ∩
-#pr= ⇒ =>
-#opa ⇒ =>
+#opl 13 => ⇒
 
 | (⇒) = (=>) =
 {S∈Set -> T∈Set -> {∈S -> ∈T}}
 
-#opl \
+#opl 14 \
 
 | (\) = Set=>Set=>Set ∩
 {A -> B -> {x∈A | x∉B}}
 
-#opr ∘ .
-#pr= ∘ .
+#opr 19 ∘ .
 
 | (∘) = (.) = {f -> g -> x -> f (g x)}
 
-#opr $
+#opr 2 $
 
 | ($) = {f -> x -> f x}
 
@@ -115,9 +107,25 @@
 {_ -> z -> []   -> z,
  f -> z -> x:xs -> f x (foldr f z xs)}
 
+| mapcat = SetOf(Any=>Seq)=>Seq=>Seq ∩
+{f -> s -> reduce(++) [] (map f s)}
+
 | zip =
 {a∈Seq -> b∈Seq
   -> [] | a=[] ∨ b=[],
   -> (x,y): zip xs ys
   | a=x:xs
     b=y:ys}
+
+| toFn =
+{x -> toArr x}
+
+| toArr =
+{a∈Arr -> a,
+ _;x   -> toArr x,
+ S∈Set -> toArr x | x ∈ S
+}
+
+| tagType = {t;_ -> t} 
+
+| tagValue = {_;v -> v}

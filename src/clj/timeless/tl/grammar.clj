@@ -33,8 +33,12 @@
     "_"})
 
 (defn build-op-declarations [declarations]
-  (map (fn [[assoc precedence-str & names]]
-         (let [pr (read-string precedence-str)
+  (map (fn [declaration]
+         (let [[assoc precedence-str & names] declaration
+               pr (read-string precedence-str)
+               _ (when-not (number? pr)
+                   (error (str "precedence must be numeric: "
+                               (pr-str declaration))))
                op-declaration `(~assoc ; associativity: "#op" or "#opr" or "#opl"
                                 ~pr ; numeric precedence
                                 ~@names ; names of the operators
