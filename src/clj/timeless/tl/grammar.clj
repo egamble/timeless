@@ -55,9 +55,10 @@
        (filter #(#{"#op" "#opr" "#opl"} (first %))
                declarations)))
 
-(defn map->terminal-str [name]
-  ;; TODO: escape backslashes and maybe single quotes
-  (str "'" name "'"))
+(defn name->terminal-str [name]
+  (str "'"
+       (str/escape name {\\ "\\\\" \' "\\'"})
+       "'"))
 
 (defn interleave-with-bar [terminals]
   (->> (interleave terminals

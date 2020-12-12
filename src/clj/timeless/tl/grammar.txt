@@ -100,7 +100,7 @@ name = declared-name | regular-name
 range = <'..'>
 
 <quote-op> = <"'">
-<unquote-op> = <"~">
+<unquote-op> = <'~'>
 
 
 
