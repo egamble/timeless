@@ -1,6 +1,6 @@
-(ns timeless.tl.grammar
+(ns timeless.ast.grammar
   "Build a grammar from declarations."
-  (:require [timeless.tl.utils :refer :all]
+  (:require [timeless.ast.utils :refer :all]
             [clojure.string :as str]))
 
 

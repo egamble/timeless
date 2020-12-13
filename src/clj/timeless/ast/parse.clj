@@ -1,9 +1,13 @@
-(ns timeless.tl.parse
-  "Reform tokens to produce TLS S-expressions."
-  (:require [timeless.tl.grammar :refer [build-operator-grammar]]
-            [timeless.tl.utils :refer :all]
+(ns timeless.ast.parse
+  "Parse and post-process TL code to produce an AST."
+  (:require [timeless.ast.grammar :refer [build-operator-grammar]]
+            [timeless.ast.utils :refer :all]
             [instaparse.core :as insta]
             [clojure.string :as str]))
+
+
+;; TODO: There is a problem parsing sexp.tl. First, there's a syntax error in line 13. Second, that syntax
+;; error doesn't cause a parsing error, but it does produce as invalid AST, including a vector without a keyword.
 
 
 ;; Extract and simplify the metadata map.
@@ -200,15 +204,20 @@
 
 ;; Returns: <assertions>
 (defn parse [declarations source generated-grammar-file]
-  (let [predefined-grammar (slurp  "src/clj/timeless/tl/grammar.txt")
+  (let [predefined-grammar (slurp  "src/clj/timeless/ast/grammar.txt")
         [op-grammar encoded-precedences] (build-operator-grammar declarations)
         grammar (str predefined-grammar op-grammar)
         _ (spit generated-grammar-file grammar)
         parser (insta/parser grammar)
         ;; A simple guard operation is prepended to the source to make parsing the top-level
         ;; guard operations easier, and to provide better error messages when the top-level
-        ;; guards are missing or malformed. This makes column numbers incorrect for
-        ;; parsing errors in the first line. Need to find a way to fix this.
+        ;; guards are missing or malformed.
+
+        ;; TODO: This makes column numbers incorrect for both parsing and post-processing
+        ;; errors in the first line. Fix this for parsing errors in the first line by modifying
+        ;; the error message from instaparse. Fix this for post-processing errors by
+        ;; subtracting the length of the prefix from the column numbers of any metadata for line one.
+
         ;; A newline is added at the end in case the last line is a comment without a newline.
         source (str "_|_ " source "\n")
         parsed (insta/add-line-and-column-info-to-metadata source
