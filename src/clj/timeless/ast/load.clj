@@ -28,20 +28,21 @@
 (defn pretty [indent [k m & subforms]]
   (str indent "[" k " " m
        (when-not (empty? subforms)
-         (if (some vector? subforms)
-             (str "\n"
-                  (apply str (map (partial pretty (str indent "  "))
-                                  subforms))
-                  indent)
-             (apply str (map #(str " " (pr-str %))
-                             subforms))))
-       "]\n"))
+         (let [f (if (some vector? subforms)
+                   #(str "\n"
+                         (pretty (str indent "  ") %))
+                   #(str " "
+                         (pr-str %)))]
+           (apply str (map f subforms))))
+       "]"))
 
 (defn write-ast-file [out-path assertions]
-  (->> assertions
-       (map (partial pretty ""))
-       (apply str)
-       (spit out-path)))
+  (let [insert-newlines #(interleave % (repeat "\n"))]
+    (->> assertions
+         (map (partial pretty ""))
+         insert-newlines
+         (apply str)
+         (spit out-path))))
 
 (defn tl->ast [in-path out-path generated-grammar-file]
   (let [source (slurp in-path)

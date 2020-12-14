@@ -6,10 +6,6 @@
             [clojure.string :as str]))
 
 
-;; TODO: There is a problem parsing sexp.tl. First, there's a syntax error in line 13. Second, that syntax
-;; error doesn't cause a parsing error, but it does produce as invalid AST, including a vector without a keyword.
-
-
 ;; Extract and simplify the metadata map.
 (defn extract-meta [exp]
   (let [m (meta exp)]
