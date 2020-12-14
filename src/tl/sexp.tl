@@ -10,9 +10,9 @@
 | Alpha          = Im "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 | Alphanum       = Alpha ∪ Im "0123456789"
 | Alphanum_str   = {"", c:s | c ∈ Alphanum
-                            s ∈ Alphanum_str}
+                            | s ∈ Alphanum_str}
 | Symbol         = {c:s | c ∈ Alpha
-                          s ∈ Alphanum_str}
+                        | s ∈ Alphanum_str}
 
 | lex_remove_ws = remove WS
 

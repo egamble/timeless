@@ -160,7 +160,7 @@
 (defn comparison-operation->chain [m left-exp op right-exp]
   (if (and (is-comparison-op op)
            (is-comparison-or-chain right-exp))
-    (apply vector :chain m left-exp op (rest right-exp))
+    (apply vector :chain m left-exp op (rest (rest right-exp))) ; the two rests skip the keyword and map
     [:operation m left-exp op right-exp]))
 
 (defn find-chains [assertions]
