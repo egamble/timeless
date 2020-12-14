@@ -7,18 +7,24 @@
 
 
 ;; Extract and simplify the metadata map.
-(defn extract-meta [exp]
-  (let [m (meta exp)]
-    {:l (:instaparse.gll/start-line m)
-     :c (:instaparse.gll/start-column m)}))
+(defn extract-meta [prefix-len exp]
+  (let [m (meta exp)
+        line (:instaparse.gll/start-line m)
+        col (:instaparse.gll/start-column m)]
+    ;; Adjust the column number for expressions in the first line to subtract the
+    ;; characters for the extra guard operation that was prepended to the first line.
+    {:l line
+     :c (if (= line 1)
+          (- col prefix-len)
+          col)}))
 
 ;; Move a simplified version of the metadata map of each vector into the vector, as the second element.
-(defn move-metadata [exp]
+(defn move-metadata [prefix-len exp]
   (if (sequential? exp)
     (apply vector
            (first exp)
-           (extract-meta exp)
-           (map move-metadata (rest exp)))
+           (extract-meta prefix-len exp)
+           (map (partial move-metadata prefix-len) (rest exp)))
     exp))
 
 
@@ -184,11 +190,11 @@
 
 
 ;; Returns: <assertions>
-(defn post-process [parsed encoded-precedences]
-  (let [assertions (-> parsed
-                       first
-                       move-metadata
-                       extract-assertions)]
+(defn post-process [parsed encoded-precedences prefix-len]
+  (let [assertions (->> parsed
+                        first
+                        (move-metadata prefix-len)
+                        extract-assertions)]
     (if (seq assertions)
       (->> assertions
            (do-transformations encoded-precedences)
@@ -198,6 +204,21 @@
       (error "no expressions"))))
 
 
+;; If there's a parse error in the first line, adjust the instaparse error message
+;; to remove the extra guard operation that was prepended to the first line.
+(defn adjust-error-in-first-line [msg prefix-len]
+  (if (str/index-of msg "at line 1,")
+    (let [[first-line second-line third-line] (str/split-lines msg)
+          col (->> first-line
+                   (re-find #"column (\d+)\:")
+                   second
+                   read-string)]
+      (str "Parse error at line 1, column " (- col prefix-len) ":\n"
+           (subs second-line prefix-len) "\n"
+           (subs third-line prefix-len)))
+    msg))
+
+
 ;; Returns: <assertions>
 (defn parse [declarations source generated-grammar-file]
   (let [predefined-grammar (slurp  "src/clj/timeless/ast/grammar.txt")
@@ -205,17 +226,16 @@
         grammar (str predefined-grammar op-grammar)
         _ (spit generated-grammar-file grammar)
         parser (insta/parser grammar)
+
         ;; A simple guard operation is prepended to the source to make parsing the top-level
         ;; guard operations easier, and to provide better error messages when the top-level
         ;; guards are missing or malformed.
 
-        ;; TODO: This makes column numbers incorrect for both parsing and post-processing
-        ;; errors in the first line. Fix this for parsing errors in the first line by modifying
-        ;; the error message from instaparse. Fix this for post-processing errors by
-        ;; subtracting the length of the prefix from the column numbers of any metadata for line one.
-
         ;; A newline is added at the end in case the last line is a comment without a newline.
-        source (str "_|_ " source "\n")
+        prefix "_|_ "
+        prefix-len (count prefix)
+        source (str prefix source "\n")
+
         parsed (insta/add-line-and-column-info-to-metadata source
                                                            (parser source))]
     (if (insta/failure? parsed)
@@ -223,5 +243,6 @@
           pr-str
           (str/split #"\nExpected one of:")
           first
+          (adjust-error-in-first-line prefix-len)
           println)
-      (post-process parsed encoded-precedences))))
+      (post-process parsed encoded-precedences prefix-len))))
