@@ -25,16 +25,22 @@
        (map make-declaration)
        (remove nil?)))
 
-(defn pretty [indent [k m & subforms]]
-  (str indent "[" k " " m
-       (when-not (empty? subforms)
-         (let [f (if (some vector? subforms)
-                   #(str "\n"
-                         (pretty (str indent "  ") %))
-                   #(str " "
-                         (pr-str %)))]
-           (apply str (map f subforms))))
-       "]"))
+(defn pretty [indent form]
+  (let [m (second form)
+        subforms (if (map? m)
+                   (rest (rest form))
+                   (rest form))]
+    (str indent "[" (first form)
+         (when (map? m)
+           (str " " m))
+         (when-not (empty? subforms)
+           (let [f (if (some vector? subforms)
+                     #(str "\n"
+                           (pretty (str indent "  ") %))
+                     #(str " "
+                           (pr-str %)))]
+             (apply str (map f subforms))))
+         "]")))
 
 (defn write-ast-file [out-path assertions]
   (let [insert-newlines #(interleave % (repeat "\n"))]
