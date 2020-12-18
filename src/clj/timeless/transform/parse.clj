@@ -1,7 +1,7 @@
-(ns timeless.ast.parse
+(ns timeless.transform.parse
   "Parse and post-process TL code to produce an AST."
-  (:require [timeless.ast.grammar :refer [build-operator-grammar]]
-            [timeless.ast.utils :refer :all]
+  (:require [timeless.transform.grammar :refer [build-operator-grammar]]
+            [timeless.transform.utils :refer :all]
             [instaparse.core :as insta]
             [clojure.string :as str]))
 
@@ -45,15 +45,15 @@
                        assertions)))))))
 
 
-(defn is-application [exp]
-  (= :application (first exp)))
+(defn is-apply [exp]
+  (= :apply (first exp)))
 
-(defn transform-application [m & exps]
+(defn transform-apply [m & exps]
   (apply vector
-         :application
+         :apply
          m
          (mapcat (fn [exp]
-                   (if (is-application exp)
+                   (if (is-apply exp)
                      (rest exp)
                      (list exp)))
                  exps)))
@@ -63,9 +63,9 @@
 ;;; (2) changes :op-0 to :arrow-op and :op-1 to :guard-op, also removing the op-name string
 ;;; (3) changes :op-10 to :comparison-op to simplify searching for embedded assertions and chains
 ;;;     (This also allows user-defined comparison ops to form embedded assertions and chains.)
-;;; (5) replaces the exp of :number with a literal number
+;;; (5) replaces the exp of :num with a literal number
 ;;; (6) replaces the exp of :str with a literal string
-;;; (7) collapses nested :applications
+;;; (7) collapses nested :applys
 
 (defn do-transformations [encoded-precedences assertions]
   (let [transform-operation-nnn (fn [m & exps] (apply vector :operation m exps))
@@ -84,9 +84,9 @@
                           (into [[:op-0 (fn [m _] [:arrow-op m])]
                                  [:op-1 (fn [m _] [:guard-op m])]
                                  [:op-10 (fn [m op-name] [:comparison-op m op-name])]
-                                 [:number (fn [m exp] [:number m (read-string exp)])]
+                                 [:num (fn [m exp] [:num m (read-string exp)])]
                                  [:str (fn [m exp] [:str m (read-string exp)])]
-                                 [:application transform-application]]))]
+                                 [:apply transform-apply]]))]
     (map (partial insta/transform transform-map) assertions)))
 
 
@@ -220,8 +220,8 @@
 
 
 ;; Returns: <assertions>
-(defn parse [declarations source generated-grammar-file]
-  (let [predefined-grammar (slurp  "src/clj/timeless/ast/grammar.txt")
+(defn tl->ast [declarations source generated-grammar-file]
+  (let [predefined-grammar (slurp  "src/clj/timeless/transform/grammar.txt")
         [op-grammar encoded-precedences] (build-operator-grammar declarations)
         grammar (str predefined-grammar op-grammar)
         _ (spit generated-grammar-file grammar)

@@ -1,7 +1,7 @@
-(ns timeless.ast.load
-  "Load TL code."
-  (:require [timeless.ast.parse :refer [parse]]
-            [timeless.ast.utils :refer :all]
+(ns timeless.transform.main
+  "Transform TL to TLS code."
+  (:require [timeless.transform.parse :refer [tl->ast]]
+            [timeless.transform.utils :refer :all]
             [clojure.string :as str]))
 
 
@@ -36,7 +36,7 @@
            (apply str (map f subforms))))
        "]"))
 
-(defn write-ast-file [out-path assertions]
+(defn write-tls-file [out-path assertions]
   (let [insert-newlines #(interleave % (repeat "\n"))]
     (->> assertions
          (map (partial pretty ""))
@@ -44,11 +44,11 @@
          (apply str)
          (spit out-path))))
 
-(defn tl->ast [in-path out-path generated-grammar-file]
+(defn tl->tls [in-path out-path generated-grammar-file]
   (let [source (slurp in-path)
         declarations (extract-declarations source)
-        assertions (parse declarations source generated-grammar-file)]
-    (write-ast-file out-path assertions)))
+        assertions (tl->ast declarations source generated-grammar-file)]
+    (write-tls-file out-path assertions)))
 
 (defn -main [in-file out-file generated-grammar-file]
-  (tl->ast in-file out-file generated-grammar-file))
+  (tl->tls in-file out-file generated-grammar-file))

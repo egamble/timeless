@@ -6,11 +6,11 @@ or ends with whitespace, so that the start and end column numbers are correct.
 <S> = ws operation-1 ws
 
 
-<exp> = group | application | section | set | seq | str | name | number | quote | unquote
+<exp> = group | apply | section | set | seq | str | num | name | quote | unquote
 
 
 group = left-paren ws gte-0 ws right-paren
-application = exp (ws exp)+
+apply = exp (ws exp)+
 <section> = left-section | right-section | prefix-op
 prefix-op = left-paren ws op ws right-paren
 
@@ -50,8 +50,8 @@ There is no way to make a seq section with a single empty (epsilon) element.
 element-maybe-embedded = gte-0
 
 <element> = truncated-embedded | element-maybe-embedded
-<element-maybe-empty> = element | empty-element
-empty-element = epsilon
+<element-maybe-empty> = element | missing
+missing = epsilon
 
 seq = seq-left ws
       (
@@ -73,7 +73,7 @@ str = #'"[^"]*"'
 (*
 number literal
 *)
-number = #'\d+(?:\.\d+)?'
+num = #'\d+(?:\.\d+)?'
 
 
 
@@ -104,7 +104,7 @@ range = <'..'>
 
 
 
-<quotable> = group | set | seq | str | name | number | op
+<quotable> = group | set | seq | str | num | name | op
 quote = quote-op ws quotable
 unquote = unquote-op ws quotable
 
