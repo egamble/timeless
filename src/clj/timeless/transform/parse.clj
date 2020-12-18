@@ -135,7 +135,7 @@
    (transform-right right-exp op)])
 
 (defn transform-truncated-embedded [m & exps]
-  (apply vector :embedded m [:name "_"] exps))
+  (apply vector :embedded m [:name m "_"] exps))
 
 
 ;;; find-embedded-assertions:
