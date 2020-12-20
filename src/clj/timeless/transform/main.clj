@@ -1,6 +1,7 @@
 (ns timeless.transform.main
   "Transform TL to TLS code."
-  (:require [timeless.transform.parse :refer [tl->ast]]
+  (:require [timeless.transform.ast :refer [tl->ast]]
+            [timeless.transform.tls :refer [ast->tls]]
             [timeless.transform.utils :refer :all]
             [clojure.string :as str]))
 
@@ -25,36 +26,40 @@
        (map make-declaration)
        (remove nil?)))
 
-(defn pretty [indent form]
+(defn pretty [indent suppress-metadata? form]
   (let [m (second form)
         subforms (if (map? m)
                    (rest (rest form))
                    (rest form))]
     (str indent "[" (first form)
-         (when (map? m)
+         (when (and (not suppress-metadata?)
+                    (map? m))
            (str " " m))
          (when-not (empty? subforms)
            (let [f (if (some vector? subforms)
                      #(str "\n"
-                           (pretty (str indent "  ") %))
+                           (pretty (str indent "  ")
+                                   suppress-metadata?
+                                   %))
                      #(str " "
                            (pr-str %)))]
              (apply str (map f subforms))))
          "]")))
 
-(defn write-tls-file [out-path assertions]
+(defn write-tls-file [out-path assertions suppress-metadata?]
   (let [insert-newlines #(interleave % (repeat "\n"))]
     (->> assertions
-         (map (partial pretty ""))
+         (map (partial pretty "" suppress-metadata?))
          insert-newlines
          (apply str)
          (spit out-path))))
 
-(defn tl->tls [in-path out-path generated-grammar-file]
+(defn tl->tls [in-path out-path & [generated-grammar-file suppress-metadata?]]
   (let [source (slurp in-path)
         declarations (extract-declarations source)
-        assertions (tl->ast declarations source generated-grammar-file)]
-    (write-tls-file out-path assertions)))
+        assertions (->> (tl->ast declarations source generated-grammar-file)
+                        ast->tls)]
+    (write-tls-file out-path assertions suppress-metadata?)))
 
-(defn -main [in-file out-file generated-grammar-file]
-  (tl->tls in-file out-file generated-grammar-file))
+(defn -main [in-file out-file & [generated-grammar-file suppress-metadata?]]
+  (tl->tls in-file out-file generated-grammar-file suppress-metadata?))
