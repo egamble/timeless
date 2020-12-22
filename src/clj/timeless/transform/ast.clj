@@ -60,7 +60,7 @@
 
 ;;; do-transformations:
 ;;; (1) removes the precedence suffix from :operation-nnn and :op-nnn, except for :op-0, :op-1 and :op-10
-;;; (2) changes :op-0 to :arrow-op and :op-1 to :guard-op, also removing the op-name string
+;;; (2) changes :op-0 to :arrow-op, :op-1 to :guard-op, and :op-16 to :tag-op, also removing the op-name string
 ;;; (3) changes :op-10 to :comparison-op to simplify searching for embedded assertions and chains
 ;;;     (This also allows user-defined comparison ops to form embedded assertions and chains.)
 ;;; (5) replaces the exp of :num with a literal number
@@ -83,6 +83,7 @@
                                     encoded-precedences))
                       (into [[:op-0 (fn [m _] [:arrow-op m])]
                              [:op-1 (fn [m _] [:guard-op m])]
+                             [:op-16 (fn [m _] [:tag-op m])]
                              [:op-10 (fn [m op-name] [:comparison-op m op-name])]
                              [:num (fn [m exp] [:num m (read-string exp)])]
                              [:str (fn [m exp] [:str m (read-string exp)])]
