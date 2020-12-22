@@ -6,11 +6,20 @@
 
 
 ;; TODO:
+
+;; This doesn't work:
+;; | { (a | b | z) | c | e,
+;;                 | f | d}
+
+;; These two guards don't combine:
+;; | [ a@b | c ]
+
+;; - Gensym for _ in :embeddeds. Reuse as much code as possible in the two different transformations of :embeddeds.
+;; - Check various combinations of guards, arrows and embeddeds.
 ;; - Wrap the right side of :arrows that are within a :bind with a :bind, if not already wrapped. What about :values?
-;; - Deal with right and left sections (including :neg), and merge with other :applys.
-;; - Deal with :embedded. This is tricky, because converting to :guard before dealing with truncation messes up the truncation alignment. So, if the :embedded is within a :guard, combine it with the :guard, otherwise make a new :guard.
 ;; - Fill in the names of :binds.
-;; - Decide whether :chain is legal TLS, and update Interpreter.md.
+;; - Decide whether :chain is legal TLS, and, if so, update Interpreter.md.
+;; - Clean up the code by making small helper functions, e.g. for (rest (rest ...)) and (= <keyword> (first ...)).
 
 
 (defn get-meta [exp]
@@ -103,14 +112,18 @@
                                (list (f last-exp)))]))))))
 
 
+(defn guard-assertions [right-exp]
+  (if (= :and (first right-exp))
+    (rest (rest right-exp))
+    (list right-exp)))
+
+
 (defn break-up-prev-guard [prev-guard]
   (let [k (first prev-guard)]
     (if (= :guard k)
-      (let [[_ _ guard-exp assertion] prev-guard]
-        [guard-exp
-         (if (= :and (first assertion))
-           (rest (rest assertion))
-           (list assertion))])
+      (let [[_ _ left-exp right-exp] prev-guard]
+        [left-exp
+         (guard-assertions right-exp)])
       (if (= :arrow k)
         (break-up-prev-guard (third prev-guard))
         [prev-guard ()]))))
@@ -143,7 +156,7 @@
   (let [prev-guard
         (get-prev-guard prev-clause index)
 
-        [prev-guard-exp prev-assertions]
+        [prev-left-exp prev-assertions]
         (break-up-prev-guard prev-guard)
 
         num-diff (- (count prev-assertions)
@@ -153,8 +166,8 @@
                   "truncated clause has more guard assertions than previous clause"))
     (let [all-assertions (concat (take num-diff prev-assertions)
                                  assertions)]
-      [:guard (get-meta prev-guard-exp)
-       prev-guard-exp
+      [:guard (get-meta prev-left-exp)
+       prev-left-exp
        (if (> (count all-assertions) 1)
          (apply vector
                 :and (get-meta (first all-assertions))
@@ -226,6 +239,13 @@
     (map (partial insta/transform trans-map) assertions)))
 
 
+(defn operation->apply [m left-exp op right-exp]
+  [:apply m
+   (apply vector :name (rest op))
+   left-exp
+   right-exp])
+
+
 (defn transform-ast-operation [m left-exp op right-exp]
   (let [new-op ({:arrow-op :arrow
                  :guard-op :guard
@@ -235,10 +255,25 @@
       [new-op m
        left-exp
        right-exp]
-      [:apply m
-       (apply vector :name (rest op))
-       left-exp
-       right-exp])))
+      (operation->apply m left-exp op right-exp))))
+
+
+(defn transform-ast-left-section [m left-exp op]
+  [:apply m
+   (apply vector :name (rest op))
+   left-exp])
+
+
+(defn transform-ast-right-section [m op right-exp]
+  (if (= "-" (third op))
+    [:neg m right-exp]
+    [:apply m
+     [:flip m (apply vector :name (rest op))]
+     right-exp]))
+
+
+(defn transform-ast-prefix-op [m op]
+  (apply vector :name (rest op)))
 
 
 (defn combine-applys [m & exps]
@@ -250,9 +285,44 @@
                exps))))
 
 
+;; TODO: gensym for _ in embedded
+
+(defn combine-guards [m left-exp right-exp]
+  (apply vector :guard m
+         (if (= :guard (first left-exp))
+           (let [inner-guards (guard-assertions (fourth left-exp))
+                 outer-guards (guard-assertions right-exp)]
+             (list
+              (third left-exp)
+              (apply vector :and (concat inner-guards outer-guards))))
+           (if (= :embedded (first left-exp))
+             (list
+              (third left-exp)
+              (apply vector :and (cons (apply operation->apply (rest left-exp))
+                                       (guard-assertions right-exp))))
+             (list
+              left-exp
+              right-exp)))))
+
+
 (defn transform-operations [assertions]
   (let [trans-map {:operation transform-ast-operation
-                   :apply combine-applys}]
+                   :left-section transform-ast-left-section
+                   :right-section transform-ast-right-section
+                   :prefix-op transform-ast-prefix-op
+                   :apply combine-applys
+                   :guard combine-guards}]
+    (map (partial insta/transform trans-map) assertions)))
+
+
+;; TODO: gensym for _ in embedded. Reuse as much code as possible from the earlier transformation of :embeddeds.
+
+(defn transform-embedded [m left-exp op right-exp]
+  [:guard m left-exp (operation->apply m left-exp op right-exp)])
+
+
+(defn transform-remaining-embeddeds [assertions]
+  (let [trans-map {:embedded transform-embedded}]
     (map (partial insta/transform trans-map) assertions)))
 
 
@@ -260,4 +330,5 @@
 (defn ast->tls [assertions]
   (->> assertions
        rebuild-sets
-       transform-operations))
+       transform-operations
+       transform-remaining-embeddeds))
