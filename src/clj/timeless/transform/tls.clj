@@ -11,7 +11,7 @@
 ;; - Combine nested :applys.
 ;; - Deal with :embedded. This is tricky, because converting to :guard before dealing with truncation messes up the truncation alignment. So, if the :embedded is within a :guard, combine it with the :guard, otherwise make a new :guard.
 ;; - Fill in the names of :binds.
-;; - Decide whether :chain is legal TLS.
+;; - Decide whether :chain is legal TLS, and update Interpreter.md.
 
 
 (defn get-meta [exp]
