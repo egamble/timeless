@@ -77,8 +77,8 @@ num = #'\d+(?:\.\d+)?'
 
 
 
-name = declared-name | regular-name
-<regular-name> = !op #'[a-zA-Z_]\w*'
+name = !op (declared-name | regular-name)
+<regular-name> = #'[a-zA-Z_]\w*'
 
 
 

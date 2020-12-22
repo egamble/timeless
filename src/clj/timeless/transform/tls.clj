@@ -6,9 +6,8 @@
 
 
 ;; TODO:
-;; - Find out why != and !@ don't parse correctly.
 ;; - Wrap the right side of :arrows that are within a :bind with a :bind, if not already wrapped. What about :values?
-;; - Combine nested :applys.
+;; - Deal with right and left sections (including :neg), and merge with other :applys.
 ;; - Deal with :embedded. This is tricky, because converting to :guard before dealing with truncation messes up the truncation alignment. So, if the :embedded is within a :guard, combine it with the :guard, otherwise make a new :guard.
 ;; - Fill in the names of :binds.
 ;; - Decide whether :chain is legal TLS, and update Interpreter.md.
@@ -242,8 +241,18 @@
        right-exp])))
 
 
+(defn combine-applys [m & exps]
+  (let [left-exp (first exps)]
+    (apply vector :apply m
+           (if (= :apply (first left-exp))
+              (concat (rest (rest left-exp))
+                        (rest exps))
+               exps))))
+
+
 (defn transform-operations [assertions]
-  (let [trans-map {:operation transform-ast-operation}]
+  (let [trans-map {:operation transform-ast-operation
+                   :apply combine-applys}]
     (map (partial insta/transform trans-map) assertions)))
 
 
