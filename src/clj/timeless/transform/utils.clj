@@ -35,3 +35,9 @@
 
 (defn make-exp [k m args]
   (apply vector k m args))
+
+(defn uuid []
+  (.toString (java.util.UUID/randomUUID)))
+
+(defn cons-at-end [s x]
+  (concat s (list x)))

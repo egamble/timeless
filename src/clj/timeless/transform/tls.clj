@@ -8,10 +8,14 @@
 ;; TODO:
 
 ;; gensyms:
-;; - For now, just use "gensym-nnn" for gensym names, and don't worry about collisions.
+;; - Use UUIDs, for now, for gensyms, to avoid collisions not only in the current file,
+;;   but with other TLS files that can be concatenated. Maybe find another solution later, such as:
+;;   - adding the gensyms to the nearest :bind to prevent collusions,
+;;     while using simple gensyms such as "g1", "g2", etc., or
+;;   - using a keyword other than :name, with the disadvantage of complicating context maps.
+p
 ;; - Gensym for _ in :embeddeds. Reuse as much code as possible in the two different transformations of :embeddeds.
 ;; - If the left side of an embedded is not just a :name, put a gensym there and add an equality assertion to an :and.
-;; - In the expansion of :chains to :ands, if one of the expressions is not just a :name, put a gensym there and add an equality comparison.
 
 ;; - Wrap the right side of :arrows that are within a :bind with a :bind, if not already wrapped. What about :values?
 ;; - Fill in the names of :binds.
@@ -92,8 +96,8 @@
                         joinable-clause)
 
                   ;; else it's a :values expression
-                  (concat exps
-                          (list joinable-clause))))
+                  (cons-at-end exps
+                               joinable-clause)))
 
       ;; else index > 0
       (let [f (fn [[_ m1 names1 [_ m2 names2 next-clause]]]
@@ -108,8 +112,8 @@
           ;; else it's a :values expression
           (let [exps-but-last (butlast exps)
                 last-exp (last exps)]
-            [:values m (concat exps-but-last
-                               (list (f last-exp)))]))))))
+            [:values m (cons-at-end exps-but-last
+                                    (f last-exp))]))))))
 
 
 (defn guard-assertions [right-exp]
@@ -280,17 +284,43 @@
             (exp-args op)))
 
 
+;; TODO: rewrite this with reverse, for efficiency
+(defn make-gensym-comparison [[new-exps extra-comparisons] pair]
+  (let [[exp op] pair
+
+        [new-pair new-extra-comparisons]
+        (if (has-type :name exp)
+          [pair ()]
+          (let [new-name (uuid)
+                m (get-meta exp)]
+            [(list [:name m new-name] op)
+             (list
+              [:apply m
+               [:name m "="]
+               [:name m new-name]
+               exp])]))]
+    [(concat new-exps new-pair)
+     (concat extra-comparisons new-extra-comparisons)]))
+
+
 (defn transform-chain [m & exps]
-  (let [comparison-triples (partition 3 2 exps)]
+  (let [[new-exps extra-comparisons]
+        (reduce make-gensym-comparison
+                  [() ()]
+                  (partition 2 exps))
+
+        comparison-triples (partition 3 2
+                                      (cons-at-end new-exps
+                                                   (last exps)))]
     (make-exp :and m
-              (map (fn [comparison-triple]
-                     (apply operation->apply (get-meta (first comparison-triple))
-                            comparison-triple))
-                   comparison-triples))))
+              (concat extra-comparisons
+                      (map (fn [comparison-triple]
+                             (apply operation->apply (get-meta (first comparison-triple))
+                                    comparison-triple))
+                           comparison-triples)))))
 
 
 ;; TODO: gensym for _ in embedded. Reuse as much code as possible from the earlier transformation of :embeddeds.
-
 (defn transform-embedded [m left-exp op right-exp]
   [:guard m
    left-exp
@@ -298,7 +328,6 @@
 
 
 ;; TODO: gensym for _ in embedded
-
 (defn combine-guards [m left-exp right-exp]
   (make-exp :guard m
             (if (has-type :guard left-exp)
@@ -306,7 +335,8 @@
                     outer-guards (guard-assertions right-exp)]
                 (list
                  (third left-exp)
-                 (make-and (concat inner-guards outer-guards))))
+                 (make-and (concat inner-guards
+                                   outer-guards))))
               (if (has-type :embedded left-exp)
                 (list
                  (third left-exp)
