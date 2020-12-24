@@ -7,6 +7,9 @@
 
 ;; TODO:
 
+;; - Make :arrow, :guard, :tag and :neg appliable functions. Make applications lists, without :apply. Remove :names from the vector. Make sure sections of :arrow, :guard, and :tag work.
+
+
 ;; gensyms:
 ;; - Use UUIDs, for now, for gensyms, to avoid collisions not only in the current file,
 ;;   but with other TLS files that can be concatenated. Maybe find another solution later, such as:
