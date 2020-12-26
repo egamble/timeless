@@ -27,24 +27,32 @@
        (remove nil?)))
 
 (defn pretty [indent suppress-metadata? form]
-  (let [m (second form)
-        subforms (if (map? m)
-                   (rest (rest form))
-                   (rest form))]
-    (str indent "[" (first form)
-         (when (and (not suppress-metadata?)
-                    (map? m))
-           (str " " m))
-         (when-not (empty? subforms)
-           (let [f (if (some vector? subforms)
-                     #(str "\n"
-                           (pretty (str indent "  ")
-                                   suppress-metadata?
-                                   %))
-                     #(str " "
-                           (pr-str %)))]
-             (apply str (map f subforms))))
-         "]")))
+  (if (list? form)
+    (str indent "("
+         (apply str (map 
+                     #(pretty (str indent "  ")
+                              suppress-metadata?
+                              %)
+                     (rest form)))
+         ")")
+    (let [m (second form)
+          subforms (if (map? m)
+                     (rest (rest form))
+                     (rest form))]
+      (str indent "[" (first form)
+           (when (and (not suppress-metadata?)
+                      (map? m))
+             (str " " m))
+           (when-not (empty? subforms)
+             (let [f (if (some vector? subforms)
+                       #(str "\n"
+                             (pretty (str indent "  ")
+                                     suppress-metadata?
+                                     %))
+                       #(str " "
+                             (pr-str %)))]
+               (apply str (map f subforms))))
+           "]"))))
 
 (defn write-tls-file [out-path assertions suppress-metadata?]
   (let [insert-newlines #(interleave % (repeat "\n"))]

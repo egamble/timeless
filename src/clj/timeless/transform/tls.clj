@@ -7,9 +7,6 @@
 
 ;; TODO:
 
-;; - Make :arrow, :guard, :tag and :neg appliable functions. Make applications lists, without :apply. Remove :names from the vector. Make sure sections of :arrow, :guard, and :tag work.
-
-
 ;; gensyms:
 ;; - Use UUIDs, for now, for gensyms, to avoid collisions not only in the current file,
 ;;   but with other TLS files that can be concatenated. Maybe find another solution later, such as:
@@ -65,12 +62,12 @@ p
   (let [exps (build-leading-guard exps)
         m (get-meta (first exps))
         op (second exps)]
-    [:bind m [:names m] ; the names will be filled in later, and if there are no names, the :bind will be removed
+    [:bind m [] ; the names will be filled in later, and if there are no names, the :bind will be removed
      (if (second exps) ; the :arrow-op
        (let [remaining-exps (third-on exps) ; remaining exps, starting with the third exp,
                                         ; i.e. the exp after the :arrow-op
              ]
-         [:arrow m
+         [:arrow-apply m
           (first exps)
           (reform-clause remaining-exps)])
        (first exps))]))
@@ -79,7 +76,7 @@ p
 (defn count-binds [clause]
   (if (= :bind (first clause))
     (let [bind-exp (fourth clause)]
-      (if (= :arrow (first bind-exp))
+      (if (= :arrow-apply (first bind-exp))
         (+ 1 (count-binds (fourth bind-exp)))
         1))
     (if (= :values (first clause))
@@ -105,7 +102,7 @@ p
       ;; else index > 0
       (let [f (fn [[_ m1 names1 [_ m2 names2 next-clause]]]
                 [:bind m1 names1
-                 [:arrow m2 names2
+                 [:arrow-apply m2 names2
                   (join-with-clause next-clause
                                     joinable-clause
                                     (- index 1))]])]
@@ -126,11 +123,11 @@ p
 
 
 (defn break-up-prev-guard [prev-guard]
-  (if (has-type :guard prev-guard)
+  (if (has-type :guard-apply prev-guard)
     (let [[_ _ left-exp right-exp] prev-guard]
       [left-exp
        (guard-assertions right-exp)])
-    (if (has-type :arrow prev-guard)
+    (if (has-type :arrow-apply prev-guard)
       (break-up-prev-guard (third prev-guard))
       [prev-guard ()])))
 
@@ -148,7 +145,7 @@ p
 
       ;; else index > 0
       (let [f (fn [[_ _ _ ; :bind
-                   [_ _ _ next-clause] ; :arrow
+                   [_ _ _ next-clause] ; :arrow-apply
                    ]]
                 (get-prev-guard next-clause
                                 (- index 1)))]
@@ -173,7 +170,7 @@ p
                   "truncated clause has more guard assertions than previous clause"))
     (let [all-assertions (concat (take num-diff prev-assertions)
                                  assertions)]
-      [:guard (get-meta prev-left-exp)
+      [:guard-apply (get-meta prev-left-exp)
        prev-left-exp
        (if (> (count all-assertions) 1)
          (make-and all-assertions)
@@ -253,38 +250,47 @@ p
    right-exp])
 
 
+(def arrow-or-guard->key {:arrow-op :apply-arrow
+                          :guard-op :apply-guard})
+
+(def arrow-or-guard->name {:arrow-op (list "->")
+                           :guard-op (list "|")})
+
+
+(defn make-op-name [op]
+  (make-exp :name (get-meta op)
+             (or (arrow-or-guard->name (first op))
+                 (exp-args op))))
+
+
 (defn transform-ast-operation [m left-exp op right-exp]
-  (let [new-op ({:arrow-op :arrow
-                 :guard-op :guard
-                 :tag-op :tag}
-                (first op))]
-    (if new-op
-      [new-op m
-       left-exp
-       right-exp]
-      (operation->apply m left-exp op right-exp))))
+  [(or (arrow-or-guard->key (first op))
+       :apply)
+   m
+   left-exp
+   (make-op-name op)
+   right-exp])
 
 
 (defn transform-ast-left-section [m left-exp op]
   [:apply m
-   (make-exp :name (get-meta op)
-             (exp-args op))
+   (make-op-name op)
    left-exp])
 
 
 (defn transform-ast-right-section [m op right-exp]
   (if (= "-" (third op))
-    [:neg m right-exp]
     [:apply m
-     [:flip m
-      (make-exp :name (get-meta op)
-                (exp-args op))]
+     [:neg (get-meta op)]
+     right-exp]
+    [:apply m
+     [:flip m]
+     (make-op-name op)
      right-exp]))
 
 
 (defn transform-ast-prefix-op [m op]
-  (make-exp :name (get-meta op)
-            (exp-args op)))
+  (make-op-name op))
 
 
 ;; TODO: rewrite this with reverse, for efficiency
@@ -325,28 +331,32 @@ p
 
 ;; TODO: gensym for _ in embedded. Reuse as much code as possible from the earlier transformation of :embeddeds.
 (defn transform-embedded [m left-exp op right-exp]
-  [:guard m
+  [:apply-guard m
    left-exp
+   [:name m "|"]
    (operation->apply m left-exp op right-exp)])
 
 
 ;; TODO: gensym for _ in embedded
-(defn combine-guards [m left-exp right-exp]
-  (make-exp :guard m
-            (if (has-type :guard left-exp)
+(defn combine-guards [m left-exp op right-exp]
+  (make-exp :apply-guard m
+            (if (has-type :apply-guard left-exp)
               (let [inner-guards (guard-assertions (fourth left-exp))
                     outer-guards (guard-assertions right-exp)]
                 (list
                  (third left-exp)
+                 (fourth left-exp)
                  (make-and (concat inner-guards
                                    outer-guards))))
               (if (has-type :embedded left-exp)
                 (list
                  (third left-exp)
+                 op
                  (make-and (cons (apply operation->apply (rest left-exp))
                                  (guard-assertions right-exp))))
                 (list
                  left-exp
+                 op
                  right-exp)))))
 
 
@@ -378,9 +388,21 @@ p
 
 
 (defn transformations-2 [assertions]
-  (let [trans-map {:guard combine-guards
-                   :apply combine-applys
+  (let [trans-map {:apply-guard combine-guards
                    :and combine-ands}]
+    (map (partial insta/transform trans-map) assertions)))
+
+
+(defn transformations-3 [assertions]
+  (let [trans-map {:apply-guard (fn [m & r]
+                                  (apply vector :apply m r))
+                   :apply combine-applys}]
+    (map (partial insta/transform trans-map) assertions)))
+
+
+(defn transformations-4 [assertions]
+  (let [trans-map {:apply (fn [m & r]
+                            (apply list r))}]
     (map (partial insta/transform trans-map) assertions)))
 
 
@@ -389,4 +411,6 @@ p
   (->> assertions
        rebuild-sets
        transformations-1
-       transformations-2))
+       transformations-2
+       transformations-3
+       transformations-4))
