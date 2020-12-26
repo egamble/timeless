@@ -396,11 +396,17 @@ p
 (defn transformations-3 [assertions]
   (let [trans-map {:apply-guard (fn [m & r]
                                   (apply vector :apply m r))
-                   :apply combine-applys}]
+                   :apply-arrow (fn [m & r]
+                                  (apply vector :apply m r))}]
     (map (partial insta/transform trans-map) assertions)))
 
 
 (defn transformations-4 [assertions]
+  (let [trans-map {:apply combine-applys}]
+    (map (partial insta/transform trans-map) assertions)))
+
+
+(defn transformations-5 [assertions]
   (let [trans-map {:apply (fn [m & r]
                             (apply list r))}]
     (map (partial insta/transform trans-map) assertions)))
@@ -413,4 +419,5 @@ p
        transformations-1
        transformations-2
        transformations-3
-       transformations-4))
+       transformations-4
+       transformations-5))

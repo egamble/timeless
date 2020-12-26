@@ -26,41 +26,64 @@
        (map make-declaration)
        (remove nil?)))
 
-(defn pretty [indent suppress-metadata? form]
-  (if (list? form)
-    (str indent "("
-         (apply str (map 
-                     #(pretty (str indent "  ")
-                              suppress-metadata?
-                              %)
-                     (rest form)))
-         ")")
-    (let [m (second form)
-          subforms (if (map? m)
-                     (rest (rest form))
-                     (rest form))]
-      (str indent "[" (first form)
-           (when (and (not suppress-metadata?)
-                      (map? m))
-             (str " " m))
-           (when-not (empty? subforms)
-             (let [f (if (some vector? subforms)
-                       #(str "\n"
-                             (pretty (str indent "  ")
-                                     suppress-metadata?
-                                     %))
-                       #(str " "
-                             (pr-str %)))]
-               (apply str (map f subforms))))
-           "]"))))
+
+(defn insert-newlines [s]
+  (interleave s (repeat "\n")))
+
+
+(defn pretty [indent suppress-metadata? initial-indent? form]
+  (let [next-indent (str indent "  ")]
+    (cond (list? form)
+          (str (when initial-indent? indent) "( "
+               (pretty next-indent
+                       suppress-metadata?
+                       false
+                       (first form))
+               (->> (rest form)
+                    (map #(pretty next-indent
+                                  suppress-metadata?
+                                  true
+                                  %))
+                    insert-newlines
+                    butlast
+                    (apply str "\n"))
+               ")")
+
+          (vector? form)
+          (let [m (second form)
+                subforms (if (map? m)
+                           (rest (rest form))
+                           (rest form))]
+            (str (when initial-indent? indent)
+                 "[" (first form)
+                 (when (and (not suppress-metadata?)
+                            (map? m))
+                   (str " " m))
+                 (when-not (empty? subforms)
+                   (let [p (if (some sequential? subforms)
+                             "\n"
+                             " ")]
+                     (apply str (map #(str p
+                                           (pretty next-indent
+                                                   suppress-metadata?
+                                                   true
+                                                   %))
+                                     subforms))))
+                 "]"))
+
+          :else
+          (pr-str form))))
+
 
 (defn write-tls-file [out-path assertions suppress-metadata?]
-  (let [insert-newlines #(interleave % (repeat "\n"))]
-    (->> assertions
-         (map (partial pretty "" suppress-metadata?))
-         insert-newlines
-         (apply str)
-         (spit out-path))))
+  (->> assertions
+       (map (partial pretty
+                     ""
+                     suppress-metadata?
+                     true))
+       insert-newlines
+       (apply str)
+       (spit out-path)))
 
 (defn tl->tls [in-path out-path & [generated-grammar-file suppress-metadata?]]
   (let [source (slurp in-path)
