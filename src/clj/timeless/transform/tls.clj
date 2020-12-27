@@ -20,7 +20,7 @@ p
 ;; - Wrap the right side of :arrows that are within a :bind with a :bind, if not already wrapped. What about :values?
 ;; - Fill in the names of :binds.
 
-;; - Test various combinations of guards, arrows and embeddeds.
+;; - Test various combinations of guards, arrows and embeddeds, and check the metadata.
 
 
 
@@ -38,18 +38,17 @@ p
 
 
 (defn make-and [exps]
-  (make-exp :and
-            (get-meta (first exps))
-            exps))
+  (v :and
+     (get-meta (first exps))
+     exps))
 
 
 (defn build-leading-guard [exps]
-  (let [[guard-exps exps-after-guards]
-        (break-off-guards exps)
-
+  (let [[guard-exps exps-after-guards] (break-off-guards exps)
         [exp & guards] guard-exps]
     (if (seq guards)
-      (cons [:guard (get-meta exp)
+      (cons [:apply-guard (get-meta exp)
+             [:name (get-meta (second exps)) "|"]
              exp
              (if (second guards)
                (make-and guards)
@@ -61,53 +60,61 @@ p
 (defn reform-clause [exps]
   (let [exps (build-leading-guard exps)
         m (get-meta (first exps))
-        op (second exps)]
+        arrow-op (second exps)]
     [:bind m [] ; the names will be filled in later, and if there are no names, the :bind will be removed
-     (if (second exps) ; the :arrow-op
+     (if arrow-op
        (let [remaining-exps (third-on exps) ; remaining exps, starting with the third exp,
                                         ; i.e. the exp after the :arrow-op
              ]
-         [:arrow-apply m
+         [:apply-arrow m
+          [:name (get-meta arrow-op) "->"]
           (first exps)
           (reform-clause remaining-exps)])
        (first exps))]))
 
 
 (defn count-binds [clause]
-  (if (= :bind (first clause))
+  (cond
+    (= :bind (first clause))
     (let [bind-exp (fourth clause)]
-      (if (= :arrow-apply (first bind-exp))
-        (+ 1 (count-binds (fourth bind-exp)))
+      (if (= :apply-arrow (first bind-exp))
+        (+ 1 (count-binds (fifth bind-exp))) ; (fifth bind-exp) is the :apply-arrow's right-exp
         1))
-    (if (= :values (first clause))
-      (let [exps (exp-args clause)]
-        (count-binds (last exps)))
-      (error-meta (get-meta clause)
-                  "internal error counting binds"))))
+
+    (= :values (first clause))
+    (let [exps (all-args clause)]
+      (count-binds (last exps)))
+
+    :else
+    (error-meta (get-meta clause)
+                "internal error counting binds")))
 
 
-(defn join-with-clause [clause joinable-clause index]
-  (let [[_ m & exps] clause
-        is-bind (has-type :bind clause)]
+(defn join-with-clause [reformed-clause joinable-clause index]
+  (let [[_ m & exps] reformed-clause
+        is-bind (has-type :bind reformed-clause)]
     (if (= 0 index)
-      (make-exp :values m
-                (if is-bind
-                  (list clause
-                        joinable-clause)
-
-                  ;; else it's a :values expression
-                  (cons-at-end exps
-                               joinable-clause)))
+      (v :values m
+         (if is-bind
+           (list reformed-clause
+                 joinable-clause)
+           
+           ;; else it's a :values expression
+           (cons-at-end exps
+                        joinable-clause)))
 
       ;; else index > 0
-      (let [f (fn [[_ m1 names1 [_ m2 names2 next-clause]]]
-                [:bind m1 names1
-                 [:arrow-apply m2 names2
+      (let [f (fn [[_ m1 names ; :bind
+                   [_ m2 op left-arg next-clause]]] ; :apply-arrow
+                [:bind m1 names
+                 [:apply-arrow m2
+                  op
+                  left-arg
                   (join-with-clause next-clause
                                     joinable-clause
                                     (- index 1))]])]
         (if is-bind
-          (f clause)
+          (f reformed-clause)
 
           ;; else it's a :values expression
           (let [exps-but-last (butlast exps)
@@ -116,51 +123,55 @@ p
                                     (f last-exp))]))))))
 
 
-(defn guard-assertions [right-exp]
-  (if (has-type :and right-exp)
-    (exp-args right-exp)
-    (list right-exp)))
+(defn guard-assertions [guard-exp]
+  (let [right-exp (fifth guard-exp)]
+    (if (has-type :and right-exp)
+      (all-args right-exp)
+      (list right-exp))))
 
 
 (defn break-up-prev-guard [prev-guard]
-  (if (has-type :guard-apply prev-guard)
-    (let [[_ _ left-exp right-exp] prev-guard]
-      [left-exp
-       (guard-assertions right-exp)])
-    (if (has-type :arrow-apply prev-guard)
-      (break-up-prev-guard (third prev-guard))
-      [prev-guard ()])))
+  (let [[_ _ op left-exp _] prev-guard]
+    (cond
+      (has-type :apply-guard prev-guard)
+      [op left-exp (guard-assertions prev-guard)]
+      
+      (has-type :apply-arrow prev-guard)
+      (break-up-prev-guard left-exp)
+
+      :else
+      [nil prev-guard ()])))
 
 
-(defn get-prev-guard [clause index]
-  (let [[_ m & exps] clause
-        is-bind (has-type :bind clause)]
+(defn get-prev-guard [reformed-clause index]
+  (let [[_ m & exps] reformed-clause
+        is-bind (has-type :bind reformed-clause)]
     (if (= 0 index)
       (second ; skip the :names of the :bind
        (if is-bind
          exps
 
          ;; else it's a :values expression containing :bind expressions, so get the arguments of the last :bind
-         (exp-args (last exps))))
+         (all-args (last exps))))
 
       ;; else index > 0
-      (let [f (fn [[_ _ _ ; :bind
-                   [_ _ _ next-clause] ; :arrow-apply
+      (let [f (fn [[_ _ _ ; :bind m names
+                   [_ _ _ _ next-clause] ; :apply-arrow m op left-arg, then next-clause is the right-arg
                    ]]
                 (get-prev-guard next-clause
                                 (- index 1)))]
         (if is-bind
-          (f clause)
+          (f reformed-clause)
 
           ;; else it's a :values expression
           (f (last exps)))))))
 
 
-(defn copy-and-build-guard [prev-clause index assertions]
+(defn copy-and-build-guard [prev-reformed-clause index assertions]
   (let [prev-guard
-        (get-prev-guard prev-clause index)
+        (get-prev-guard prev-reformed-clause index)
 
-        [prev-left-exp prev-assertions]
+        [prev-op prev-left-exp prev-assertions]
         (break-up-prev-guard prev-guard)
 
         num-diff (- (count prev-assertions)
@@ -169,8 +180,11 @@ p
       (error-meta (get-meta (first assertions))
                   "truncated clause has more guard assertions than previous clause"))
     (let [all-assertions (concat (take num-diff prev-assertions)
-                                 assertions)]
-      [:guard-apply (get-meta prev-left-exp)
+                                 assertions)
+          m (get-meta prev-left-exp)]
+      [:apply-guard m
+       (or prev-op
+           [:name m "|"])
        prev-left-exp
        (if (> (count all-assertions) 1)
          (make-and all-assertions)
@@ -190,14 +204,14 @@ p
     [() exps]))
 
 
-(defn reform-clause-with-truncated-guard [prev-clause index exps]
+(defn reform-clause-with-truncated-guard [prev-reformed-clause index exps]
   (let [[assertions remaining-exps] (break-off-assertions exps)
-        guard (copy-and-build-guard prev-clause index assertions)]
+        guard (copy-and-build-guard prev-reformed-clause index assertions)]
     (reform-clause (cons guard remaining-exps))))
 
 
-(defn reform-truncated-clause [prev-clause next-clause]
-  (let [num-binds (count-binds prev-clause)
+(defn reform-truncated-clause [prev-reformed-clause next-clause]
+  (let [num-binds (count-binds prev-reformed-clause)
         [_ m & exps] next-clause
         num-arrow-ops (reduce #(if (= :arrow-op (first %2))
                                  (+ 1 %1)
@@ -213,28 +227,28 @@ p
                                   (+ 1 num-arrow-ops)
                                   num-arrow-ops))
         joinable-clause (if is-truncated-guard
-                          (reform-clause-with-truncated-guard prev-clause join-index exps)
+                          (reform-clause-with-truncated-guard prev-reformed-clause join-index exps)
                           (reform-clause (rest exps)) ; omit the :arrow-op
                           )]
-    (join-with-clause prev-clause joinable-clause join-index)))
+    (join-with-clause prev-reformed-clause joinable-clause join-index)))
 
 
-(defn reduce-clauses [new-clauses next-clause]
+(defn reduce-clauses [reformed-clauses next-clause]
   (let [[_ m & exps] next-clause]
     (if (has-types #{:arrow-op :guard-op} (first exps))
-      (if (seq new-clauses)
-        (let [prev-clause (first new-clauses)]
-          (cons (reform-truncated-clause prev-clause next-clause)
-                (rest new-clauses)))
+      (if (seq reformed-clauses)
+        (let [prev-reformed-clause (first reformed-clauses)]
+          (cons (reform-truncated-clause prev-reformed-clause next-clause)
+                (rest reformed-clauses)))
         (error-meta m "first clause can't be truncated"))
       (cons (reform-clause exps)
-            new-clauses))))
+            reformed-clauses))))
 
 
 (defn transform-set [m & clauses]
   (let [new-clauses (reduce reduce-clauses () clauses)]
-    (make-exp :set m
-              (reverse new-clauses))))
+    (v :set m
+       (reverse new-clauses))))
 
 
 (defn rebuild-sets [assertions]
@@ -244,8 +258,8 @@ p
 
 (defn operation->apply [m left-exp op right-exp]
   [:apply m
-   (make-exp :name (get-meta op)
-             (exp-args op))
+   [:name (get-meta op)
+    (first-arg op)]
    left-exp
    right-exp])
 
@@ -253,22 +267,22 @@ p
 (def arrow-or-guard->key {:arrow-op :apply-arrow
                           :guard-op :apply-guard})
 
-(def arrow-or-guard->name {:arrow-op (list "->")
-                           :guard-op (list "|")})
+(def arrow-or-guard->name {:arrow-op "->"
+                           :guard-op "|"})
 
 
 (defn make-op-name [op]
-  (make-exp :name (get-meta op)
-             (or (arrow-or-guard->name (first op))
-                 (exp-args op))))
+  [:name (get-meta op)
+   (or (arrow-or-guard->name (first op))
+       (first-arg op))])
 
 
 (defn transform-ast-operation [m left-exp op right-exp]
   [(or (arrow-or-guard->key (first op))
        :apply)
    m
-   left-exp
    (make-op-name op)
+   left-exp
    right-exp])
 
 
@@ -279,7 +293,8 @@ p
 
 
 (defn transform-ast-right-section [m op right-exp]
-  (if (= "-" (third op))
+  (if (and (> (count op) 2)
+           (= "-" (first-arg op)))
     [:apply m
      [:neg (get-meta op)]
      right-exp]
@@ -321,60 +336,79 @@ p
         comparison-triples (partition 3 2
                                       (cons-at-end new-exps
                                                    (last exps)))]
-    (make-exp :and m
-              (concat extra-comparisons
-                      (map (fn [comparison-triple]
-                             (apply operation->apply (get-meta (first comparison-triple))
-                                    comparison-triple))
-                           comparison-triples)))))
+    (v :and m
+       (concat extra-comparisons
+               (map (fn [comparison-triple]
+                      (apply operation->apply (get-meta (first comparison-triple))
+                             comparison-triple))
+                    comparison-triples)))))
 
 
 ;; TODO: gensym for _ in embedded. Reuse as much code as possible from the earlier transformation of :embeddeds.
+
 (defn transform-embedded [m left-exp op right-exp]
   [:apply-guard m
-   left-exp
    [:name m "|"]
+   left-exp
    (operation->apply m left-exp op right-exp)])
 
 
 ;; TODO: gensym for _ in embedded
-(defn combine-guards [m left-exp op right-exp]
-  (make-exp :apply-guard m
-            (if (has-type :apply-guard left-exp)
-              (let [inner-guards (guard-assertions (fourth left-exp))
-                    outer-guards (guard-assertions right-exp)]
-                (list
-                 (third left-exp)
-                 (fourth left-exp)
-                 (make-and (concat inner-guards
-                                   outer-guards))))
-              (if (has-type :embedded left-exp)
-                (list
-                 (third left-exp)
-                 op
-                 (make-and (cons (apply operation->apply (rest left-exp))
-                                 (guard-assertions right-exp))))
-                (list
-                 left-exp
-                 op
-                 right-exp)))))
+
+(defn combine-guards [m op left-exp right-exp]
+  (let [guard [:apply-guard m
+               op
+               left-exp
+               right-exp]]
+    (cond
+      (has-type :apply-guard left-exp)
+      (let [inner-guards (guard-assertions left-exp)
+            outer-guards (guard-assertions guard)
+            [_ _ inner-op inner-left] left-exp]
+        [:apply-guard m
+         inner-op
+         inner-left
+         (make-and (concat inner-guards
+                           outer-guards))])
+
+      (has-type :embedded left-exp)
+      [:apply-guard m
+       op
+       (first-arg left-exp)
+       (make-and (cons (apply operation->apply (rest left-exp))
+                       (guard-assertions guard)))]
+
+      :else
+      guard)))
 
 
 (defn combine-applys [m & exps]
   (let [first-exp (first exps)]
-    (make-exp :apply m
-              (if (has-type :apply first-exp)
-                (concat (exp-args first-exp)
-                        (rest exps))
-                exps))))
+    (v :apply m
+       (if (has-type :apply first-exp)
+         (concat (all-args first-exp)
+                 (rest exps))
+         exps))))
 
 
 (defn combine-ands [m & exps]
   (make-and (mapcat (fn [exp]
                       (if (has-type :and exp)
-                        (exp-args exp)
+                        (all-args exp)
                         (list exp)))
                     exps)))
+
+
+;; :apply becomes a list
+(defn transform-apply [m & exps]
+  (if (and (has-type :flip (first exps))
+           (> (count exps) 3))
+    ;; remove the :flip and swap the third and fourth expressions
+    (let [[_ e2 e3 e4 & r] exps]
+      (apply list e2 e4 e3 r))
+
+    ;; can't just return exps, because it's not a list
+    (apply list exps)))
 
 
 (defn transformations-1 [assertions]
@@ -407,8 +441,7 @@ p
 
 
 (defn transformations-5 [assertions]
-  (let [trans-map {:apply (fn [m & r]
-                            (apply list r))}]
+  (let [trans-map {:apply transform-apply}]
     (map (partial insta/transform trans-map) assertions)))
 
 
@@ -419,5 +452,5 @@ p
        transformations-1
        transformations-2
        transformations-3
-       transformations-4
+       transformations-4 ; TODO: can this be combined with transformations-3?
        transformations-5))

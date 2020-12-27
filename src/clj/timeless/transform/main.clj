@@ -60,7 +60,7 @@
                             (map? m))
                    (str " " m))
                  (when-not (empty? subforms)
-                   (let [p (if (some sequential? subforms)
+                   (let [p (if (sequential? (first subforms))
                              "\n"
                              " ")]
                      (apply str (map #(str p

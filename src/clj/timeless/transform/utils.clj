@@ -14,6 +14,9 @@
 (defn fourth [s]
   (nth s 3))
 
+(defn fifth [s]
+  (nth s 4))
+
 (defn third-on [s]
   (rest (rest s)))
 
@@ -30,10 +33,13 @@
 (defn has-types [type-set exp]
   (type-set (first exp)))
 
-(defn exp-args [exp]
+(defn all-args [exp]
   (third-on exp))
 
-(defn make-exp [k m args]
+(defn first-arg [exp]
+  (third exp))
+
+(defn v [k m args]
   (apply vector k m args))
 
 (defn uuid []
