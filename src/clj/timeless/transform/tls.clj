@@ -13,7 +13,6 @@
 
 ;; TODO:
 
-;; - Wrap the right side of :arrows that are within a :bind with a :bind, if not already wrapped. What about :values?
 ;; - Fill in the names of :binds.
 
 ;; - Test various combinations of guards, arrows and embeddeds, and check the metadata.
@@ -382,13 +381,23 @@
       guard)))
 
 
+(defn remove-flip [exps]
+  (if (and (has-type :flip (first exps))
+           (> (count exps) 3))
+    ;; remove the :flip and swap the third and fourth expressions
+    (let [[_ e2 e3 e4 & r] exps]
+      (apply list e2 e4 e3 r))
+    exps))
+
+
 (defn combine-applys [m & exps]
   (let [first-exp (first exps)]
     (v :apply m
-       (if (has-type :apply first-exp)
-         (concat (all-args first-exp)
-                 (rest exps))
-         exps))))
+       (remove-flip
+        (if (has-type :apply first-exp)
+          (concat (all-args first-exp)
+                  (rest exps))
+          exps)))))
 
 
 (defn combine-ands [m & exps]
@@ -399,16 +408,21 @@
                     exps)))
 
 
-;; :apply becomes a list
-(defn transform-apply [m & exps]
-  (if (and (has-type :flip (first exps))
-           (> (count exps) 3))
-    ;; remove the :flip and swap the third and fourth expressions
-    (let [[_ e2 e3 e4 & r] exps]
-      (apply list e2 e4 e3 r))
-
-    ;; can't just return exps, because it's not a list
-    (apply list exps)))
+;; If the right side of an arrow application within a :bind is not already wrapped in a :bind, wrap it.
+(defn bind-arrow-right [m names exp]
+  (if (and (has-type :apply exp)
+           (has-type :name (first-arg exp))
+           (= "->" (first-arg (first-arg exp)))
+           (not (has-type :bind (third-arg exp))))
+    (let [[_ m2 op left-exp right-exp] exp
+          new-bind [:bind (get-meta right-exp) []
+                    right-exp]]
+      [:bind m names
+       [:apply m2
+        op
+        left-exp
+        (apply bind-arrow-right (rest new-bind))]])
+    [:bind m names exp]))
 
 
 (defn transformations-1 [assertions]
@@ -436,13 +450,33 @@
 
 
 (defn transformations-4 [assertions]
-  (let [trans-map {:apply combine-applys}]
+  (let [trans-map {:apply combine-applys
+
+                   ;; Can't be done earlier, o.w. | {((a ->) b)} doesn't get an inner :bind.
+                   :bind bind-arrow-right}]
     (map (partial insta/transform trans-map) assertions)))
 
 
 (defn transformations-5 [assertions]
-  (let [trans-map {:apply transform-apply}]
+  (let [trans-map {:apply (fn [m & exps]
+                            ;; The :apply expression becomes a list.
+                            ;; Can't just return exps, because it's not a list.
+                            (apply list exps))}]
     (map (partial insta/transform trans-map) assertions)))
+
+
+;; For the first call, exp is all the assertions.
+(defn fill-bind-names [bound-names exp]
+  (let [unbound-names (find-unbound-names bound-names exp)]
+    
+
+
+    ))
+
+
+(defn top-level-fill-bind-names [assertions]
+  (let [bound-names (find-names-to-bind () assertions)]
+    (fill-bind-names bound-names assertions)))
 
 
 ;; Returns: <assertions>
@@ -452,5 +486,6 @@
        transformations-1
        transformations-2
        transformations-3
-       transformations-4 ; TODO: can this be combined with transformations-3?
-       transformations-5))
+       transformations-4
+       transformations-5
+       (fill-bind-names ())))

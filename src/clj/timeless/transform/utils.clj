@@ -39,6 +39,12 @@
 (defn first-arg [exp]
   (third exp))
 
+(defn second-arg [exp]
+  (fourth exp))
+
+(defn third-arg [exp]
+  (fifth exp))
+
 (defn v [k m args]
   (apply vector k m args))
 
