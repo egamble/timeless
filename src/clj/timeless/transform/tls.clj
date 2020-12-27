@@ -5,17 +5,13 @@
             [clojure.string :as str]))
 
 
-;; TODO:
+;; Note: UUIDs are used for gensyms, for now, to avoid collisions not only in the current file,
+;; but with other TLS files that could be concatenated. Shorter gensym names are also possible, but
+;; require more complicated mechanisms for avoiding collisions.
 
-;; gensyms:
-;; - Use UUIDs, for now, for gensyms, to avoid collisions not only in the current file,
-;;   but with other TLS files that can be concatenated. Maybe find another solution later, such as:
-;;   - adding the gensyms to the nearest :bind to prevent collusions,
-;;     while using simple gensyms such as "g1", "g2", etc., or
-;;   - using a keyword other than :name, with the disadvantage of complicating context maps.
-p
-;; - Gensym for _ in :embeddeds. Reuse as much code as possible in the two different transformations of :embeddeds.
-;; - If the left side of an embedded is not just a :name, put a gensym there and add an equality assertion to an :and.
+
+
+;; TODO:
 
 ;; - Wrap the right side of :arrows that are within a :bind with a :bind, if not already wrapped. What about :values?
 ;; - Fill in the names of :binds.
@@ -344,41 +340,45 @@ p
                     comparison-triples)))))
 
 
-;; TODO: gensym for _ in embedded. Reuse as much code as possible from the earlier transformation of :embeddeds.
-
 (defn transform-embedded [m left-exp op right-exp]
-  [:apply-guard m
-   [:name m "|"]
-   left-exp
-   (operation->apply m left-exp op right-exp)])
+  (let [is-name (has-type :name left-exp)
+        is-underscore (and is-name
+                           (= "_" (first-arg left-exp)))
+        name-exp (if (or (not is-name)
+                         is-underscore)
+                   [:name m (uuid)]
+                   left-exp)]
+    [:apply-guard m
+     [:name m "|"]
+     name-exp
+     (if is-name
+       [:apply m
+        op
+        name-exp
+        right-exp]
+       [:and m
+        [:apply m
+         [:name m "="]
+         name-exp
+         left-exp]
+        [:apply m
+         op
+         name-exp
+         right-exp]])]))
 
-
-;; TODO: gensym for _ in embedded
 
 (defn combine-guards [m op left-exp right-exp]
   (let [guard [:apply-guard m
                op
                left-exp
                right-exp]]
-    (cond
-      (has-type :apply-guard left-exp)
-      (let [inner-guards (guard-assertions left-exp)
-            outer-guards (guard-assertions guard)
-            [_ _ inner-op inner-left] left-exp]
+    (if (has-type :apply-guard left-exp)
+      (let [[_ _ inner-op inner-left] left-exp]
         [:apply-guard m
          inner-op
          inner-left
-         (make-and (concat inner-guards
-                           outer-guards))])
-
-      (has-type :embedded left-exp)
-      [:apply-guard m
-       op
-       (first-arg left-exp)
-       (make-and (cons (apply operation->apply (rest left-exp))
-                       (guard-assertions guard)))]
-
-      :else
+         (make-and (concat (guard-assertions left-exp)
+                           (guard-assertions guard)))])
       guard)))
 
 
