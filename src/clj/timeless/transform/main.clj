@@ -13,18 +13,38 @@
           (str/split (str/trim line)
                  #"[ \t]")))
 
-(defn make-declaration [line]
-  (let [tokens (split-source-line line)]
-    (when (declare-tokens (first tokens))
-      tokens)))
+(defn tl-filepath [path]
+  (str (str/replace path #"\.tls?$" "")
+       ".tl"))
 
+(defn make-declaration [[includes declarations] line]
+  (let [tokens (split-source-line line)
+        t (first tokens)]
+    (cond
+      (declare-tokens t)
+      [includes
+       (cons-at-end declarations tokens)]
+
+      (= "#include" t)
+      (let [path (second tokens)
+            source (slurp (tl-filepath path))
+
+            [included-includes included-declarations]
+            (extract-declarations source)]
+        [(concat includes (list path) included-includes)
+         (concat declarations included-declarations)])
+
+      :else
+      [includes declarations])))
+
+
+;; Returns: [<included filepaths> <declarations>]
 (defn extract-declarations [source]
   ;; Add a space to ensure the source has at least one non-newline character,
   ;; otherwise str/split-lines will return nil.
   (->> (str source " ")
        str/split-lines
-       (map make-declaration)
-       (remove nil?)))
+       (reduce make-declaration [() ()])))
 
 
 (defn insert-newlines [s]
@@ -107,9 +127,12 @@
 
 (defn tl->tls [in-path out-path & [generated-grammar-file suppress-metadata?]]
   (let [source (slurp in-path)
-        declarations (extract-declarations source)
+        
+        [includes declarations]
+        (extract-declarations source)
+
         assertions (->> (tl->ast declarations source generated-grammar-file)
-                        ast->tls)]
+                        (ast->tls includes))]
     (write-tls-file out-path assertions suppress-metadata?)))
 
 (defn -main [in-file out-file & [generated-grammar-file suppress-metadata?]]

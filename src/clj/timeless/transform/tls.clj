@@ -1,6 +1,7 @@
 (ns timeless.transform.tls
   "Transform an AST to produce TLS code."
-  (:require [timeless.transform.utils :refer :all]
+  (:require [timeless.transform.grammar :refer [predefined-names]]
+            [timeless.transform.utils :refer :all]
             [instaparse.core :as insta]
             [clojure.string :as str]))
 
@@ -424,6 +425,80 @@
     [:bind m [] bind-arg]))
 
 
+;; For the first call, exp is all the assertions.
+(defn fill-bind-names [outer-names exp]
+  (cond
+    (has-type :bind exp)
+    (let [[_ m _ bind-exp] exp
+          inner-names (find-names-to-bind outer-names
+                                          bind-exp)
+          new-bind-exp (fill-bind-names (into outer-names inner-names)
+                                        bind-exp)]
+      (if (empty? inner-names)
+        new-bind-exp
+        [:bind m
+         (into [] inner-names)
+         new-bind-exp]))
+
+    (seq? exp)
+    (apply list (map (partial fill-bind-names outer-names)
+                     exp))
+
+    (vector? exp)
+    (apply vector (map (partial fill-bind-names outer-names)
+                       exp))
+
+    :else
+    exp))
+
+
+(defn tls-filepath [path]
+  (str (str/replace path #"\.tls?$" "")
+       ".tls"))
+
+
+(defn get-included-top-level-names [exp]
+  (let [path (first-arg exp)
+        source (slurp (tls-filepath path))
+        assertions (read-string (str "(" source ")"))]
+    (find-names-to-bind #{} assertions)))
+
+
+;; For the first call, exp is all the assertions.
+(defn find-names-to-bind [outer-names exp]
+  (cond
+    (has-type :include exp)
+    (get-included-top-level-names exp)
+
+    (has-type :name exp)
+    (let [name (first-arg exp)]
+      (if (outer-names name)
+        #{}
+        #{name}))
+
+    (has-type :bind exp)
+    #{}
+
+    (sequential? exp)
+    (reduce (fn [inner-names sub-exp]
+              (into inner-names
+                    (find-names-to-bind outer-names
+                                        sub-exp)))
+            #{}
+            exp)
+
+    :else
+    #{}))
+
+
+(defn top-level-fill-bind-names [assertions]
+  (let [top-level-names (->> assertions
+                             (find-names-to-bind #{})
+                             (into predefined-names))]
+    (fill-bind-names top-level-names
+                     assertions)))
+
+
 (defn transformations-1 [assertions]
   (let [trans-map {:operation transform-ast-operation
                    :left-section transform-ast-left-section
@@ -464,66 +539,19 @@
     (map (partial insta/transform trans-map) assertions)))
 
 
-(defn find-names-to-bind [outer-name-set exp]
-  (cond
-    (has-type :name exp)
-    (let [name (first-arg exp)]
-      (if (outer-name-set name)
-        #{}
-        #{name}))
-
-    (has-type :bind exp)
-    #{}
-
-    (sequential? exp)
-    (reduce (fn [inner-name-set sub-exp]
-              (into inner-name-set
-                    (find-names-to-bind outer-name-set sub-exp)))
-            #{}
-            exp)
-
-    :else
-    #{}))
-
-
-;; For the first call, exp is all the assertions.
-(defn fill-bind-names [outer-name-set exp]
-  (cond
-    (has-type :bind exp)
-    (let [[_ m _ bind-exp] exp
-          inner-name-set (find-names-to-bind outer-name-set bind-exp)
-          new-bind-exp (fill-bind-names (into outer-name-set inner-name-set)
-                                        bind-exp)]
-      (if (empty? inner-name-set)
-        new-bind-exp
-        [:bind m
-         (into [] inner-name-set)
-         new-bind-exp]))
-
-    (seq? exp)
-    (apply list (map (partial fill-bind-names outer-name-set)
-                     exp))
-
-    (vector? exp)
-    (apply vector (map (partial fill-bind-names outer-name-set)
-                       exp))
-
-    :else
-    exp))
-
-
-(defn top-level-fill-bind-names [assertions]
-  (let [name-set (find-names-to-bind #{} assertions)]
-    (fill-bind-names name-set assertions)))
+(defn build-include-expressions [includes]
+  (map #(vector :include %)
+       includes))
 
 
 ;; Returns: <assertions>
-(defn ast->tls [assertions]
-  (->> assertions
+(defn ast->tls [includes assertions]
+ (->> assertions
        rebuild-sets
        transformations-1
        transformations-2
        transformations-3
        transformations-4
        transformations-5
+       (concat (build-include-expressions includes))
        top-level-fill-bind-names))

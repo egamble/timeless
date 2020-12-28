@@ -1,6 +1,8 @@
 # A parser that recognizes S-expressions and builds an AST
 
-# Requires lib.tl and lex_split.tl.
+#include src/tl/lib
+#include src/tl/lex_split
+
 
 # space, tab, newline
 | WS             = Im " 	

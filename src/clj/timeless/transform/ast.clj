@@ -45,16 +45,13 @@
                        assertions)))))))
 
 
-(defn is-apply [exp]
-  (= :apply (first exp)))
-
 (defn transform-apply [m & exps]
   (apply vector
          :apply
          m
          (mapcat (fn [exp]
-                   (if (is-apply exp)
-                     (rest exp)
+                   (if (has-type :apply exp)
+                     (all-args exp)
                      (list exp)))
                  exps)))
 

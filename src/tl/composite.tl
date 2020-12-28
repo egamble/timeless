@@ -1,5 +1,8 @@
 # A recognizer for strings of ones whose length is composite (i.e. not prime).
 
+#include src/tl/lib
+
+
 #name Repeat+
 | Repeat+ =
 {s ∈ Str -> {s, s ++ t | t ∈ Repeat+ s}}

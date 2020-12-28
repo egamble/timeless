@@ -24,8 +24,14 @@
   (println s x)
   x)
 
+(defn has-meta [exp]
+  (and (> (count exp) 1)
+       (map? (second exp))))
+
 (defn get-meta [exp]
-  (second exp))
+  (if (has-meta exp)
+    (second exp)
+    {}))
 
 (defn has-type [type exp]
   (and (vector? exp)
@@ -39,13 +45,13 @@
   (third-on exp))
 
 (defn first-arg [exp]
-  (third exp))
+  (nth exp (if (has-meta exp) 2 1)))
 
 (defn second-arg [exp]
-  (fourth exp))
+  (nth exp (if (has-meta exp) 3 2)))
 
 (defn third-arg [exp]
-  (fifth exp))
+  (nth exp (if (has-meta exp) 4 3)))
 
 (defn v [k m args]
   (apply vector k m args))

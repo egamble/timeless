@@ -1,68 +1,768 @@
-;; TODO: update these definitions to match lib.tl
-
-;; Library operators
-
-(= ∘ (:fn f (:fn g (:fn x (f (g x))))))
-
-;; TODO: make this lazy, so 0 .. ∞ works
-
-(= (:name "..")
-   (∪ (:fn (∈ a Int)
-           (∪ (:fn a (:seq a))
-              (:fn (∈ b Int)
-                   (:cons a ((:name "..") (inc a) b))
-                   (< a b))))
-      (:fn (∈ c Char)
-           (∪ (:fn c (:seq c))
-              (:fn (∈ d Char)
-                   (:cons c ((:name "..") (intChar (inc a)) d))
-                   (= a (charInt c))
-                   (= b (charInt d))
-                   (< a b))))))
-
-;; Library prefix functions
-
-(= identity
-   (:fn x x))
-
-(= inc (:fn x (+ x 1)))
-(= dec (:fn x (- x 1)))
-
-(= if
-   (:fn cond
-        (:fn then
-             (:fn else
-                  ((∪ (:fn _ then cond)
-                      (:fn _ else))
-                   :emptyfn)))))
-
-(= map
-   (:fn f
-        (∪ (:fn (:seq) (:seq))
-           (:fn (:cons x xs) (:cons (f x) (map f xs))))))
-
-(= filter
-   (:fn S
-        (∪ (:fn (:seq) (:seq))
-           (:fn (:cons x xs)
-                ((∪ (:fn _ (:cons x r) (∈ x S))
-                    (:fn _ r))
-                 :emptyfn)
-                (= r (filter S xs))))))
-
-(= remove
-   (:fn S
-        (∪ (:fn (:seq) (:seq))
-           (:fn (:cons x xs)
-                ((∪ (:fn _ r (∈ x S))
-                    (:fn _ (:cons x r)))
-                 :emptyfn)
-                (= r (remove S xs))))))
-
-(= zip
-   (∪ (:fn (:seq) (:fn (∈ _ Seq) (:seq)))
-      (:fn (:cons x1 xs1)
-           (∪ (:fn (:seq) (:seq))
-              (:fn (:cons x2 xs2)
-                   (:cons (:tup x1 x2)
-                          (zip xs1 xs2)))))))
+( [:name {:l 1, :c 8} "="]
+  [:name {:l 1, :c 3} "Bool"]
+  [:set {:l 1, :c 10}
+    [:name {:l 1, :c 11} "true"]
+    [:name {:l 1, :c 17} "false"]])
+( [:name {:l 3, :c 10} "="]
+  [:name {:l 3, :c 3} "Nat"]
+  [:set {:l 3, :c 12}
+    [:bind {:l 3, :c 13} ["n"]
+      ( [:name {:l 3, :c 13} "|"]
+        [:name {:l 3, :c 13} "n"]
+        [:and {:l 3, :c 13}
+          ( [:op {:l 3, :c 14} "∈"]
+            [:name {:l 3, :c 13} "n"]
+            [:name {:l 3, :c 15} "Int"])
+          ( [:name {:l 3, :c 22} ">="]
+            [:name {:l 3, :c 21} "n"]
+            [:num {:l 3, :c 24} 0])])]])
+( [:name {:l 4, :c 10} "="]
+  [:name {:l 4, :c 3} "PosInt"]
+  [:set {:l 4, :c 12}
+    [:bind {:l 4, :c 13} ["n"]
+      ( [:name {:l 4, :c 13} "|"]
+        [:name {:l 4, :c 13} "n"]
+        [:and {:l 4, :c 13}
+          ( [:op {:l 4, :c 14} "∈"]
+            [:name {:l 4, :c 13} "n"]
+            [:name {:l 4, :c 15} "Int"])
+          ( [:name {:l 4, :c 22} ">"]
+            [:name {:l 4, :c 21} "n"]
+            [:num {:l 4, :c 23} 0])])]])
+( [:name {:l 5, :c 10} "="]
+  [:name {:l 5, :c 3} "NegInt"]
+  [:set {:l 5, :c 12}
+    [:bind {:l 5, :c 13} ["n"]
+      ( [:name {:l 5, :c 13} "|"]
+        [:name {:l 5, :c 13} "n"]
+        [:and {:l 5, :c 13}
+          ( [:op {:l 5, :c 14} "∈"]
+            [:name {:l 5, :c 13} "n"]
+            [:name {:l 5, :c 15} "Int"])
+          ( [:name {:l 5, :c 22} "<"]
+            [:name {:l 5, :c 21} "n"]
+            [:num {:l 5, :c 23} 0])])]])
+( [:name {:l 7, :c 9} "="]
+  [:name {:l 7, :c 3} "SetOf"]
+  [:set {:l 7, :c 11}
+    [:bind {:l 7, :c 12} ["S"]
+      ( [:name {:l 7, :c 18} "->"]
+        ( [:name {:l 7, :c 12} "|"]
+          [:name {:l 7, :c 12} "S"]
+          ( [:op {:l 7, :c 13} "∈"]
+            [:name {:l 7, :c 12} "S"]
+            [:name {:l 7, :c 14} "Set"]))
+        [:set {:l 7, :c 21}
+          [:bind {:l 7, :c 22} ["b3f5c314-66c3-466e-b89c-8dc9128ee830"]
+            ( [:name {:l 7, :c 22} "|"]
+              [:name {:l 7, :c 22} "b3f5c314-66c3-466e-b89c-8dc9128ee830"]
+              ( [:op {:l 7, :c 22} "⊂"]
+                [:name {:l 7, :c 22} "b3f5c314-66c3-466e-b89c-8dc9128ee830"]
+                [:name {:l 7, :c 24} "S"]))]])]])
+( [:name {:l 9, :c 9} "="]
+  [:name {:l 9, :c 3} "SeqOf"]
+  [:set {:l 9, :c 11}
+    [:bind {:l 9, :c 12} ["S"]
+      ( [:name {:l 9, :c 18} "->"]
+        ( [:name {:l 9, :c 12} "|"]
+          [:name {:l 9, :c 12} "S"]
+          ( [:op {:l 9, :c 13} "∈"]
+            [:name {:l 9, :c 12} "S"]
+            [:name {:l 9, :c 14} "Set"]))
+        [:set {:l 9, :c 21}
+          [:bind {:l 9, :c 22} ["s"]
+            ( [:name {:l 9, :c 22} "|"]
+              [:name {:l 9, :c 22} "s"]
+              [:and {:l 9, :c 22}
+                ( [:op {:l 9, :c 24} "∈"]
+                  [:name {:l 9, :c 22} "s"]
+                  [:name {:l 9, :c 26} "Seq"])
+                ( [:name {:l 9, :c 37} "⊂"]
+                  ( [:name {:l 9, :c 32} "Im"]
+                    [:name {:l 9, :c 35} "s"])
+                  [:name {:l 9, :c 39} "S"])])]])]])
+[:and {:l 14, :c 4}
+  ( [:name {:l 14, :c 7} "="]
+    [:name {:l 14, :c 4} "∧"]
+    [:name {:l 14, :c 10} "&&"])
+  ( [:name {:l 14, :c 14} "="]
+    [:name {:l 14, :c 10} "&&"]
+    [:set {:l 15, :c 1}
+      ( [:name {:l 15, :c 8} "->"]
+        [:name {:l 15, :c 2} "true"]
+        ( [:name {:l 15, :c 17} "->"]
+          [:name {:l 15, :c 11} "true"]
+          [:name {:l 15, :c 20} "true"]))
+      ( [:name {:l 16, :c 8} "->"]
+        [:name {:l 16, :c 2} "true"]
+        ( [:name {:l 16, :c 17} "->"]
+          [:name {:l 16, :c 11} "false"]
+          [:name {:l 16, :c 20} "false"]))
+      ( [:name {:l 17, :c 8} "->"]
+        [:name {:l 17, :c 2} "false"]
+        ( [:name {:l 17, :c 17} "->"]
+          [:name {:l 17, :c 11} "true"]
+          [:name {:l 17, :c 20} "false"]))
+      ( [:name {:l 18, :c 8} "->"]
+        [:name {:l 18, :c 2} "false"]
+        ( [:name {:l 18, :c 17} "->"]
+          [:name {:l 18, :c 11} "false"]
+          [:name {:l 18, :c 20} "false"]))
+      ( [:name {:l 19, :c 8} "->"]
+        [:name {:l 19, :c 2} "false"]
+        ( [:name {:l 19, :c 17} "->"]
+          [:name {:l 19, :c 11} "null"]
+          [:name {:l 19, :c 20} "false"]))
+      ( [:name {:l 20, :c 8} "->"]
+        [:name {:l 20, :c 2} "null"]
+        ( [:name {:l 20, :c 17} "->"]
+          [:name {:l 20, :c 11} "false"]
+          [:name {:l 20, :c 20} "false"]))])]
+[:and {:l 22, :c 4}
+  ( [:name {:l 22, :c 7} "="]
+    [:name {:l 22, :c 4} "∨"]
+    [:name {:l 22, :c 10} "||"])
+  ( [:name {:l 22, :c 14} "="]
+    [:name {:l 22, :c 10} "||"]
+    [:set {:l 23, :c 1}
+      ( [:name {:l 23, :c 8} "->"]
+        [:name {:l 23, :c 2} "true"]
+        ( [:name {:l 23, :c 17} "->"]
+          [:name {:l 23, :c 11} "true"]
+          [:name {:l 23, :c 20} "true"]))
+      ( [:name {:l 24, :c 8} "->"]
+        [:name {:l 24, :c 2} "true"]
+        ( [:name {:l 24, :c 17} "->"]
+          [:name {:l 24, :c 11} "false"]
+          [:name {:l 24, :c 20} "true"]))
+      ( [:name {:l 25, :c 8} "->"]
+        [:name {:l 25, :c 2} "false"]
+        ( [:name {:l 25, :c 17} "->"]
+          [:name {:l 25, :c 11} "true"]
+          [:name {:l 25, :c 20} "true"]))
+      ( [:name {:l 26, :c 8} "->"]
+        [:name {:l 26, :c 2} "false"]
+        ( [:name {:l 26, :c 17} "->"]
+          [:name {:l 26, :c 11} "false"]
+          [:name {:l 26, :c 20} "false"]))
+      ( [:name {:l 27, :c 8} "->"]
+        [:name {:l 27, :c 2} "true"]
+        ( [:name {:l 27, :c 17} "->"]
+          [:name {:l 27, :c 11} "null"]
+          [:name {:l 27, :c 20} "true"]))
+      ( [:name {:l 28, :c 8} "->"]
+        [:name {:l 28, :c 2} "null"]
+        ( [:name {:l 28, :c 17} "->"]
+          [:name {:l 28, :c 11} "true"]
+          [:name {:l 28, :c 20} "true"]))])]
+[:and {:l 32, :c 4}
+  ( [:name {:l 32, :c 7} "="]
+    [:name {:l 32, :c 4} "⟶"]
+    [:name {:l 32, :c 10} "-->"])
+  ( [:name {:l 32, :c 15} "="]
+    [:name {:l 32, :c 10} "-->"]
+    [:set {:l 33, :c 1}
+      ( [:name {:l 33, :c 8} "->"]
+        [:name {:l 33, :c 2} "true"]
+        ( [:name {:l 33, :c 17} "->"]
+          [:name {:l 33, :c 11} "true"]
+          [:name {:l 33, :c 20} "true"]))
+      ( [:name {:l 34, :c 8} "->"]
+        [:name {:l 34, :c 2} "true"]
+        ( [:name {:l 34, :c 17} "->"]
+          [:name {:l 34, :c 11} "false"]
+          [:name {:l 34, :c 20} "false"]))
+      ( [:name {:l 35, :c 8} "->"]
+        [:name {:l 35, :c 2} "false"]
+        ( [:name {:l 35, :c 17} "->"]
+          [:name {:l 35, :c 11} "true"]
+          [:name {:l 35, :c 20} "true"]))
+      ( [:name {:l 36, :c 8} "->"]
+        [:name {:l 36, :c 2} "false"]
+        ( [:name {:l 36, :c 17} "->"]
+          [:name {:l 36, :c 11} "false"]
+          [:name {:l 36, :c 20} "true"]))
+      ( [:name {:l 37, :c 8} "->"]
+        [:name {:l 37, :c 2} "false"]
+        ( [:name {:l 37, :c 17} "->"]
+          [:name {:l 37, :c 11} "null"]
+          [:name {:l 37, :c 20} "true"]))
+      ( [:name {:l 38, :c 8} "->"]
+        [:name {:l 38, :c 2} "null"]
+        ( [:name {:l 38, :c 17} "->"]
+          [:name {:l 38, :c 11} "true"]
+          [:name {:l 38, :c 20} "true"]))])]
+( [:name {:l 42, :c 7} "="]
+  [:name {:l 42, :c 4} "?"]
+  [:set {:l 43, :c 1}
+    ( [:name {:l 43, :c 7} "->"]
+      [:name {:l 43, :c 2} "true"]
+      [:bind {:l 43, :c 10} ["then"]
+        ( [:name {:l 43, :c 15} "->"]
+          [:name {:l 43, :c 10} "then"]
+          [:bind {:l 43, :c 18} ["else"]
+            ( [:name {:l 43, :c 23} "->"]
+              [:name {:l 43, :c 18} "else"]
+              [:name {:l 43, :c 26} "then"])])])
+    ( [:name {:l 44, :c 7} "->"]
+      [:name {:l 44, :c 2} "true"]
+      [:bind {:l 44, :c 10} ["then"]
+        ( [:name {:l 44, :c 15} "->"]
+          [:name {:l 44, :c 10} "then"]
+          ( [:name {:l 44, :c 23} "->"]
+            [:name {:l 44, :c 18} "null"]
+            [:name {:l 44, :c 26} "then"]))])
+    ( [:name {:l 45, :c 8} "->"]
+      [:name {:l 45, :c 2} "false"]
+      [:bind {:l 45, :c 11} ["then"]
+        ( [:name {:l 45, :c 16} "->"]
+          [:name {:l 45, :c 11} "then"]
+          [:bind {:l 45, :c 19} ["else"]
+            ( [:name {:l 45, :c 24} "->"]
+              [:name {:l 45, :c 19} "else"]
+              [:name {:l 45, :c 27} "else"])])])
+    ( [:name {:l 46, :c 8} "->"]
+      [:name {:l 46, :c 2} "false"]
+      ( [:name {:l 46, :c 16} "->"]
+        [:name {:l 46, :c 11} "null"]
+        [:bind {:l 46, :c 19} ["else"]
+          ( [:name {:l 46, :c 24} "->"]
+            [:name {:l 46, :c 19} "else"]
+            [:name {:l 46, :c 27} "else"])]))])
+[:and {:l 50, :c 4}
+  ( [:name {:l 50, :c 7} "="]
+    [:name {:l 50, :c 4} "⇒"]
+    [:name {:l 50, :c 10} "=>"])
+  ( [:name {:l 50, :c 14} "="]
+    [:name {:l 50, :c 10} "=>"]
+    [:set {:l 51, :c 1}
+      [:bind {:l 51, :c 2} ["S"]
+        ( [:name {:l 51, :c 8} "->"]
+          ( [:name {:l 51, :c 2} "|"]
+            [:name {:l 51, :c 2} "S"]
+            ( [:op {:l 51, :c 3} "∈"]
+              [:name {:l 51, :c 2} "S"]
+              [:name {:l 51, :c 4} "Set"]))
+          [:bind {:l 51, :c 11} ["T"]
+            ( [:name {:l 51, :c 17} "->"]
+              ( [:name {:l 51, :c 11} "|"]
+                [:name {:l 51, :c 11} "T"]
+                ( [:op {:l 51, :c 12} "∈"]
+                  [:name {:l 51, :c 11} "T"]
+                  [:name {:l 51, :c 13} "Set"]))
+              [:set {:l 51, :c 20}
+                [:bind {:l 51, :c 21} ["8fa2b6d9-c2a5-4b65-9f16-c1b045a692d7"]
+                  ( [:name {:l 51, :c 24} "->"]
+                    ( [:name {:l 51, :c 21} "|"]
+                      [:name {:l 51, :c 21} "8fa2b6d9-c2a5-4b65-9f16-c1b045a692d7"]
+                      ( [:op {:l 51, :c 21} "∈"]
+                        [:name {:l 51, :c 21} "8fa2b6d9-c2a5-4b65-9f16-c1b045a692d7"]
+                        [:name {:l 51, :c 22} "S"]))
+                    [:bind {:l 51, :c 27} ["97531fad-bf1f-45eb-84c7-243f78375b66"]
+                      ( [:name {:l 51, :c 27} "|"]
+                        [:name {:l 51, :c 27} "97531fad-bf1f-45eb-84c7-243f78375b66"]
+                        ( [:op {:l 51, :c 27} "∈"]
+                          [:name {:l 51, :c 27} "97531fad-bf1f-45eb-84c7-243f78375b66"]
+                          [:name {:l 51, :c 28} "T"]))])]])])]])]
+( [:name {:l 55, :c 7} "="]
+  [:name {:l 55, :c 4} "\\"]
+  ( [:name {:l 55, :c 23} "∩"]
+    ( [:name {:l 55, :c 17} "=>"]
+      ( [:name {:l 55, :c 12} "=>"]
+        [:name {:l 55, :c 9} "Set"]
+        [:name {:l 55, :c 14} "Set"])
+      [:name {:l 55, :c 19} "Set"])
+    [:set {:l 56, :c 1}
+      [:bind {:l 56, :c 2} ["A"]
+        ( [:name {:l 56, :c 4} "->"]
+          [:name {:l 56, :c 2} "A"]
+          [:bind {:l 56, :c 7} ["B"]
+            ( [:name {:l 56, :c 9} "->"]
+              [:name {:l 56, :c 7} "B"]
+              [:set {:l 56, :c 12}
+                [:bind {:l 56, :c 13} ["x"]
+                  ( [:name {:l 56, :c 13} "|"]
+                    [:name {:l 56, :c 13} "x"]
+                    [:and {:l 56, :c 13}
+                      ( [:op {:l 56, :c 14} "∈"]
+                        [:name {:l 56, :c 13} "x"]
+                        [:name {:l 56, :c 15} "A"])
+                      ( [:name {:l 56, :c 20} "∉"]
+                        [:name {:l 56, :c 19} "x"]
+                        [:name {:l 56, :c 21} "B"])])]])])]]))
+[:and {:l 60, :c 4}
+  ( [:name {:l 60, :c 7} "="]
+    [:name {:l 60, :c 4} "∘"]
+    [:name {:l 60, :c 10} "."])
+  ( [:name {:l 60, :c 13} "="]
+    [:name {:l 60, :c 10} "."]
+    [:set {:l 60, :c 15}
+      [:bind {:l 60, :c 16} ["f"]
+        ( [:name {:l 60, :c 18} "->"]
+          [:name {:l 60, :c 16} "f"]
+          [:bind {:l 60, :c 21} ["g"]
+            ( [:name {:l 60, :c 23} "->"]
+              [:name {:l 60, :c 21} "g"]
+              [:bind {:l 60, :c 26} ["x"]
+                ( [:name {:l 60, :c 28} "->"]
+                  [:name {:l 60, :c 26} "x"]
+                  ( [:name {:l 60, :c 31} "f"]
+                    ( [:name {:l 60, :c 34} "g"]
+                      [:name {:l 60, :c 36} "x"])))])])]])]
+( [:name {:l 64, :c 7} "="]
+  [:name {:l 64, :c 4} "$"]
+  [:set {:l 64, :c 9}
+    [:bind {:l 64, :c 10} ["f"]
+      ( [:name {:l 64, :c 12} "->"]
+        [:name {:l 64, :c 10} "f"]
+        [:bind {:l 64, :c 15} ["x"]
+          ( [:name {:l 64, :c 17} "->"]
+            [:name {:l 64, :c 15} "x"]
+            ( [:name {:l 64, :c 20} "f"]
+              [:name {:l 64, :c 22} "x"]))])]])
+[:and {:l 67, :c 3}
+  ( [:name {:l 67, :c 5} "="]
+    [:name {:l 67, :c 3} "!"]
+    [:name {:l 67, :c 7} "¬"])
+  ( [:name {:l 67, :c 9} "="]
+    [:name {:l 67, :c 7} "¬"]
+    [:set {:l 67, :c 11}
+      ( [:name {:l 67, :c 17} "->"]
+        [:name {:l 67, :c 12} "true"]
+        [:name {:l 67, :c 20} "false"])
+      ( [:name {:l 67, :c 33} "->"]
+        [:name {:l 67, :c 27} "false"]
+        [:name {:l 67, :c 36} "true"])])]
+( [:name {:l 69, :c 6} "="]
+  [:name {:l 69, :c 3} "if"]
+  [:name {:l 69, :c 9} "?"])
+( [:name {:l 71, :c 6} "="]
+  [:name {:l 71, :c 3} "id"]
+  [:set {:l 71, :c 8}
+    [:bind {:l 71, :c 9} ["x"]
+      ( [:name {:l 71, :c 11} "->"]
+        [:name {:l 71, :c 9} "x"]
+        [:name {:l 71, :c 14} "x"])]])
+( [:name {:l 73, :c 9} "="]
+  [:name {:l 73, :c 3} "const"]
+  [:set {:l 73, :c 11}
+    [:bind {:l 73, :c 12} ["x"]
+      ( [:name {:l 73, :c 14} "->"]
+        [:name {:l 73, :c 12} "x"]
+        [:set {:l 73, :c 17}
+          ( [:name {:l 73, :c 20} "->"]
+            [:name {:l 73, :c 18} "_"]
+            [:name {:l 73, :c 23} "x"])])]])
+( [:name {:l 75, :c 7} "="]
+  [:name {:l 75, :c 3} "inc"]
+  [:set {:l 75, :c 9}
+    [:bind {:l 75, :c 10} ["x"]
+      ( [:name {:l 75, :c 12} "->"]
+        [:name {:l 75, :c 10} "x"]
+        ( [:name {:l 75, :c 16} "+"]
+          [:name {:l 75, :c 15} "x"]
+          [:num {:l 75, :c 17} 1]))]])
+( [:name {:l 76, :c 7} "="]
+  [:name {:l 76, :c 3} "dec"]
+  [:set {:l 76, :c 9}
+    [:bind {:l 76, :c 10} ["x"]
+      ( [:name {:l 76, :c 12} "->"]
+        [:name {:l 76, :c 10} "x"]
+        ( [:name {:l 76, :c 16} "-"]
+          [:name {:l 76, :c 15} "x"]
+          [:num {:l 76, :c 17} 1]))]])
+( [:name {:l 78, :c 8} "="]
+  [:name {:l 78, :c 3} "flip"]
+  [:set {:l 78, :c 10}
+    [:bind {:l 78, :c 11} ["f"]
+      ( [:name {:l 78, :c 13} "->"]
+        [:name {:l 78, :c 11} "f"]
+        [:bind {:l 78, :c 16} ["a"]
+          ( [:name {:l 78, :c 18} "->"]
+            [:name {:l 78, :c 16} "a"]
+            [:bind {:l 78, :c 21} ["b"]
+              ( [:name {:l 78, :c 23} "->"]
+                [:name {:l 78, :c 21} "b"]
+                ( [:name {:l 78, :c 26} "f"]
+                  [:name {:l 78, :c 28} "b"]
+                  [:name {:l 78, :c 30} "a"]))])])]])
+( [:name {:l 80, :c 9} "="]
+  [:name {:l 80, :c 3} "first"]
+  [:set {:l 80, :c 11}
+    [:bind {:l 80, :c 12} ["x"]
+      ( [:name {:l 80, :c 16} "->"]
+        ( [:name {:l 80, :c 13} ":"]
+          [:name {:l 80, :c 12} "x"]
+          [:name {:l 80, :c 14} "_"])
+        [:name {:l 80, :c 19} "x"])]])
+( [:name {:l 82, :c 8} "="]
+  [:name {:l 82, :c 3} "rest"]
+  [:set {:l 82, :c 10}
+    [:bind {:l 82, :c 11} ["xs"]
+      ( [:name {:l 82, :c 16} "->"]
+        ( [:name {:l 82, :c 12} ":"]
+          [:name {:l 82, :c 11} "_"]
+          [:name {:l 82, :c 13} "xs"])
+        [:name {:l 82, :c 19} "xs"])]])
+( [:name {:l 84, :c 10} "="]
+  [:name {:l 84, :c 3} "second"]
+  [:set {:l 84, :c 12}
+    [:bind {:l 84, :c 13} ["x"]
+      ( [:name {:l 84, :c 19} "->"]
+        ( [:name {:l 84, :c 14} ":"]
+          [:name {:l 84, :c 13} "_"]
+          ( [:name {:l 84, :c 16} ":"]
+            [:name {:l 84, :c 15} "x"]
+            [:name {:l 84, :c 17} "_"]))
+        [:name {:l 84, :c 22} "x"])]])
+( [:name {:l 86, :c 8} "="]
+  [:name {:l 86, :c 3} "take"]
+  ( [:name {:l 86, :c 24} "∩"]
+    ( [:name {:l 86, :c 18} "=>"]
+      ( [:name {:l 86, :c 13} "=>"]
+        [:name {:l 86, :c 10} "Nat"]
+        [:name {:l 86, :c 15} "Seq"])
+      [:name {:l 86, :c 20} "Seq"])
+    [:set {:l 87, :c 1}
+      ( [:name {:l 87, :c 4} "->"]
+        [:num {:l 87, :c 2} 0]
+        ( [:name {:l 87, :c 12} "->"]
+          [:name {:l 87, :c 7} "_"]
+          [:seq {:l 87, :c 15}]))
+      [:bind {:l 88, :c 2} ["n"]
+        ( [:name {:l 88, :c 4} "->"]
+          [:name {:l 88, :c 2} "n"]
+          [:bind {:l 88, :c 7} ["xs" "x"]
+            ( [:name {:l 88, :c 12} "->"]
+              ( [:name {:l 88, :c 8} ":"]
+                [:name {:l 88, :c 7} "x"]
+                [:name {:l 88, :c 9} "xs"])
+              ( [:name {:l 88, :c 16} ":"]
+                [:name {:l 88, :c 15} "x"]
+                ( [:name {:l 88, :c 17} "take"]
+                  ( [:name {:l 88, :c 22} "dec"]
+                    [:name {:l 88, :c 26} "n"])
+                  [:name {:l 88, :c 28} "xs"])))])]]))
+( [:name {:l 90, :c 7} "="]
+  [:name {:l 90, :c 3} "map"]
+  ( [:name {:l 90, :c 23} "∩"]
+    ( [:name {:l 90, :c 17} "=>"]
+      ( [:name {:l 90, :c 12} "=>"]
+        [:name {:l 90, :c 9} "Any"]
+        [:name {:l 90, :c 14} "Seq"])
+      [:name {:l 90, :c 19} "Seq"])
+    [:set {:l 91, :c 1}
+      ( [:name {:l 91, :c 4} "->"]
+        [:name {:l 91, :c 2} "_"]
+        ( [:name {:l 91, :c 12} "->"]
+          [:seq {:l 91, :c 7}]
+          [:seq {:l 91, :c 15}]))
+      [:bind {:l 92, :c 2} ["f"]
+        ( [:name {:l 92, :c 4} "->"]
+          [:name {:l 92, :c 2} "f"]
+          [:bind {:l 92, :c 7} ["xs" "x"]
+            ( [:name {:l 92, :c 12} "->"]
+              ( [:name {:l 92, :c 8} ":"]
+                [:name {:l 92, :c 7} "x"]
+                [:name {:l 92, :c 9} "xs"])
+              ( [:name {:l 92, :c 19} ":"]
+                ( [:name {:l 92, :c 15} "f"]
+                  [:name {:l 92, :c 17} "x"])
+                ( [:name {:l 92, :c 21} "map"]
+                  [:name {:l 92, :c 25} "f"]
+                  [:name {:l 92, :c 27} "xs"])))])]]))
+( [:name {:l 94, :c 10} "="]
+  [:name {:l 94, :c 3} "filter"]
+  ( [:name {:l 94, :c 26} "∩"]
+    ( [:name {:l 94, :c 20} "=>"]
+      ( [:name {:l 94, :c 15} "=>"]
+        [:name {:l 94, :c 12} "Set"]
+        [:name {:l 94, :c 17} "Seq"])
+      [:name {:l 94, :c 22} "Seq"])
+    [:set {:l 95, :c 1}
+      ( [:name {:l 95, :c 4} "->"]
+        [:name {:l 95, :c 2} "_"]
+        ( [:name {:l 95, :c 12} "->"]
+          [:seq {:l 95, :c 7}]
+          [:seq {:l 95, :c 15}]))
+      [:bind {:l 96, :c 2} ["S"]
+        ( [:name {:l 96, :c 4} "->"]
+          [:name {:l 96, :c 2} "S"]
+          [:bind {:l 96, :c 7} ["xs" "x"]
+            ( [:name {:l 96, :c 12} "->"]
+              ( [:name {:l 96, :c 8} ":"]
+                [:name {:l 96, :c 7} "x"]
+                [:name {:l 96, :c 9} "xs"])
+              [:bind {:l 96, :c 15} ["r"]
+                ( [:name {:l 96, :c 29} "|"]
+                  ( [:name {:l 96, :c 25} "$"]
+                    ( [:name {:l 96, :c 19} "?"]
+                      ( [:name {:l 96, :c 16} "∈"]
+                        [:name {:l 96, :c 15} "x"]
+                        [:name {:l 96, :c 17} "S"])
+                      ( [:name {:l 96, :c 22} ":"]
+                        [:name {:l 96, :c 21} "x"]
+                        [:name {:l 96, :c 23} "r"]))
+                    [:name {:l 96, :c 27} "r"])
+                  ( [:name {:l 96, :c 32} "="]
+                    [:name {:l 96, :c 31} "r"]
+                    ( [:name {:l 96, :c 33} "filter"]
+                      [:name {:l 96, :c 40} "S"]
+                      [:name {:l 96, :c 42} "xs"])))])])]]))
+( [:name {:l 98, :c 10} "="]
+  [:name {:l 98, :c 3} "remove"]
+  ( [:name {:l 98, :c 26} "∩"]
+    ( [:name {:l 98, :c 20} "=>"]
+      ( [:name {:l 98, :c 15} "=>"]
+        [:name {:l 98, :c 12} "Set"]
+        [:name {:l 98, :c 17} "Seq"])
+      [:name {:l 98, :c 22} "Seq"])
+    [:set {:l 99, :c 1}
+      ( [:name {:l 99, :c 4} "->"]
+        [:name {:l 99, :c 2} "_"]
+        ( [:name {:l 99, :c 12} "->"]
+          [:seq {:l 99, :c 7}]
+          [:seq {:l 99, :c 15}]))
+      [:bind {:l 100, :c 2} ["S"]
+        ( [:name {:l 100, :c 4} "->"]
+          [:name {:l 100, :c 2} "S"]
+          [:bind {:l 100, :c 7} ["xs" "x"]
+            ( [:name {:l 100, :c 12} "->"]
+              ( [:name {:l 100, :c 8} ":"]
+                [:name {:l 100, :c 7} "x"]
+                [:name {:l 100, :c 9} "xs"])
+              [:bind {:l 100, :c 15} ["r"]
+                ( [:name {:l 100, :c 29} "|"]
+                  ( [:name {:l 100, :c 23} "$"]
+                    ( [:name {:l 100, :c 19} "?"]
+                      ( [:name {:l 100, :c 16} "∈"]
+                        [:name {:l 100, :c 15} "x"]
+                        [:name {:l 100, :c 17} "S"])
+                      [:name {:l 100, :c 21} "r"])
+                    ( [:name {:l 100, :c 26} ":"]
+                      [:name {:l 100, :c 25} "x"]
+                      [:name {:l 100, :c 27} "r"]))
+                  ( [:name {:l 100, :c 32} "="]
+                    [:name {:l 100, :c 31} "r"]
+                    ( [:name {:l 100, :c 33} "remove"]
+                      [:name {:l 100, :c 40} "S"]
+                      [:name {:l 100, :c 42} "xs"])))])])]]))
+[:and {:l 102, :c 3}
+  ( [:name {:l 102, :c 10} "="]
+    [:name {:l 102, :c 3} "reduce"]
+    [:name {:l 102, :c 12} "foldl"])
+  ( [:name {:l 102, :c 18} "="]
+    [:name {:l 102, :c 12} "foldl"]
+    ( [:name {:l 102, :c 56} "∩"]
+      ( [:name {:l 102, :c 50} "=>"]
+        ( [:name {:l 102, :c 45} "=>"]
+          ( [:name {:l 102, :c 40} "=>"]
+            ( [:name {:l 102, :c 20} "SetOf"]
+              ( [:name {:l 102, :c 34} "=>"]
+                ( [:name {:l 102, :c 29} "=>"]
+                  [:name {:l 102, :c 26} "Any"]
+                  [:name {:l 102, :c 31} "Any"])
+                [:name {:l 102, :c 36} "Any"]))
+            [:name {:l 102, :c 42} "Any"])
+          [:name {:l 102, :c 47} "Seq"])
+        [:name {:l 102, :c 52} "Any"])
+      [:set {:l 103, :c 1}
+        ( [:name {:l 103, :c 4} "->"]
+          [:name {:l 103, :c 2} "_"]
+          [:bind {:l 103, :c 7} ["z"]
+            ( [:name {:l 103, :c 9} "->"]
+              [:name {:l 103, :c 7} "z"]
+              ( [:name {:l 103, :c 17} "->"]
+                [:seq {:l 103, :c 12}]
+                [:name {:l 103, :c 20} "z"]))])
+        [:bind {:l 104, :c 2} ["f"]
+          ( [:name {:l 104, :c 4} "->"]
+            [:name {:l 104, :c 2} "f"]
+            [:bind {:l 104, :c 7} ["z"]
+              ( [:name {:l 104, :c 9} "->"]
+                [:name {:l 104, :c 7} "z"]
+                [:bind {:l 104, :c 12} ["xs" "x"]
+                  ( [:name {:l 104, :c 17} "->"]
+                    ( [:name {:l 104, :c 13} ":"]
+                      [:name {:l 104, :c 12} "x"]
+                      [:name {:l 104, :c 14} "xs"])
+                    ( [:name {:l 104, :c 20} "foldl"]
+                      [:name {:l 104, :c 26} "f"]
+                      ( [:name {:l 104, :c 29} "f"]
+                        [:name {:l 104, :c 31} "z"]
+                        [:name {:l 104, :c 33} "x"])
+                      [:name {:l 104, :c 36} "xs"]))])])]]))]
+( [:name {:l 106, :c 9} "="]
+  [:name {:l 106, :c 3} "foldr"]
+  ( [:name {:l 106, :c 47} "∩"]
+    ( [:name {:l 106, :c 41} "=>"]
+      ( [:name {:l 106, :c 36} "=>"]
+        ( [:name {:l 106, :c 31} "=>"]
+          ( [:name {:l 106, :c 11} "SetOf"]
+            ( [:name {:l 106, :c 25} "=>"]
+              ( [:name {:l 106, :c 20} "=>"]
+                [:name {:l 106, :c 17} "Any"]
+                [:name {:l 106, :c 22} "Any"])
+              [:name {:l 106, :c 27} "Any"]))
+          [:name {:l 106, :c 33} "Any"])
+        [:name {:l 106, :c 38} "Seq"])
+      [:name {:l 106, :c 43} "Any"])
+    [:set {:l 107, :c 1}
+      ( [:name {:l 107, :c 4} "->"]
+        [:name {:l 107, :c 2} "_"]
+        [:bind {:l 107, :c 7} ["z"]
+          ( [:name {:l 107, :c 9} "->"]
+            [:name {:l 107, :c 7} "z"]
+            ( [:name {:l 107, :c 17} "->"]
+              [:seq {:l 107, :c 12}]
+              [:name {:l 107, :c 20} "z"]))])
+      [:bind {:l 108, :c 2} ["f"]
+        ( [:name {:l 108, :c 4} "->"]
+          [:name {:l 108, :c 2} "f"]
+          [:bind {:l 108, :c 7} ["z"]
+            ( [:name {:l 108, :c 9} "->"]
+              [:name {:l 108, :c 7} "z"]
+              [:bind {:l 108, :c 12} ["xs" "x"]
+                ( [:name {:l 108, :c 17} "->"]
+                  ( [:name {:l 108, :c 13} ":"]
+                    [:name {:l 108, :c 12} "x"]
+                    [:name {:l 108, :c 14} "xs"])
+                  ( [:name {:l 108, :c 20} "f"]
+                    [:name {:l 108, :c 22} "x"]
+                    ( [:name {:l 108, :c 25} "foldr"]
+                      [:name {:l 108, :c 31} "f"]
+                      [:name {:l 108, :c 33} "z"]
+                      [:name {:l 108, :c 35} "xs"])))])])]]))
+( [:name {:l 110, :c 10} "="]
+  [:name {:l 110, :c 3} "mapcat"]
+  ( [:name {:l 110, :c 38} "∩"]
+    ( [:name {:l 110, :c 32} "=>"]
+      ( [:name {:l 110, :c 27} "=>"]
+        ( [:name {:l 110, :c 12} "SetOf"]
+          ( [:name {:l 110, :c 21} "=>"]
+            [:name {:l 110, :c 18} "Any"]
+            [:name {:l 110, :c 23} "Seq"]))
+        [:name {:l 110, :c 29} "Seq"])
+      [:name {:l 110, :c 34} "Seq"])
+    [:set {:l 111, :c 1}
+      [:bind {:l 111, :c 2} ["f"]
+        ( [:name {:l 111, :c 4} "->"]
+          [:name {:l 111, :c 2} "f"]
+          [:bind {:l 111, :c 7} ["s"]
+            ( [:name {:l 111, :c 9} "->"]
+              [:name {:l 111, :c 7} "s"]
+              ( [:name {:l 111, :c 12} "reduce"]
+                [:name {:l 111, :c 19} "++"]
+                [:seq {:l 111, :c 23}]
+                ( [:name {:l 111, :c 27} "map"]
+                  [:name {:l 111, :c 31} "f"]
+                  [:name {:l 111, :c 33} "s"])))])]]))
+( [:name {:l 113, :c 7} "="]
+  [:name {:l 113, :c 3} "zip"]
+  [:set {:l 114, :c 1}
+    [:bind {:l 114, :c 2} ["a"]
+      ( [:name {:l 114, :c 8} "->"]
+        ( [:name {:l 114, :c 2} "|"]
+          [:name {:l 114, :c 2} "a"]
+          ( [:op {:l 114, :c 3} "∈"]
+            [:name {:l 114, :c 2} "a"]
+            [:name {:l 114, :c 4} "Seq"]))
+        [:bind {:l 114, :c 11} ["b"]
+          ( [:name {:l 115, :c 3} "->"]
+            ( [:name {:l 114, :c 11} "|"]
+              [:name {:l 114, :c 11} "b"]
+              ( [:op {:l 114, :c 12} "∈"]
+                [:name {:l 114, :c 11} "b"]
+                [:name {:l 114, :c 13} "Seq"]))
+            [:values {:l 115, :c 6}
+              ( [:name {:l 115, :c 9} "|"]
+                [:seq {:l 115, :c 6}]
+                ( [:name {:l 115, :c 16} "∨"]
+                  ( [:name {:l 115, :c 12} "="]
+                    [:name {:l 115, :c 11} "a"]
+                    [:seq {:l 115, :c 13}])
+                  ( [:name {:l 115, :c 19} "="]
+                    [:name {:l 115, :c 18} "b"]
+                    [:seq {:l 115, :c 20}])))
+              [:bind {:l 116, :c 6} ["xs" "x" "ys" "y" "42ffd100-8e30-4b75-8f1e-4413f4870413"]
+                ( [:name {:l 117, :c 3} "|"]
+                  ( [:name {:l 116, :c 11} ":"]
+                    [:seq {:l 116, :c 6}
+                      [:name {:l 116, :c 7} "x"]
+                      [:name {:l 116, :c 9} "y"]]
+                    ( [:name {:l 116, :c 13} "zip"]
+                      [:name {:l 116, :c 17} "xs"]
+                      [:name {:l 116, :c 20} "ys"]))
+                  [:and {:l 117, :c 7}
+                    ( [:name {:l 117, :c 7} "="]
+                      [:name {:l 117, :c 7} "42ffd100-8e30-4b75-8f1e-4413f4870413"]
+                      ( [:name {:l 117, :c 8} ":"]
+                        [:name {:l 117, :c 7} "x"]
+                        ( [:name {:l 117, :c 9} "xs"]
+                          [:name {:l 118, :c 5} "b"])))
+                    ( [:name {:l 117, :c 6} "="]
+                      [:name {:l 117, :c 5} "a"]
+                      [:name {:l 117, :c 7} "42ffd100-8e30-4b75-8f1e-4413f4870413"])
+                    ( [:name {:l 118, :c 6} "="]
+                      [:name {:l 117, :c 7} "42ffd100-8e30-4b75-8f1e-4413f4870413"]
+                      ( [:name {:l 118, :c 8} ":"]
+                        [:name {:l 118, :c 7} "y"]
+                        [:name {:l 118, :c 9} "ys"]))])]])])]])
+( [:name {:l 120, :c 8} "="]
+  [:name {:l 120, :c 3} "toFn"]
+  [:set {:l 121, :c 1}
+    [:bind {:l 121, :c 2} ["x"]
+      ( [:name {:l 121, :c 4} "->"]
+        [:name {:l 121, :c 2} "x"]
+        ( [:name {:l 121, :c 7} "toArr"]
+          [:name {:l 121, :c 13} "x"]))]])
+( [:name {:l 123, :c 9} "="]
+  [:name {:l 123, :c 3} "toArr"]
+  [:set {:l 124, :c 1}
+    [:bind {:l 124, :c 2} ["a"]
+      ( [:name {:l 124, :c 8} "->"]
+        ( [:name {:l 124, :c 2} "|"]
+          [:name {:l 124, :c 2} "a"]
+          ( [:op {:l 124, :c 3} "∈"]
+            [:name {:l 124, :c 2} "a"]
+            [:name {:l 124, :c 4} "Arr"]))
+        [:name {:l 124, :c 11} "a"])]
+    [:bind {:l 125, :c 2} ["x"]
+      ( [:name {:l 125, :c 8} "->"]
+        ( [:name {:l 125, :c 3} ";"]
+          [:name {:l 125, :c 2} "_"]
+          [:name {:l 125, :c 4} "x"])
+        ( [:name {:l 125, :c 11} "toArr"]
+          [:name {:l 125, :c 17} "x"]))]
+    [:bind {:l 126, :c 2} ["S"]
+      ( [:name {:l 126, :c 8} "->"]
+        ( [:name {:l 126, :c 2} "|"]
+          [:name {:l 126, :c 2} "S"]
+          ( [:op {:l 126, :c 3} "∈"]
+            [:name {:l 126, :c 2} "S"]
+            [:name {:l 126, :c 4} "Set"]))
+        [:bind {:l 126, :c 11} ["x"]
+          ( [:name {:l 126, :c 19} "|"]
+            ( [:name {:l 126, :c 11} "toArr"]
+              [:name {:l 126, :c 17} "x"])
+            ( [:name {:l 126, :c 23} "∈"]
+              [:name {:l 126, :c 21} "x"]
+              [:name {:l 126, :c 25} "S"]))])]])
+( [:name {:l 129, :c 11} "="]
+  [:name {:l 129, :c 3} "tagType"]
+  [:set {:l 129, :c 13}
+    [:bind {:l 129, :c 14} ["t"]
+      ( [:name {:l 129, :c 18} "->"]
+        ( [:name {:l 129, :c 15} ";"]
+          [:name {:l 129, :c 14} "t"]
+          [:name {:l 129, :c 16} "_"])
+        [:name {:l 129, :c 21} "t"])]])
+( [:name {:l 131, :c 12} "="]
+  [:name {:l 131, :c 3} "tagValue"]
+  [:set {:l 131, :c 14}
+    [:bind {:l 131, :c 15} ["v"]
+      ( [:name {:l 131, :c 19} "->"]
+        ( [:name {:l 131, :c 16} ";"]
+          [:name {:l 131, :c 15} "_"]
+          [:name {:l 131, :c 17} "v"])
+        [:name {:l 131, :c 22} "v"])]])

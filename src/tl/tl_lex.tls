@@ -1,0 +1,77 @@
+[:include "src/tl/lex_split"]
+( [:name {:l 4, :c 11} "="]
+  [:name {:l 4, :c 3} "newline"]
+  [:str {:l 4, :c 13} "\n"])
+( [:name {:l 7, :c 15} "="]
+  [:name {:l 7, :c 3} "index_lines"]
+  [:set {:l 8, :c 1}
+    [:bind {:l 8, :c 2} ["s" "N"]
+      ( [:name {:l 8, :c 26} "->"]
+        ( [:name {:l 8, :c 2} "|"]
+          [:name {:l 8, :c 2} "s"]
+          [:and {:l 8, :c 2}
+            ( [:op {:l 8, :c 4} "∈"]
+              [:name {:l 8, :c 2} "s"]
+              [:name {:l 8, :c 6} "Str"])
+            ( [:name {:l 8, :c 14} "="]
+              [:name {:l 8, :c 12} "N"]
+              [:set {:l 8, :c 16}
+                [:name {:l 8, :c 17} "newline"]])])
+        [:bind {:l 9, :c 2} ["remove" "zip"]
+          ( [:name {:l 9, :c 2} "zip"]
+            [:seq {:l 9, :c 6}
+              [:num {:l 9, :c 7} 1]
+              [:range {:l 9, :c 8}]]
+            ( [:name {:l 9, :c 13} "remove"]
+              [:name {:l 9, :c 20} "N"]
+              ( [:name {:l 9, :c 23} "lex_split"]
+                [:name {:l 9, :c 33} "N"]
+                [:name {:l 9, :c 35} "s"])))])]])
+( [:name {:l 11, :c 14} "="]
+  [:name {:l 11, :c 3} "index_cols"]
+  [:set {:l 12, :c 1}
+    [:bind {:l 12, :c 2} ["line_index" "line"]
+      ( [:name {:l 12, :c 31} "->"]
+        [:seq {:l 12, :c 2}
+          ( [:name {:l 12, :c 3} "|"]
+            [:name {:l 12, :c 3} "line_index"]
+            ( [:op {:l 12, :c 14} "≥"]
+              [:name {:l 12, :c 3} "line_index"]
+              [:num {:l 12, :c 16} 1]))
+          ( [:name {:l 12, :c 19} "|"]
+            [:name {:l 12, :c 19} "line"]
+            ( [:op {:l 12, :c 24} "∈"]
+              [:name {:l 12, :c 19} "line"]
+              [:name {:l 12, :c 26} "Str"]))]
+        [:bind {:l 13, :c 2} ["map" "zip"]
+          ( [:name {:l 13, :c 2} "map"]
+            [:set {:l 13, :c 6}
+              [:bind {:l 13, :c 7} ["col_index" "c"]
+                ( [:name {:l 13, :c 22} "->"]
+                  [:seq {:l 13, :c 7}
+                    [:name {:l 13, :c 8} "col_index"]
+                    [:name {:l 13, :c 19} "c"]]
+                  [:seq {:l 13, :c 25}
+                    [:name {:l 13, :c 26} "line_index"]
+                    [:name {:l 13, :c 38} "col_index"]
+                    [:name {:l 13, :c 49} "c"]])]]
+            ( [:name {:l 14, :c 7} "zip"]
+              [:seq {:l 14, :c 11}
+                [:num {:l 14, :c 12} 1]
+                [:range {:l 14, :c 13}]]
+              [:name {:l 14, :c 17} "line"]))])]])
+( [:name {:l 16, :c 21} "="]
+  [:name {:l 16, :c 3} "tag_with_line_col"]
+  [:set {:l 17, :c 1}
+    [:bind {:l 17, :c 2} ["s"]
+      ( [:name {:l 17, :c 10} "->"]
+        ( [:name {:l 17, :c 2} "|"]
+          [:name {:l 17, :c 2} "s"]
+          ( [:op {:l 17, :c 4} "∈"]
+            [:name {:l 17, :c 2} "s"]
+            [:name {:l 17, :c 6} "Str"]))
+        [:bind {:l 18, :c 2} ["mapcat"]
+          ( [:name {:l 18, :c 2} "mapcat"]
+            [:name {:l 18, :c 9} "index_cols"]
+            ( [:name {:l 18, :c 21} "index_lines"]
+              [:name {:l 18, :c 33} "s"]))])]])

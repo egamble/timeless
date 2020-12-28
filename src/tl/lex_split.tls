@@ -1,0 +1,118 @@
+( [:name {:l 5, :c 5} "="]
+  [:name {:l 5, :c 3} "f"]
+  [:set {:l 6, :c 1}
+    [:bind {:l 6, :c 2} ["Sep"]
+      ( [:name {:l 6, :c 14} "->"]
+        ( [:name {:l 6, :c 2} "|"]
+          [:name {:l 6, :c 2} "Sep"]
+          ( [:op {:l 6, :c 6} "<<"]
+            [:name {:l 6, :c 2} "Sep"]
+            [:name {:l 6, :c 9} "Char"]))
+        [:bind {:l 6, :c 17} ["c"]
+          ( [:name {:l 6, :c 26} "->"]
+            ( [:name {:l 6, :c 17} "|"]
+              [:name {:l 6, :c 17} "c"]
+              ( [:op {:l 6, :c 19} "@"]
+                [:name {:l 6, :c 17} "c"]
+                [:name {:l 6, :c 21} "Char"]))
+            [:values {:l 6, :c 29}
+              ( [:name {:l 6, :c 32} "->"]
+                [:seq {:l 6, :c 29}]
+                [:seq {:l 6, :c 35}
+                  ( [:name {:l 6, :c 39} ";"]
+                    [:name {:l 6, :c 36} "Str"]
+                    [:seq {:l 6, :c 40}
+                      [:name {:l 6, :c 41} "c"]])])
+              [:bind {:l 7, :c 28} ["ts" "t"]
+                ( [:name {:l 7, :c 43} "->"]
+                  ( [:name {:l 7, :c 33} "|"]
+                    ( [:name {:l 7, :c 29} ":"]
+                      [:name {:l 7, :c 28} "t"]
+                      [:name {:l 7, :c 30} "ts"])
+                    ( [:name {:l 7, :c 37} "∈"]
+                      [:name {:l 7, :c 35} "t"]
+                      [:name {:l 7, :c 39} "Sep"]))
+                  [:bind {:l 7, :c 46} ["r"]
+                    ( [:name {:l 7, :c 54} ":"]
+                      ( [:name {:l 7, :c 49} ";"]
+                        [:name {:l 7, :c 46} "Str"]
+                        [:seq {:l 7, :c 50}
+                          [:name {:l 7, :c 51} "c"]])
+                      [:name {:l 7, :c 56} "r"])])]
+              [:bind {:l 7, :c 28} ["ts" "t"]
+                ( [:name {:l 8, :c 43} "->"]
+                  ( [:name {:l 7, :c 33} "|"]
+                    ( [:name {:l 7, :c 29} ":"]
+                      [:name {:l 7, :c 28} "t"]
+                      [:name {:l 7, :c 30} "ts"])
+                    ( [:name {:l 8, :c 37} "∉"]
+                      [:name {:l 8, :c 35} "t"]
+                      [:name {:l 8, :c 39} "Sep"]))
+                  ( [:name {:l 8, :c 48} ":"]
+                    [:name {:l 8, :c 46} "c"]
+                    ( [:name {:l 8, :c 52} ":"]
+                      [:name {:l 8, :c 50} "t"]
+                      [:name {:l 8, :c 54} "ts"])))]])])]])
+( [:name {:l 10, :c 13} "="]
+  [:name {:l 10, :c 3} "lex_split"]
+  [:set {:l 11, :c 1}
+    [:bind {:l 11, :c 2} ["Sep"]
+      ( [:name {:l 11, :c 13} "->"]
+        ( [:name {:l 11, :c 2} "|"]
+          [:name {:l 11, :c 2} "Sep"]
+          ( [:op {:l 11, :c 6} "⊂"]
+            [:name {:l 11, :c 2} "Sep"]
+            [:name {:l 11, :c 8} "Char"]))
+        [:values {:l 11, :c 16}
+          ( [:name {:l 11, :c 19} "->"]
+            [:str {:l 11, :c 16} ""]
+            [:seq {:l 11, :c 22}])
+          [:bind {:l 12, :c 16} ["a8e6a77e-fdb8-4266-a969-e559d93094fd" "r" "cs" "c"]
+            ( [:name {:l 12, :c 60} "->"]
+              ( [:name {:l 12, :c 16} "|"]
+                [:name {:l 12, :c 16} "a8e6a77e-fdb8-4266-a969-e559d93094fd"]
+                [:and {:l 12, :c 16}
+                  ( [:name {:l 12, :c 16} "="]
+                    [:name {:l 12, :c 16} "a8e6a77e-fdb8-4266-a969-e559d93094fd"]
+                    ( [:name {:l 12, :c 17} ":"]
+                      [:name {:l 12, :c 16} "c"]
+                      [:name {:l 12, :c 18} "cs"]))
+                  ( [:op {:l 12, :c 21} "∈"]
+                    [:name {:l 12, :c 16} "a8e6a77e-fdb8-4266-a969-e559d93094fd"]
+                    [:name {:l 12, :c 23} "Str"])
+                  ( [:name {:l 12, :c 31} "="]
+                    [:name {:l 12, :c 29} "r"]
+                    ( [:name {:l 12, :c 33} "lex_split"]
+                      [:name {:l 12, :c 43} "Sep"]
+                      [:name {:l 12, :c 47} "cs"]))
+                  ( [:name {:l 12, :c 54} "∈"]
+                    [:name {:l 12, :c 52} "c"]
+                    [:name {:l 12, :c 56} "Sep"])])
+              ( [:name {:l 12, :c 64} ":"]
+                [:name {:l 12, :c 63} "c"]
+                [:name {:l 12, :c 65} "r"]))]
+          [:bind {:l 12, :c 16} ["a201a882-ee28-48e8-bcab-11a4157bd121" "r" "cs" "c"]
+            ( [:name {:l 13, :c 60} "->"]
+              ( [:name {:l 12, :c 16} "|"]
+                [:name {:l 12, :c 16} "a201a882-ee28-48e8-bcab-11a4157bd121"]
+                [:and {:l 12, :c 16}
+                  ( [:name {:l 12, :c 16} "="]
+                    [:name {:l 12, :c 16} "a201a882-ee28-48e8-bcab-11a4157bd121"]
+                    ( [:name {:l 12, :c 17} ":"]
+                      [:name {:l 12, :c 16} "c"]
+                      [:name {:l 12, :c 18} "cs"]))
+                  ( [:op {:l 12, :c 21} "∈"]
+                    [:name {:l 12, :c 16} "a201a882-ee28-48e8-bcab-11a4157bd121"]
+                    [:name {:l 12, :c 23} "Str"])
+                  ( [:name {:l 12, :c 31} "="]
+                    [:name {:l 12, :c 29} "r"]
+                    ( [:name {:l 12, :c 33} "lex_split"]
+                      [:name {:l 12, :c 43} "Sep"]
+                      [:name {:l 12, :c 47} "cs"]))
+                  ( [:name {:l 13, :c 54} "∉"]
+                    [:name {:l 13, :c 52} "c"]
+                    [:name {:l 13, :c 56} "Sep"])])
+              ( [:name {:l 13, :c 63} "f"]
+                [:name {:l 13, :c 65} "Sep"]
+                [:name {:l 13, :c 69} "c"]
+                [:name {:l 13, :c 71} "r"]))]])]])

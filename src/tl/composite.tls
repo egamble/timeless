@@ -1,32 +1,72 @@
-;; A recognizer for strings of 1s whose length is composite (i.e. not prime).
-
-(:let
-    (Repeat+
-     (:fn s
-       (∪ (:set s)
-          (:fn (++ a b)
-               (:guard (^ (= a s)
-                          (∈ b (Repeat+ s)))
-                       true))))
-
-     Factor
-     (:fn (++ a b)
-       (:guard (^ (= a "1")
-                  (∈ b (Repeat+ "1")))
-               true))
-
-     Composite
-     (∪
-      (:set "" "1")
-      (:fn (++ s b)
-           (:guard (^ (∈ s Factor)
-                      (∈ b (Repeat+ s)))
-                   true)))
-
-     stdout
-     (:alt
-      (:guard (∈ stdin Composite)
-              "composite")
-      "prime"))
-
-  stdout)
+[:include "src/tl/lib"]
+( [:name {:l 6, :c 11} "="]
+  [:name {:l 6, :c 3} "Repeat+"]
+  [:set {:l 7, :c 1}
+    [:bind {:l 7, :c 2} ["s"]
+      ( [:name {:l 7, :c 10} "->"]
+        ( [:name {:l 7, :c 2} "|"]
+          [:name {:l 7, :c 2} "s"]
+          ( [:op {:l 7, :c 4} "∈"]
+            [:name {:l 7, :c 2} "s"]
+            [:name {:l 7, :c 6} "Str"]))
+        [:set {:l 7, :c 13}
+          [:name {:l 7, :c 14} "s"]
+          [:bind {:l 7, :c 17} ["t"]
+            ( [:name {:l 7, :c 24} "|"]
+              ( [:name {:l 7, :c 19} "++"]
+                [:name {:l 7, :c 17} "s"]
+                [:name {:l 7, :c 22} "t"])
+              ( [:name {:l 7, :c 28} "∈"]
+                [:name {:l 7, :c 26} "t"]
+                ( [:name {:l 7, :c 30} "Repeat+"]
+                  [:name {:l 7, :c 38} "s"])))]])]])
+( [:name {:l 9, :c 10} "="]
+  [:name {:l 9, :c 3} "Factor"]
+  [:set {:l 10, :c 1}
+    [:bind {:l 10, :c 2} ["s" "Repeat"]
+      ( [:name {:l 10, :c 11} "|"]
+        ( [:name {:l 10, :c 6} "++"]
+          [:str {:l 10, :c 2} "1"]
+          [:name {:l 10, :c 9} "s"])
+        ( [:name {:l 10, :c 15} "∈"]
+          [:name {:l 10, :c 13} "s"]
+          ( [:name {:l 10, :c 23} "+"]
+            [:name {:l 10, :c 17} "Repeat"]
+            [:str {:l 10, :c 25} "1"])))]])
+( [:name {:l 12, :c 13} "="]
+  [:name {:l 12, :c 3} "Composite"]
+  [:set {:l 13, :c 1}
+    [:str {:l 13, :c 2} ""]
+    [:str {:l 14, :c 2} "1"]
+    [:bind {:l 15, :c 2} ["s" "t"]
+      ( [:name {:l 15, :c 9} "|"]
+        ( [:name {:l 15, :c 4} "++"]
+          [:name {:l 15, :c 2} "s"]
+          [:name {:l 15, :c 7} "t"])
+        ( [:name {:l 15, :c 22} "∧"]
+          ( [:name {:l 15, :c 13} "∈"]
+            [:name {:l 15, :c 11} "s"]
+            [:name {:l 15, :c 15} "Factor"])
+          ( [:name {:l 15, :c 26} "∈"]
+            [:name {:l 15, :c 24} "t"]
+            ( [:name {:l 15, :c 28} "Repeat+"]
+              [:name {:l 15, :c 36} "s"]))))]])
+( [:name {:l 17, :c 7} "="]
+  [:name {:l 17, :c 3} "out"]
+  [:set {:l 18, :c 1}
+    [:bind {:l 18, :c 2} ["8b1f32b8-80cc-41fb-8a60-4a1c3611c502"]
+      ( [:name {:l 18, :c 14} "->"]
+        ( [:name {:l 18, :c 2} "|"]
+          [:name {:l 18, :c 2} "8b1f32b8-80cc-41fb-8a60-4a1c3611c502"]
+          ( [:op {:l 18, :c 2} "∈"]
+            [:name {:l 18, :c 2} "8b1f32b8-80cc-41fb-8a60-4a1c3611c502"]
+            [:name {:l 18, :c 4} "Composite"]))
+        [:str {:l 18, :c 17} "composite"])]
+    [:bind {:l 19, :c 2} ["b9ebfa32-89e1-4c97-8852-3d5a9b9cb8f2"]
+      ( [:name {:l 19, :c 14} "->"]
+        ( [:name {:l 19, :c 2} "|"]
+          [:name {:l 19, :c 2} "b9ebfa32-89e1-4c97-8852-3d5a9b9cb8f2"]
+          ( [:op {:l 19, :c 2} "∉"]
+            [:name {:l 19, :c 2} "b9ebfa32-89e1-4c97-8852-3d5a9b9cb8f2"]
+            [:name {:l 19, :c 4} "Composite"]))
+        [:str {:l 19, :c 17} "prime"])]])
