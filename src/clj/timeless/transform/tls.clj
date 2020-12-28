@@ -12,6 +12,7 @@
 
 ;; TODO:
 
+;; - Generate TLS for the standard library, etc.
 ;; - Test various combinations of guards, arrows and embeddeds, and check the metadata.
 ;; - Rewrite make-gensym-comparison.
 ;; - Clean up and comment code.
