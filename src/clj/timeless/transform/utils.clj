@@ -28,10 +28,12 @@
   (second exp))
 
 (defn has-type [type exp]
-  (= type (first exp)))
+  (and (vector? exp)
+       (= type (first exp))))
 
 (defn has-types [type-set exp]
-  (type-set (first exp)))
+  (and (vector? exp)
+       (type-set (first exp))))
 
 (defn all-args [exp]
   (third-on exp))

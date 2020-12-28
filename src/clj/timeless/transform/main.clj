@@ -49,6 +49,26 @@
                     (apply str "\n"))
                ")")
 
+          (has-type :bind form)
+          (let [m (second form)
+                subforms (if (map? m)
+                           (rest (rest form))
+                           (rest form))]
+            (str (when initial-indent? indent)
+                 "[:bind"
+                 (when (and (not suppress-metadata?)
+                            (map? m))
+                   (str " " m))
+                 " "
+                 (pr-str (first subforms))
+                 (apply str (map #(str "\n"
+                                       (pretty next-indent
+                                               suppress-metadata?
+                                               true
+                                               %))
+                                 (rest subforms)))
+                 "]"))
+
           (vector? form)
           (let [m (second form)
                 subforms (if (map? m)

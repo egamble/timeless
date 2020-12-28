@@ -10,13 +10,11 @@
 ;; require more complicated mechanisms for avoiding collisions.
 
 
-
 ;; TODO:
 
-;; - Fill in the names of :binds.
-
 ;; - Test various combinations of guards, arrows and embeddeds, and check the metadata.
-
+;; - Rewrite make-gensym-comparison.
+;; - Clean up and comment code.
 
 
 (defn break-off-guards [exps]
@@ -99,9 +97,9 @@
                         joinable-clause)))
 
       ;; else index > 0
-      (let [f (fn [[_ m1 names ; :bind
+      (let [f (fn [[_ m1 _ ; :bind m1 []
                    [_ m2 op left-arg next-clause]]] ; :apply-arrow
-                [:bind m1 names
+                [:bind m1 []
                  [:apply-arrow m2
                   op
                   left-arg
@@ -142,7 +140,7 @@
   (let [[_ m & exps] reformed-clause
         is-bind (has-type :bind reformed-clause)]
     (if (= 0 index)
-      (second ; skip the :names of the :bind
+      (second ; skip the <names> of the :bind
        (if is-bind
          exps
 
@@ -150,7 +148,7 @@
          (all-args (last exps))))
 
       ;; else index > 0
-      (let [f (fn [[_ _ _ ; :bind m names
+      (let [f (fn [[_ _ _ ; :bind m []
                    [_ _ _ _ next-clause] ; :apply-arrow m op left-arg, then next-clause is the right-arg
                    ]]
                 (get-prev-guard next-clause
@@ -409,20 +407,20 @@
 
 
 ;; If the right side of an arrow application within a :bind is not already wrapped in a :bind, wrap it.
-(defn bind-arrow-right [m names exp]
-  (if (and (has-type :apply exp)
-           (has-type :name (first-arg exp))
-           (= "->" (first-arg (first-arg exp)))
-           (not (has-type :bind (third-arg exp))))
-    (let [[_ m2 op left-exp right-exp] exp
+(defn bind-arrow-right [m _ bind-arg]
+  (if (and (has-type :apply bind-arg)
+           (has-type :name (first-arg bind-arg))
+           (= "->" (first-arg (first-arg bind-arg)))
+           (not (has-type :bind (third-arg bind-arg))))
+    (let [[_ m2 op left-exp right-exp] bind-arg
           new-bind [:bind (get-meta right-exp) []
                     right-exp]]
-      [:bind m names
+      [:bind m []
        [:apply m2
         op
         left-exp
         (apply bind-arrow-right (rest new-bind))]])
-    [:bind m names exp]))
+    [:bind m [] bind-arg]))
 
 
 (defn transformations-1 [assertions]
@@ -465,18 +463,57 @@
     (map (partial insta/transform trans-map) assertions)))
 
 
+(defn find-names-to-bind [outer-name-set exp]
+  (cond
+    (has-type :name exp)
+    (let [name (first-arg exp)]
+      (if (outer-name-set name)
+        #{}
+        #{name}))
+
+    (has-type :bind exp)
+    #{}
+
+    (sequential? exp)
+    (reduce (fn [inner-name-set sub-exp]
+              (into inner-name-set
+                    (find-names-to-bind outer-name-set sub-exp)))
+            #{}
+            exp)
+
+    :else
+    #{}))
+
+
 ;; For the first call, exp is all the assertions.
-(defn fill-bind-names [bound-names exp]
-  (let [unbound-names (find-unbound-names bound-names exp)]
-    
+(defn fill-bind-names [outer-name-set exp]
+  (cond
+    (has-type :bind exp)
+    (let [[_ m _ bind-exp] exp
+          inner-name-set (find-names-to-bind outer-name-set bind-exp)
+          new-bind-exp (fill-bind-names (into outer-name-set inner-name-set)
+                                        bind-exp)]
+      (if (empty? inner-name-set)
+        new-bind-exp
+        [:bind m
+         (into [] inner-name-set)
+         new-bind-exp]))
 
+    (seq? exp)
+    (apply list (map (partial fill-bind-names outer-name-set)
+                     exp))
 
-    ))
+    (vector? exp)
+    (apply vector (map (partial fill-bind-names outer-name-set)
+                       exp))
+
+    :else
+    exp))
 
 
 (defn top-level-fill-bind-names [assertions]
-  (let [bound-names (find-names-to-bind () assertions)]
-    (fill-bind-names bound-names assertions)))
+  (let [name-set (find-names-to-bind #{} assertions)]
+    (fill-bind-names name-set assertions)))
 
 
 ;; Returns: <assertions>
@@ -488,4 +525,4 @@
        transformations-3
        transformations-4
        transformations-5
-       (fill-bind-names ())))
+       top-level-fill-bind-names))
