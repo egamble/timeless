@@ -13,9 +13,7 @@
 
 ;; TODO:
 
-;; - Generate TLS for the standard library, etc.
 ;; - Test various combinations of guards, arrows and embeddeds, and check the metadata.
-;; - Rewrite make-gensym-comparison.
 ;; - Clean up and comment code.
 
 
@@ -303,23 +301,24 @@
   (make-op-name op))
 
 
-;; TODO: rewrite this with reverse, for efficiency
 (defn make-gensym-comparison [[new-exps extra-comparisons] pair]
-  (let [[exp op] pair
+  (let [[exp op] pair]
 
-        [new-pair new-extra-comparisons]
-        (if (has-type :name exp)
-          [pair ()]
-          (let [new-name (uuid)
-                m (get-meta exp)]
-            [(list [:name m new-name] op)
-             (list
-              [:apply m
-               [:name m "="]
-               [:name m new-name]
-               exp])]))]
-    [(concat new-exps new-pair)
-     (concat extra-comparisons new-extra-comparisons)]))
+    (if (has-type :name exp)
+      [(concat new-exps pair)
+       extra-comparisons]
+      
+      (let [new-name (uuid)
+            m (get-meta exp)]
+        [(concat new-exps
+                 (list
+                  [:name m new-name]
+                  op))
+         (cons [:apply m
+                [:name m "="]
+                [:name m new-name]
+                exp]
+               extra-comparisons)]))))
 
 
 (defn transform-chain [m & exps]
@@ -327,6 +326,8 @@
         (reduce make-gensym-comparison
                   [() ()]
                   (partition 2 exps))
+
+        extra-comparisons (reverse extra-comparisons)
 
         comparison-triples (partition 3 2
                                       (cons-at-end new-exps
