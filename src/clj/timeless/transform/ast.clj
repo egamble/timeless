@@ -256,14 +256,13 @@
 
 ;; Returns: <exps>
 (defn post-process-exps [parsed encoded-precedences]
-  (let [exps (first parsed)]
-    (if (seq exps)
-      (->> exps
-           (do-transformations encoded-precedences)
-           find-embedded-assertions
-           find-chains
-           remove-groups)
-      (error "no expressions"))))
+  (if (seq parsed)
+    (->> parsed
+         (do-transformations encoded-precedences)
+         find-embedded-assertions
+         find-chains
+         remove-groups)
+    (error "no expressions")))
 
 
 ;; Returns: <exps>
