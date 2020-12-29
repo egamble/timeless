@@ -1,7 +1,8 @@
 (ns timeless.transform.main
   "Transform TL to TLS code."
-  (:require [timeless.transform.ast :refer [tl->ast]]
+  (:require [timeless.transform.ast :refer [tl->ast tl-exp->ast]]
             [timeless.transform.tls :refer [ast->tls]]
+            [timeless.transform.pretty :refer :all]
             [timeless.transform.utils :refer :all]
             [clojure.string :as str]))
 
@@ -16,6 +17,9 @@
 (defn tl-filepath [path]
   (str (str/replace path #"\.tls?$" "")
        ".tl"))
+
+
+(declare extract-declarations)
 
 (defn make-declaration [[includes declarations] line]
   (let [tokens (split-source-line line)
@@ -47,72 +51,17 @@
        (reduce make-declaration [() ()])))
 
 
-(defn insert-newlines [s]
-  (interleave s (repeat "\n")))
-
-
-(defn pretty [indent suppress-metadata? initial-indent? form]
-  (let [next-indent (str indent "  ")]
-    (cond (list? form)
-          (str (when initial-indent? indent) "( "
-               (pretty next-indent
-                       suppress-metadata?
-                       false
-                       (first form))
-               (->> (rest form)
-                    (map #(pretty next-indent
-                                  suppress-metadata?
-                                  true
-                                  %))
-                    insert-newlines
-                    butlast
-                    (apply str "\n"))
-               ")")
-
-          (has-type :bind form)
-          (let [m (second form)
-                subforms (if (map? m)
-                           (rest (rest form))
-                           (rest form))]
-            (str (when initial-indent? indent)
-                 "[:bind"
-                 (when (and (not suppress-metadata?)
-                            (map? m))
-                   (str " " m))
-                 " "
-                 (pr-str (first subforms))
-                 (apply str (map #(str "\n"
-                                       (pretty next-indent
-                                               suppress-metadata?
-                                               true
-                                               %))
-                                 (rest subforms)))
-                 "]"))
-
-          (vector? form)
-          (let [m (second form)
-                subforms (if (map? m)
-                           (rest (rest form))
-                           (rest form))]
-            (str (when initial-indent? indent)
-                 "[" (first form)
-                 (when (and (not suppress-metadata?)
-                            (map? m))
-                   (str " " m))
-                 (when-not (empty? subforms)
-                   (let [p (if (sequential? (first subforms))
-                             "\n"
-                             " ")]
-                     (apply str (map #(str p
-                                           (pretty next-indent
-                                                   suppress-metadata?
-                                                   true
-                                                   %))
-                                     subforms))))
-                 "]"))
-
-          :else
-          (pr-str form))))
+(defn tl-exp->tls [source in-path-grammar]
+  (let [exp (->> (tl-exp->ast source in-path-grammar)
+                 (ast->tls nil)
+                 first)]
+    (when exp
+      (println
+       (pretty ""
+               true
+               false
+               exp))
+      nil)))
 
 
 (defn write-tls-file [out-path assertions suppress-metadata?]
@@ -120,20 +69,22 @@
        (map (partial pretty
                      ""
                      suppress-metadata?
-                     true))
+                     false))
        insert-newlines
        (apply str)
        (spit out-path)))
 
-(defn tl->tls [in-path out-path & [generated-grammar-file suppress-metadata?]]
-  (let [source (slurp in-path)
+
+(defn tl->tls [in-path-tl out-path-tls & [out-path-grammar suppress-metadata?]]
+  (let [source (slurp in-path-tl)
         
         [includes declarations]
         (extract-declarations source)
 
-        assertions (->> (tl->ast declarations source generated-grammar-file)
+        assertions (->> (tl->ast declarations source out-path-grammar)
                         (ast->tls includes))]
-    (write-tls-file out-path assertions suppress-metadata?)))
+    (write-tls-file out-path-tls assertions suppress-metadata?)))
 
-(defn -main [in-file out-file & [generated-grammar-file suppress-metadata?]]
-  (tl->tls in-file out-file generated-grammar-file suppress-metadata?))
+
+(defn -main [in-path-tl out-path-tls & [out-path-generated-grammar suppress-metadata?]]
+  (tl->tls in-path-tl out-path-tls out-path-generated-grammar suppress-metadata?))

@@ -2,6 +2,10 @@
   "Useful functions.")
 
 
+(defn p [s x]
+  (println s x)
+  x)
+
 (defn error [msg]
   (throw (Exception. msg)))
 
@@ -19,10 +23,6 @@
 
 (defn third-on [s]
   (rest (rest s)))
-
-(defn p [s x]
-  (println s x)
-  x)
 
 (defn has-meta [exp]
   (and (> (count exp) 1)
@@ -61,3 +61,6 @@
 
 (defn cons-at-end [s x]
   (concat s (list x)))
+
+(defn insert-newlines [s]
+  (interleave s (repeat "\n")))

@@ -426,37 +426,12 @@
     [:bind m [] bind-arg]))
 
 
-;; For the first call, exp is all the assertions.
-(defn fill-bind-names [outer-names exp]
-  (cond
-    (has-type :bind exp)
-    (let [[_ m _ bind-exp] exp
-          inner-names (find-names-to-bind outer-names
-                                          bind-exp)
-          new-bind-exp (fill-bind-names (into outer-names inner-names)
-                                        bind-exp)]
-      (if (empty? inner-names)
-        new-bind-exp
-        [:bind m
-         (into [] inner-names)
-         new-bind-exp]))
-
-    (seq? exp)
-    (apply list (map (partial fill-bind-names outer-names)
-                     exp))
-
-    (vector? exp)
-    (apply vector (map (partial fill-bind-names outer-names)
-                       exp))
-
-    :else
-    exp))
-
-
 (defn tls-filepath [path]
   (str (str/replace path #"\.tls?$" "")
        ".tls"))
 
+
+(declare find-names-to-bind)
 
 (defn get-included-top-level-names [exp]
   (let [path (first-arg exp)
@@ -490,6 +465,33 @@
 
     :else
     #{}))
+
+
+;; For the first call, exp is all the assertions.
+(defn fill-bind-names [outer-names exp]
+  (cond
+    (has-type :bind exp)
+    (let [[_ m _ bind-exp] exp
+          inner-names (find-names-to-bind outer-names
+                                          bind-exp)
+          new-bind-exp (fill-bind-names (into outer-names inner-names)
+                                        bind-exp)]
+      (if (empty? inner-names)
+        new-bind-exp
+        [:bind m
+         (into [] inner-names)
+         new-bind-exp]))
+
+    (seq? exp)
+    (apply list (map (partial fill-bind-names outer-names)
+                     exp))
+
+    (vector? exp)
+    (apply vector (map (partial fill-bind-names outer-names)
+                       exp))
+
+    :else
+    exp))
 
 
 (defn top-level-fill-bind-names [assertions]

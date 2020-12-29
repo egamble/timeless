@@ -3,7 +3,9 @@ No terminal that is written to the output should have a definition that begins
 or ends with whitespace, so that the start and end column numbers are correct.
 *)
 
-<S> = ws operation-1 ws
+
+<S0> = ws gte-0 ws
+<S1> = ws operation-1 ws
 
 
 <exp> = group | apply | section | set | seq | str | num | name | quote | unquote

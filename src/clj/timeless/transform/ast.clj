@@ -187,7 +187,7 @@
 
 
 ;; Returns: <assertions>
-(defn post-process [parsed encoded-precedences prefix-len]
+(defn post-process-assertions [parsed encoded-precedences prefix-len]
   (let [assertions (->> parsed
                         first
                         (move-metadata prefix-len)
@@ -217,13 +217,13 @@
 
 
 ;; Returns: <assertions>
-(defn tl->ast [declarations source generated-grammar-file]
+(defn tl->ast [declarations source out-path-grammar]
   (let [predefined-grammar (slurp  "src/clj/timeless/transform/grammar.txt")
         [op-grammar encoded-precedences] (build-operator-grammar declarations)
         grammar (str predefined-grammar op-grammar)
-        _ (when generated-grammar-file
-            (spit generated-grammar-file grammar))
-        parser (insta/parser grammar)
+        _ (when out-path-grammar
+            (spit out-path-grammar grammar))
+        parser (insta/parser grammar :start :S1)
 
         ;; A simple guard operation is prepended to the source to make parsing the top-level
         ;; guard operations easier, and to provide better error messages when the top-level
@@ -234,8 +234,9 @@
         prefix-len (count prefix)
         source (str prefix source "\n")
 
-        parsed (insta/add-line-and-column-info-to-metadata source
-                                                           (parser source))]
+        parsed (insta/add-line-and-column-info-to-metadata
+                source
+                (parser source))]
     (if (insta/failure? parsed)
       (-> parsed
           pr-str
@@ -243,4 +244,40 @@
           first
           (adjust-error-in-first-line prefix-len)
           println)
-      (post-process parsed encoded-precedences prefix-len))))
+      (post-process-assertions parsed encoded-precedences prefix-len))))
+
+                
+(defn find-encoded-precedences [grammar]
+  (map #(subs % 3)
+       (str/split
+        (second (re-find #"(?m)^\<op\> = (.*)$" grammar))
+        #" \| ")))
+
+
+;; Returns: <exps>
+(defn post-process-exps [parsed encoded-precedences]
+  (let [exps (first parsed)]
+    (if (seq exps)
+      (->> exps
+           (do-transformations encoded-precedences)
+           find-embedded-assertions
+           find-chains
+           remove-groups)
+      (error "no expressions"))))
+
+
+;; Returns: <exps>
+(defn tl-exp->ast [source in-path-grammar]
+  (let [grammar (slurp in-path-grammar)
+        parser (insta/parser grammar :start :S0)
+        parsed (insta/add-line-and-column-info-to-metadata
+                source
+                (parser source))]
+    (if (insta/failure? parsed)
+      (-> parsed
+          pr-str
+          (str/split #"\nExpected one of:")
+          first
+          println)
+      (post-process-exps parsed
+                         (find-encoded-precedences grammar)))))
