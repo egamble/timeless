@@ -85,26 +85,26 @@
                tl-exp)))
 
 
-;; TODO: print that the repl can be quit with ctrl-D
-;; TODO: find a way to suppress printing a list of nils when quitting
 (defn repl [in-path]
   (let [[parser encoded-precedences]
         (get-exp-parser in-path)
         prompt (fn []
                  (print "> ")
                  (flush))
+        _ (println "Press return twice to evaluate.\nCtrl-d to quit.")
         _ (prompt)
         lines (line-seq (java.io.BufferedReader. *in*))
 
         f (partial eval-exp*
                    parser
                    encoded-precedences)]
-    (map (fn [s]
-           (let [exp-str (str/join "\n" s)]
-             (when-not (empty? exp-str)
-               (f exp-str)
-               (prompt))))
-         (partition-by empty? lines))))
+    (dorun
+     (map (fn [s]
+            (let [exp-str (str/join "\n" s)]
+              (when-not (empty? exp-str)
+                (f exp-str)
+                (prompt))))
+          (partition-by empty? lines)))))
 
 
 (defn write-tls-file [out-path assertions]
