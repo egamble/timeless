@@ -259,9 +259,9 @@
        remove-groups))
 
 
-(defn make-tl-exp-parser [in-path-grammar]
-  (insta/parser (slurp in-path-grammar)
-                :start :S0))
+(defn make-tl-exp-parser [grammar]
+  (insta/parser grammar :start :S0))
+
 
 ;; Returns: <exps>
 (defn tl-exp->ast [parser encoded-precedences tl-exp]

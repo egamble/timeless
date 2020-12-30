@@ -72,7 +72,7 @@
 
 (defn get-exp-parser [in-path]
   (let  [stripped-path (strip-tl-filepath in-path)
-         grammar (str stripped-path ".gmr")]
+         grammar (slurp (str stripped-path ".gmr"))]
     [(make-tl-exp-parser grammar)
      (find-encoded-precedences grammar)]))
 
@@ -85,15 +85,26 @@
                tl-exp)))
 
 
+;; TODO: print that the repl can be quit with ctrl-D
+;; TODO: find a way to suppress printing a list of nils when quitting
 (defn repl [in-path]
   (let [[parser encoded-precedences]
         (get-exp-parser in-path)
+        prompt (fn []
+                 (print "> ")
+                 (flush))
+        _ (prompt)
+        lines (line-seq (java.io.BufferedReader. *in*))
 
-        lines (line-seq (java.io.BufferedReader. *in*))]
-    (map (partial eval-exp*
-                  parser
-                  encoded-precedences)
-         (split-with nil? lines))))
+        f (partial eval-exp*
+                   parser
+                   encoded-precedences)]
+    (map (fn [s]
+           (let [exp-str (str/join "\n" s)]
+             (when-not (empty? exp-str)
+               (f exp-str)
+               (prompt))))
+         (partition-by empty? lines))))
 
 
 (defn write-tls-file [out-path assertions]
