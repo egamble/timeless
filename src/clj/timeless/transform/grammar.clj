@@ -1,6 +1,6 @@
 (ns timeless.transform.grammar
   "Build a grammar from declarations."
-  (:require [timeless.transform.utils :refer :all]
+  (:require [timeless.utils :refer :all]
             [clojure.string :as str]))
 
 

@@ -5,4 +5,4 @@
                  [instaparse "1.4.10"]]
   :min-lein-version "2.9.0"
   :url "https://github.com/egamble/timeless"
-  :main timeless.transform.main)
+  :main timeless.main)

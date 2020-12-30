@@ -1,7 +1,7 @@
 (ns timeless.transform.tls
   "Transform an AST to produce TLS code."
   (:require [timeless.transform.grammar :refer [predefined-names]]
-            [timeless.transform.utils :refer :all]
+            [timeless.utils :refer :all]
             [instaparse.core :as insta]
             [clojure.string :as str]))
 
@@ -426,16 +426,12 @@
     [:bind m [] bind-arg]))
 
 
-(defn tls-filepath [path]
-  (str (str/replace path #"\.tls?$" "")
-       ".tls"))
-
-
 (declare find-names-to-bind)
 
 (defn get-included-top-level-names [exp]
   (let [path (first-arg exp)
-        source (slurp (tls-filepath path))
+        source (slurp (str (strip-tl-filepath path)
+                           ".tls"))
         assertions (read-string (str "(" source ")"))]
     (find-names-to-bind #{} assertions)))
 

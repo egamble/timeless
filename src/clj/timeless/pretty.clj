@@ -1,19 +1,19 @@
-(ns timeless.transform.pretty
+(ns timeless.pretty
   "Prettify a AST or TLS form."
-  (:require [timeless.transform.utils :refer :all]))
+  (:require [timeless.utils :refer :all]))
 
 
-(defn pretty [indent suppress-metadata? initial-indent? form]
+(defn pretty [indent show-metadata? initial-indent? form]
   (let [next-indent (str indent "  ")]
     (cond (list? form)
           (str (when initial-indent? indent) "( "
                (pretty next-indent
-                       suppress-metadata?
+                       show-metadata?
                        false
                        (first form))
                (->> (rest form)
                     (map #(pretty next-indent
-                                  suppress-metadata?
+                                  show-metadata?
                                   true
                                   %))
                     insert-newlines
@@ -28,14 +28,14 @@
                            (rest form))]
             (str (when initial-indent? indent)
                  "[:bind"
-                 (when (and (not suppress-metadata?)
+                 (when (and show-metadata?
                             (map? m))
                    (str " " m))
                  " "
                  (pr-str (first subforms))
                  (apply str (map #(str "\n"
                                        (pretty next-indent
-                                               suppress-metadata?
+                                               show-metadata?
                                                true
                                                %))
                                  (rest subforms)))
@@ -48,7 +48,7 @@
                            (rest form))]
             (str (when initial-indent? indent)
                  "[" (first form)
-                 (when (and (not suppress-metadata?)
+                 (when (and show-metadata?
                             (map? m))
                    (str " " m))
                  (when-not (empty? subforms)
@@ -57,7 +57,7 @@
                              " ")]
                      (apply str (map #(str p
                                            (pretty next-indent
-                                                   suppress-metadata?
+                                                   show-metadata?
                                                    true
                                                    %))
                                      subforms))))

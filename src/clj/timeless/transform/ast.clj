@@ -1,7 +1,7 @@
 (ns timeless.transform.ast
   "Parse and post-process TL code to produce an AST."
   (:require [timeless.transform.grammar :refer [build-operator-grammar]]
-            [timeless.transform.utils :refer :all]
+            [timeless.utils :refer :all]
             [instaparse.core :as insta]
             [clojure.string :as str]))
 
@@ -247,36 +247,31 @@
       (post-process-assertions parsed encoded-precedences prefix-len))))
 
                 
-(defn find-encoded-precedences [grammar]
-  (map #(subs % 3)
-       (str/split
-        (second (re-find #"(?m)^\<op\> = (.*)$" grammar))
-        #" \| ")))
+;; Returns: <exp>
+(defn post-process-exp [parsed encoded-precedences]
+  (->> parsed
+       first
+       (move-metadata 0)
+       list
+       (do-transformations encoded-precedences)
+       find-embedded-assertions
+       find-chains
+       remove-groups))
 
 
-;; Returns: <exps>
-(defn post-process-exps [parsed encoded-precedences]
-  (if (seq parsed)
-    (->> parsed
-         (do-transformations encoded-precedences)
-         find-embedded-assertions
-         find-chains
-         remove-groups)
-    (error "no expressions")))
-
+(defn make-tl-exp-parser [in-path-grammar]
+  (insta/parser (slurp in-path-grammar)
+                :start :S0))
 
 ;; Returns: <exps>
-(defn tl-exp->ast [source in-path-grammar]
-  (let [grammar (slurp in-path-grammar)
-        parser (insta/parser grammar :start :S0)
-        parsed (insta/add-line-and-column-info-to-metadata
-                source
-                (parser source))]
+(defn tl-exp->ast [parser encoded-precedences tl-exp]
+  (let [parsed (insta/add-line-and-column-info-to-metadata
+                tl-exp
+                (parser tl-exp))]
     (if (insta/failure? parsed)
       (-> parsed
           pr-str
           (str/split #"\nExpected one of:")
           first
           println)
-      (post-process-exps parsed
-                         (find-encoded-precedences grammar)))))
+      (post-process-exp parsed encoded-precedences))))

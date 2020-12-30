@@ -1,5 +1,6 @@
-(ns timeless.transform.utils
-  "Useful functions.")
+(ns timeless.utils
+  "Useful functions."
+  (:require [clojure.string :as str]))
 
 
 (defn p [s x]
@@ -64,3 +65,6 @@
 
 (defn insert-newlines [s]
   (interleave s (repeat "\n")))
+
+(defn strip-tl-filepath [path]
+  (str/replace path #"\.tls?$" ""))
