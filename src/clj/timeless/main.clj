@@ -48,10 +48,8 @@
        (reduce make-declaration [() ()])))
 
 
-(defn eval-exp* [parser encoded-precedences tl-exp]
-  (let [exp (->> (tl-exp->ast parser
-                              encoded-precedences
-                              tl-exp)
+(defn eval-exp* [parser tl-exp]
+  (let [exp (->> (tl-exp->ast parser tl-exp)
                  (ast->tls nil)
                  first)]
     (when exp
@@ -63,31 +61,19 @@
       nil)))
 
 
-(defn find-encoded-precedences [grammar]
-  (map #(subs % 3)
-       (str/split
-        (second (re-find #"(?m)^\<op\> = (.*)$" grammar))
-        #" \| ")))
-
-
 (defn get-exp-parser [in-path]
   (let  [stripped-path (strip-tl-filepath in-path)
          grammar (slurp (str stripped-path ".gmr"))]
-    [(make-tl-exp-parser grammar)
-     (find-encoded-precedences grammar)]))
+    (make-tl-exp-parser grammar)))
 
 
 (defn eval-exp [in-path tl-exp]
-  (let [[parser encoded-precedences]
-        (get-exp-parser in-path)]
-    (eval-exp* parser
-               encoded-precedences
-               tl-exp)))
+  (let [parser (get-exp-parser in-path)]
+    (eval-exp* parser tl-exp)))
 
 
 (defn repl [in-path]
-  (let [[parser encoded-precedences]
-        (get-exp-parser in-path)
+  (let [parser (get-exp-parser in-path)
         prompt (fn []
                  (print "> ")
                  (flush))
@@ -95,9 +81,7 @@
         _ (prompt)
         lines (line-seq (java.io.BufferedReader. *in*))
 
-        f (partial eval-exp*
-                   parser
-                   encoded-precedences)]
+        f (partial eval-exp* parser)]
     (dorun
      (map (fn [s]
             (let [exp-str (str/join "\n" s)]

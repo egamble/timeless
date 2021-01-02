@@ -22,15 +22,11 @@
                ")")
 
           (has-type :bind form)
-          (let [m (second form)
-                subforms (if (map? m)
-                           (rest (rest form))
-                           (rest form))]
+          (let [subforms (rest form)]
             (str (when initial-indent? indent)
                  "[:bind"
-                 (when (and show-metadata?
-                            (map? m))
-                   (str " " m))
+                 (when show-metadata?
+                   (str " " (meta form)))
                  " "
                  (pr-str (first subforms))
                  (apply str (map #(str "\n"
@@ -42,15 +38,11 @@
                  "]"))
 
           (vector? form)
-          (let [m (second form)
-                subforms (if (map? m)
-                           (rest (rest form))
-                           (rest form))]
+          (let [subforms (rest form)]
             (str (when initial-indent? indent)
                  "[" (first form)
-                 (when (and show-metadata?
-                            (map? m))
-                   (str " " m))
+                 (when show-metadata?
+                   (str " " (meta form)))
                  (when-not (empty? subforms)
                    (let [p (if (sequential? (first subforms))
                              "\n"

@@ -6,8 +6,8 @@
             [clojure.string :as str]))
 
 
-;; Extract and simplify the metadata map.
-(defn extract-meta [prefix-len exp]
+;; Simplify the metadata map.
+(defn simplify-metadata [prefix-len exp]
   (let [m (meta exp)
         line (:instaparse.gll/start-line m)
         col (:instaparse.gll/start-column m)]
@@ -19,23 +19,24 @@
           col)}))
 
 ;; Move a simplified version of the metadata map of each vector into the vector, as the second element.
-(defn move-metadata [prefix-len exp]
+(defn alter-metadata [prefix-len exp]
   (if (sequential? exp)
-    (apply vector
-           (first exp)
-           (extract-meta prefix-len exp)
-           (map (partial move-metadata prefix-len) (rest exp)))
+    (with-meta
+      (apply vector
+             (map (partial alter-metadata prefix-len)
+                  exp))
+      (simplify-metadata prefix-len exp))
     exp))
 
 
 ;; Returns: <assertions>
 (defn extract-assertions [parsed]
-  (let [f (fn [[k _ n]]
+  (let [f (fn [[k n]]
             (and (= k :name)
                  (= n "_")))]
     (loop [exp parsed
            assertions ()]
-      (let [[_ _ left-exp op right-exp] exp]
+      (let [[_ left-exp op right-exp] exp]
         (if (f left-exp)
           (if (f right-exp)
             assertions
@@ -45,15 +46,30 @@
                        assertions)))))))
 
 
-(defn transform-apply [m & exps]
-  (apply vector
-         :apply
-         m
-         (mapcat (fn [exp]
-                   (if (has-type :apply exp)
-                     (all-args exp)
-                     (list exp)))
-                 exps)))
+(defn transform-apply [exp]
+  (with-meta
+    (into [:apply]
+          (mapcat (fn [subexp]
+                    (if (has-type :apply subexp)
+                      (rest subexp)
+                      (list subexp)))
+                  (rest exp)))
+    (meta exp)))
+
+
+(defn change-op-keys [k]
+  (or ({:op-0 :arrow-op
+        :op-1 :guard-op
+        :op-10 :comparison-op} k)
+
+      (when (re-find #"^:op-" (str k))
+        :op)
+
+      (when (re-find #"^:operation-" (str k))
+        :operation)
+
+      k))
+
 
 ;;; do-transformations:
 ;;; (1) removes the precedence suffix from :operation-nnn and :op-nnn, except for :op-0, :op-1 and :op-10
@@ -64,75 +80,76 @@
 ;;; (6) replaces the exp of :str with a literal string
 ;;; (7) collapses nested :applys
 
-(defn do-transformations [encoded-precedences assertions]
-  (let [transform-operation-nnn (fn [m & exps] (apply vector :operation m exps))
-        transform-op-nnn (fn [m op-name] [:op m op-name])
-        trans-map (-> {}
-                      (into (mapcat (fn [pr]
-                                      (if (#{"0" "1" "10"} pr)
-                                        [[(keyword (str "operation-" pr))
-                                          transform-operation-nnn]]
-                                        
-                                        [[(keyword (str "operation-" pr))
-                                          transform-operation-nnn]
-                                         [(keyword (str "op-" pr))
-                                          transform-op-nnn]]))
-                                    encoded-precedences))
-                      (into [[:op-0 (fn [m _] [:arrow-op m])]
-                             [:op-1 (fn [m _] [:guard-op m])]
-                             [:op-10 (fn [m op-name] [:comparison-op m op-name])]
-                             [:num (fn [m exp] [:num m (read-string exp)])]
-                             [:str (fn [m exp] [:str m (read-string exp)])]
-                             [:apply transform-apply]]))]
-    (map (partial insta/transform trans-map) assertions)))
+(defn do-transformations [assertions]
+  (let [trans-map (-> {:operation identity
+                       :op identity
+                       :arrow-op (fn [exp] (with-meta
+                                            [:arrow-op]
+                                            (meta exp)))
+                       :guard-op (fn [exp] (with-meta
+                                            [:guard-op]
+                                            (meta exp)))
+                       :comparison-op identity
+                       :num (partial change-arg read-string)
+                       :str (partial change-arg read-string)
+                       :apply transform-apply})]
+    (map (partial transform-with-change-key-fn trans-map change-op-keys)
+         assertions)))
 
-
-(defn is-comparison-op [op]
-  (= :comparison-op (first op)))
 
 (defn is-comparison [exp]
-  (and (= :operation (first exp))
-       (is-comparison-op (fourth exp))))
+  (and (has-type :operation exp)
+       (has-type :comparison-op (second-arg exp))))
 
 (defn comparison->embedded [exp]
   (if (is-comparison exp)
-    (let [[_ m _ _ right-exp] exp]
-      (if (is-comparison right-exp)
-        (error-meta m "an embedded assertion can't be a comparison chain")
-        (apply vector :embedded (rest exp))))
+    (if (is-comparison (third-arg exp))
+      (error-meta exp "an embedded assertion can't be a comparison chain")
+      (change-key :embedded exp))
     exp))
 
 (defn transform-left [exp op]
-  (if (#{:arrow-op :guard-op} (first op))
+  (if (has-types #{:arrow-op :guard-op} op)
     (comparison->embedded exp)
     exp))
 
 (defn transform-right [exp op]
-  (if (= :arrow-op (first op))
+  (if (has-type :arrow-op op)
     (comparison->embedded exp)
     exp))
 
-(defn transform-operation [m left-exp op right-exp]
-  [:operation
-   m
-   (transform-left left-exp op)
-   op
-   (transform-right right-exp op)])
+(defn transform-operation [exp]
+  (let [[_ left-exp op right-exp] exp]
+    (with-meta
+      [:operation
+       (transform-left left-exp op)
+       op
+       (transform-right right-exp op)]
+      (meta exp))))
 
-(defn transform-left-section [m left-exp op]
-  [:left-section
-   m
-   (transform-left left-exp op)
-   op])
+(defn transform-left-section [exp]
+  (let [[_ left-exp op] exp]
+    (with-meta
+      [:left-section
+       (transform-left left-exp op)
+       op]
+      (meta exp))))
 
-(defn transform-right-section [m op right-exp]
-  [:right-section
-   m
-   op
-   (transform-right right-exp op)])
+(defn transform-right-section [exp]
+  (let [[_ op right-exp] exp]
+    (with-meta
+      [:right-section
+       op
+       (transform-right right-exp op)]
+      (meta exp))))
 
-(defn transform-truncated-embedded [m & exps]
-  (apply vector :embedded m [:name m "_"] exps))
+(defn transform-truncated-embedded [exp]
+  (with-meta
+    (into [:embedded (with-meta
+                       [:name "_"]
+                       (meta exp))]
+          (rest exp))
+    (meta exp)))
 
 
 ;;; find-embedded-assertions:
@@ -140,13 +157,13 @@
 ;;; (2) adds "_" as the left side of truncated embedded assertions
 
 (defn find-embedded-assertions [assertions]
-  (let [trans-map  {:clause-maybe-embedded (fn [_ exp] (comparison->embedded exp))
-                    :element-maybe-embedded (fn [_ exp] (comparison->embedded exp))
+  (let [trans-map  {:clause-maybe-embedded (fn [exp] (comparison->embedded (first-arg exp)))
+                    :element-maybe-embedded (fn [exp] (comparison->embedded (first-arg exp)))
                     :operation transform-operation
                     :left-section transform-left-section
                     :right-section transform-right-section
                     :truncated-embedded transform-truncated-embedded}]
-      (map (partial insta/transform trans-map) assertions)))
+      (map (partial transform trans-map) assertions)))
 
 
 ;;; find-chains is called after embedded assertions are found and marked, so that
@@ -154,17 +171,20 @@
 
 (defn is-comparison-or-chain [exp]
   (or (is-comparison exp)
-      (= :chain (first exp))))
+      (has-type :chain exp)))
 
-(defn comparison-operation->chain [m left-exp op right-exp]
-  (if (and (is-comparison-op op)
-           (is-comparison-or-chain right-exp))
-    (apply vector :chain m left-exp op (rest (rest right-exp))) ; the two rests skip the keyword and map
-    [:operation m left-exp op right-exp]))
+(defn comparison-operation->chain [exp]
+  (let [[_ left-exp op right-exp] exp]
+    (with-meta
+      (if (and (has-type :comparison-op op)
+               (is-comparison-or-chain right-exp))
+        (into [:chain left-exp op] (all-args right-exp))
+        [:operation left-exp op right-exp])
+      (meta exp))))
 
 (defn find-chains [assertions]
   (let [trans-map {:operation comparison-operation->chain}]
-    (map (partial insta/transform trans-map) assertions)))
+    (map (partial transform trans-map) assertions)))
 
 
 ;;; remove-groups removes :group markers.
@@ -181,20 +201,20 @@
 ;;; the :comparison-op marker is no longer needed.
 
 (defn remove-groups [assertions]
-  (let [trans-map {:group (fn [_ exp] exp)
-                   :comparison-op (fn [m op-name] [:op m op-name])}]
-    (map (partial insta/transform trans-map) assertions)))
+  (let [trans-map {:group (fn [exp] (first-arg exp))
+                   :comparison-op (partial change-key :op)}]
+    (map (partial transform trans-map) assertions)))
 
 
 ;; Returns: <assertions>
-(defn post-process-assertions [parsed encoded-precedences prefix-len]
+(defn post-process-assertions [parsed prefix-len]
   (let [assertions (->> parsed
                         first
-                        (move-metadata prefix-len)
+                        (alter-metadata prefix-len)
                         extract-assertions)]
     (if (seq assertions)
       (->> assertions
-           (do-transformations encoded-precedences)
+           do-transformations
            find-embedded-assertions
            find-chains
            remove-groups)
@@ -219,8 +239,8 @@
 ;; Returns: <assertions>
 (defn tl->ast [declarations source out-path-grammar]
   (let [predefined-grammar (slurp  "src/clj/timeless/transform/grammar.txt")
-        [op-grammar encoded-precedences] (build-operator-grammar declarations)
-        grammar (str predefined-grammar op-grammar)
+        grammar (str predefined-grammar
+                     (build-operator-grammar declarations))
         _ (when out-path-grammar
             (spit out-path-grammar grammar))
         parser (insta/parser grammar :start :S1)
@@ -244,16 +264,16 @@
           first
           (adjust-error-in-first-line prefix-len)
           println)
-      (post-process-assertions parsed encoded-precedences prefix-len))))
+      (post-process-assertions parsed prefix-len))))
 
                 
 ;; Returns: <exp>
-(defn post-process-exp [parsed encoded-precedences]
+(defn post-process-exp [parsed]
   (->> parsed
        first
-       (move-metadata 0)
+       (alter-metadata 0)
        list
-       (do-transformations encoded-precedences)
+       do-transformations
        find-embedded-assertions
        find-chains
        remove-groups))
@@ -264,7 +284,7 @@
 
 
 ;; Returns: <exps>
-(defn tl-exp->ast [parser encoded-precedences tl-exp]
+(defn tl-exp->ast [parser tl-exp]
   (let [parsed (insta/add-line-and-column-info-to-metadata
                 tl-exp
                 (parser tl-exp))]
@@ -274,4 +294,4 @@
           (str/split #"\nExpected one of:")
           first
           println)
-      (post-process-exp parsed encoded-precedences))))
+      (post-process-exp parsed))))

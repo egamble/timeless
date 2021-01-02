@@ -210,4 +210,4 @@
                     (build-grammar-for-last-op (last op-declarations))
                     complete-op-rules
                     (build-declared-name-rule declarations op-declarations))]
-    [op-grammar encoded-precedences]))
+    op-grammar))

@@ -10,8 +10,13 @@
 (defn error [msg]
   (throw (Exception. msg)))
 
-(defn error-meta [m msg]
-  (error (str msg " at line " (:l m) ", column " (:c m))))
+(defn error-meta [exp msg]
+  (let [m (meta exp)]
+    (error (str msg
+                " at line " (:l m)
+                ", column " (:c m)
+                (when (:file m)
+                  (str ", file " (:file m)))))))
 
 (defn third [s]
   (nth s 2))
@@ -25,15 +30,6 @@
 (defn third-on [s]
   (rest (rest s)))
 
-(defn has-meta [exp]
-  (and (> (count exp) 1)
-       (map? (second exp))))
-
-(defn get-meta [exp]
-  (if (has-meta exp)
-    (second exp)
-    {}))
-
 (defn has-type [type exp]
   (and (vector? exp)
        (= type (first exp))))
@@ -43,19 +39,13 @@
        (type-set (first exp))))
 
 (defn all-args [exp]
-  (third-on exp))
+  (rest exp))
 
-(defn first-arg [exp]
-  (nth exp (if (has-meta exp) 2 1)))
+(def first-arg second)
 
-(defn second-arg [exp]
-  (nth exp (if (has-meta exp) 3 2)))
+(def second-arg third)
 
-(defn third-arg [exp]
-  (nth exp (if (has-meta exp) 4 3)))
-
-(defn v [k m args]
-  (apply vector k m args))
+(def third-arg fourth)
 
 (defn uuid []
   (.toString (java.util.UUID/randomUUID)))
@@ -68,3 +58,38 @@
 
 (defn strip-tl-filepath [path]
   (str/replace path #"\.tls?$" ""))
+
+(defn transform-with-change-key-fn [transform-map
+                                    change-key-fn
+                                    exp]
+  (if (and (vector? exp) (seq exp))
+    (let [k (if change-key-fn
+              (change-key-fn (first exp))
+              (first exp))
+          exp-recur (with-meta 
+                      (into [k]
+                            (map (partial transform-with-change-key-fn
+                                          transform-map
+                                          change-key-fn) 
+                                 (rest exp)))
+                      (meta exp))]
+      (if-let [transform-fn (transform-map k)]
+        (transform-fn exp-recur)
+        exp-recur))
+    exp))
+
+(defn transform [transform-map exp]
+  (transform-with-change-key-fn transform-map nil exp))
+
+(defn change-key [new-key exp]
+  (with-meta
+    (into [new-key]
+          (rest exp))
+    (meta exp)))
+
+(defn change-arg [f exp]
+  (with-meta
+    [(first exp)
+     (second exp)
+     (f (third exp))]
+    (meta exp)))
