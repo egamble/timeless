@@ -503,7 +503,7 @@
              [:apply
               op
               left-exp
-              (apply bind-arrow-right new-bind)]
+              (bind-arrow-right new-bind)]
              (meta bind-arg))]
           m))
       (with-meta
@@ -566,13 +566,16 @@
            new-bind-exp]
           (meta exp))))
 
+    (vector? exp)
+    (with-meta
+      (into [(first exp)]
+            (map (partial fill-bind-names outer-names)
+                 (all-args exp)))
+      (meta exp))
+
     (seq? exp)
     (apply list (map (partial fill-bind-names outer-names)
                      exp))
-
-    (vector? exp)
-    (apply vector (map (partial fill-bind-names outer-names)
-                       exp))
 
     :else
     exp))
@@ -637,6 +640,6 @@
        transformations-2
        transformations-3
        transformations-4
-       transformations-5
-       (concat (build-include-expressions includes))
-       top-level-fill-bind-names))
+      transformations-5
+      (concat (build-include-expressions includes))
+      top-level-fill-bind-names))
