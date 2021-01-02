@@ -104,7 +104,8 @@
 (defn comparison->embedded [exp]
   (if (is-comparison exp)
     (if (is-comparison (third-arg exp))
-      (error-meta exp "an embedded assertion can't be a comparison chain")
+      (error-at "an embedded assertion can't be a comparison chain"
+                exp)
       (change-key :embedded exp))
     exp))
 
@@ -241,8 +242,7 @@
   (let [predefined-grammar (slurp  "src/clj/timeless/transform/grammar.txt")
         grammar (str predefined-grammar
                      (build-operator-grammar declarations))
-        _ (when out-path-grammar
-            (spit out-path-grammar grammar))
+        _ (spit out-path-grammar grammar)
         parser (insta/parser grammar :start :S1)
 
         ;; A simple guard operation is prepended to the source to make parsing the top-level

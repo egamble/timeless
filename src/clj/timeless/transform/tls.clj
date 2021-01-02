@@ -88,8 +88,8 @@
       (count-binds (last exps)))
 
     :else
-    (error-meta clause
-                "internal error counting binds")))
+    (error-at "internal error counting binds"
+              clause)))
 
 
 (defn join-with-clause [reformed-clause joinable-clause index]
@@ -189,8 +189,8 @@
         num-diff (- (count prev-assertions)
                     (count assertions))]
     (when (< num-diff 0)
-      (error-meta (first assertions)
-                  "truncated clause has more guard assertions than previous clause"))
+      (error-at "truncated clause has more guard assertions than previous clause"
+                (first assertions)))
     (let [all-assertions (concat (take num-diff prev-assertions)
                                  assertions)
           m (meta prev-left-exp)]
@@ -236,8 +236,8 @@
                               exps)
         
         _ (when (> (+ 1 num-arrow-ops) num-binds)
-            (error-meta (meta next-clause)
-                        "truncated clause has more arrows than previous clause"))
+            (error-at "truncated clause has more arrows than previous clause"
+                      next-clause))
 
         is-truncated-guard (has-type :guard-op (first exps))
         join-index (- num-binds (if is-truncated-guard
@@ -257,8 +257,8 @@
         (let [prev-reformed-clause (first reformed-clauses)]
           (cons (reform-truncated-clause prev-reformed-clause next-clause)
                 (rest reformed-clauses)))
-        (error-meta (meta next-clause)
-                    "first clause can't be truncated"))
+        (error-at "first clause can't be truncated"
+                  next-clause))
       (cons (reform-clause exps)
             reformed-clauses))))
 
@@ -277,18 +277,6 @@
     (map (partial transform trans-map) assertions)))
 
 
-(defn operation->apply [m left-exp op right-exp]
-  (with-meta
-    [:apply
-     (with-meta
-       [:name
-        (first-arg op)]
-       (meta op))
-     left-exp
-     right-exp]
-    m))
-
-
 (def arrow-or-guard->key {:arrow-op :apply-arrow
                           :guard-op :apply-guard})
 
@@ -305,7 +293,7 @@
 
 
 (defn transform-ast-operation [exp]
-  (let [[left-exp op right-exp] exp]
+  (let [[_ left-exp op right-exp] exp]
     (with-meta
       [(or (arrow-or-guard->key (first op))
            :apply)
@@ -316,7 +304,7 @@
 
 
 (defn transform-ast-left-section [exp]
-  (let [[left-exp op] exp]
+  (let [[_ left-exp op] exp]
     (with-meta
       [:apply
        (make-op-name op)
@@ -325,7 +313,7 @@
 
 
 (defn transform-ast-right-section [exp]
-  (let [[op right-exp] exp
+  (let [[_ op right-exp] exp
         m (meta exp)]
     (if (and (> (count op) 2)
              (= "-" (first-arg op)))
@@ -394,16 +382,23 @@
     (with-meta
       (into [:and]
             (concat extra-comparisons
-                    (map (fn [comparison-triple]
-                           (apply operation->apply (meta (first comparison-triple))
-                                  comparison-triple))
+                    (map (fn [[left-exp op right-exp]]
+                           (with-meta
+                             [:apply
+                              (with-meta
+                                [:name
+                                 (first-arg op)]
+                                (meta op))
+                              left-exp
+                              right-exp]
+                             (meta left-exp)))
                          comparison-triples)))
       (meta exp))))
 
 
 (defn transform-embedded [exp]
   (let [m (meta exp)
-        [left-exp op right-exp] exp
+        [_ left-exp op right-exp] exp
         is-name (has-type :name left-exp)
         is-underscore (and is-name
                            (= "_" (first-arg left-exp)))
@@ -445,7 +440,7 @@
 
 
 (defn combine-guards [guard]
-  (let [[op left-exp right-exp] guard]
+  (let [[_ op left-exp right-exp] guard]
     (if (has-type :apply-guard left-exp)
       (let [[_ inner-op inner-left] left-exp]
         (with-meta

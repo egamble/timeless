@@ -48,7 +48,7 @@
        (reduce make-declaration [() ()])))
 
 
-(defn eval-exp* [parser tl-exp]
+(defn eval-exp [parser tl-exp]
   (let [exp (->> (tl-exp->ast parser tl-exp)
                  (ast->tls nil)
                  first)]
@@ -67,9 +67,9 @@
     (make-tl-exp-parser grammar)))
 
 
-(defn eval-exp [in-path tl-exp]
+(defn eval-exp-with-path [in-path tl-exp]
   (let [parser (get-exp-parser in-path)]
-    (eval-exp* parser tl-exp)))
+    (eval-exp parser tl-exp)))
 
 
 (defn repl [in-path]
@@ -81,7 +81,7 @@
         _ (prompt)
         lines (line-seq (java.io.BufferedReader. *in*))
 
-        f (partial eval-exp* parser)]
+        f (partial eval-exp parser)]
     (dorun
      (map (fn [s]
             (let [exp-str (str/join "\n" s)]

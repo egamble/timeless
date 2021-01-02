@@ -10,7 +10,7 @@
 (defn error [msg]
   (throw (Exception. msg)))
 
-(defn error-meta [exp msg]
+(defn error-at [msg exp]
   (let [m (meta exp)]
     (error (str msg
                 " at line " (:l m)
