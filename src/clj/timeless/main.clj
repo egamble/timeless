@@ -81,14 +81,15 @@
         _ (prompt)
         lines (line-seq (java.io.BufferedReader. *in*))
 
-        f (partial eval-exp parser)]
+        f (partial eval-exp parser)
+        ws? (partial re-find #"^\s*$")]
     (dorun
-     (map (fn [s]
-            (let [exp-str (str/join "\n" s)]
-              (when-not (empty? exp-str)
+     (map (fn [exp-lines]
+            (let [exp-str (str/join "\n" exp-lines)]
+              (when-not (ws? exp-str)
                 (f exp-str)
                 (prompt))))
-          (partition-by empty? lines)))))
+          (partition-by ws? lines)))))
 
 
 (defn write-tls-file [out-path assertions]
