@@ -272,11 +272,6 @@
       (meta exp))))
 
 
-(defn rebuild-sets [assertions]
-  (let [trans-map {:set transform-set}]
-    (map (partial transform trans-map) assertions)))
-
-
 (def arrow-or-guard->key {:arrow-op :apply-arrow
                           :guard-op :apply-guard})
 
@@ -484,6 +479,12 @@
                       exps))))
 
 
+;; An :apply expression becomes a list.
+(defn apply->list [exp]
+  ;; Can't just return (all-args exp), because it's not a list.
+  (apply list (all-args exp)))
+
+
 ;; If the right side of an arrow application within a :bind is not already wrapped in a :bind, wrap it.
 (defn bind-arrow-right [exp]
   (let [m (meta exp)
@@ -590,6 +591,11 @@
 
 
 (defn transformations-1 [assertions]
+  (let [trans-map {:set transform-set}]
+    (map (partial transform trans-map) assertions)))
+
+
+(defn transformations-2 [assertions]
   (let [trans-map {:operation transform-ast-operation
                    :left-section transform-ast-left-section
                    :right-section transform-ast-right-section
@@ -599,19 +605,19 @@
     (map (partial transform trans-map) assertions)))
 
 
-(defn transformations-2 [assertions]
+(defn transformations-3 [assertions]
   (let [trans-map {:apply-guard combine-guards
                    :and combine-ands}]
     (map (partial transform trans-map) assertions)))
 
 
-(defn transformations-3 [assertions]
+(defn transformations-4 [assertions]
   (let [trans-map {:apply-guard (partial change-key :apply)
                    :apply-arrow (partial change-key :apply)}]
     (map (partial transform trans-map) assertions)))
 
 
-(defn transformations-4 [assertions]
+(defn transformations-5 [assertions]
   (let [trans-map {:apply combine-applys
 
                    ;; Can't be done earlier, o.w. | {((a ->) b)} doesn't get an inner :bind.
@@ -619,11 +625,8 @@
     (map (partial transform trans-map) assertions)))
 
 
-(defn transformations-5 [assertions]
-  (let [trans-map {:apply (fn [exp]
-                            ;; The :apply expression becomes a list.
-                            ;; Can't just return (all-args exp), because it's not a list.
-                            (apply list (all-args exp)))}]
+(defn transformations-6 [assertions]
+  (let [trans-map {:apply apply->list}]
     (map (partial transform trans-map) assertions)))
 
 
@@ -635,11 +638,11 @@
 ;; Returns: <assertions>
 (defn ast->tls [includes assertions]
  (->> assertions
-       rebuild-sets
-       transformations-1
-       transformations-2
-       transformations-3
-       transformations-4
+      transformations-1
+      transformations-2
+      transformations-3
+      transformations-4
       transformations-5
+      transformations-6
       (concat (build-include-expressions includes))
       top-level-fill-bind-names))

@@ -13,10 +13,11 @@
 (defn error-at [msg exp]
   (let [m (meta exp)]
     (error (str msg
-                " at line " (:l m)
+                "(at line " (:l m)
                 ", column " (:c m)
-                (when (:file m)
-                  (str ", file " (:file m)))))))
+                (when (:path m)
+                  (str ", path " (:path m)))
+                ")"))))
 
 (defn third [s]
   (nth s 2))

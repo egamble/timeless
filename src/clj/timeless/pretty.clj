@@ -25,7 +25,9 @@
           (let [subforms (rest form)]
             (str (when initial-indent? indent)
                  "[:bind"
-                 (when show-metadata?
+                 (when (and
+                        show-metadata?
+                        (meta form))
                    (str " " (meta form)))
                  " "
                  (pr-str (first subforms))
@@ -41,7 +43,9 @@
           (let [subforms (rest form)]
             (str (when initial-indent? indent)
                  "[" (first form)
-                 (when show-metadata?
+                 (when (and
+                        show-metadata?
+                        (meta form))
                    (str " " (meta form)))
                  (when-not (empty? subforms)
                    (let [p (if (sequential? (first subforms))

@@ -2,6 +2,8 @@
   "Transform TL to TLS code."
   (:require [timeless.transform.ast :refer [tl->ast tl-exp->ast make-tl-exp-parser]]
             [timeless.transform.tls :refer [ast->tls]]
+            [timeless.run.load :refer [build-top-level-context]]
+            [timeless.run.eval :refer [eval-tls]]
             [timeless.pretty :refer :all]
             [timeless.utils :refer :all]
             [clojure.string :as str]))
@@ -48,9 +50,10 @@
        (reduce make-declaration [() ()])))
 
 
-(defn eval-exp [parser tl-exp]
+(defn eval-tl-exp* [parser context tl-exp]
   (let [exp (->> (tl-exp->ast parser tl-exp)
-                 (ast->tls nil)
+                 (ast->tls ())
+                 (eval-tls context)
                  first)]
     (when exp
       (println
@@ -67,13 +70,16 @@
     (make-tl-exp-parser grammar)))
 
 
-(defn eval-exp-with-path [in-path tl-exp]
-  (let [parser (get-exp-parser in-path)]
-    (eval-exp parser tl-exp)))
+(defn eval-tl-exp [in-path tl-exp]
+  (let [parser (get-exp-parser in-path)
+        context (build-top-level-context in-path)]
+    (println "foo" context)
+    (eval-tl-exp* parser context tl-exp)))
 
 
 (defn repl [in-path]
   (let [parser (get-exp-parser in-path)
+        context (build-top-level-context in-path)
         prompt (fn []
                  (print "> ")
                  (flush))
@@ -84,9 +90,9 @@
         ws? (partial re-find #"^\s*$")]
     (dorun
      (map (fn [exp-lines]
-            (let [exp-str (str/join "\n" exp-lines)]
-              (when-not (ws? exp-str)
-                (eval-exp parser exp-str)
+            (let [tl-exp (str/join "\n" exp-lines)]
+              (when-not (ws? tl-exp)
+                (eval-tl-exp* parser context tl-exp)
                 (prompt))))
           (partition-by ws? lines)))))
 
