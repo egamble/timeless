@@ -73,7 +73,6 @@
 (defn eval-tl-exp [in-path tl-exp]
   (let [parser (get-exp-parser in-path)
         context (build-top-level-context in-path)]
-    (println "foo" context)
     (eval-tl-exp* parser context tl-exp)))
 
 
