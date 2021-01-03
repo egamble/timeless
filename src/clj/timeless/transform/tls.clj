@@ -10,12 +10,6 @@
 ;; require more complicated mechanisms for avoiding collisions.
 
 
-;; TODO:
-
-;; - Test various combinations of guards, arrows and embeddeds, and check the metadata.
-;; - Clean up and comment code.
-
-
 (defn break-off-guards [exps]
   (if (has-type :guard-op (second exps))
     (let [[guard-exps exps-after-guards]
