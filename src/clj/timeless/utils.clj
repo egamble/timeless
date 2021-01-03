@@ -90,6 +90,5 @@
 (defn change-arg [f exp]
   (with-meta
     [(first exp)
-     (second exp)
-     (f (third exp))]
+     (f (first-arg exp))]
     (meta exp)))

@@ -81,13 +81,12 @@
         _ (prompt)
         lines (line-seq (java.io.BufferedReader. *in*))
 
-        f (partial eval-exp parser)
         ws? (partial re-find #"^\s*$")]
     (dorun
      (map (fn [exp-lines]
             (let [exp-str (str/join "\n" exp-lines)]
               (when-not (ws? exp-str)
-                (f exp-str)
+                (eval-exp parser exp-str)
                 (prompt))))
           (partition-by ws? lines)))))
 
