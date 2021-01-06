@@ -316,7 +316,7 @@
       (with-meta
         [:apply
          (with-meta
-           [:flip]
+           [:name "flip"]
            m)
          (make-op-name op)
          right-exp]
@@ -443,9 +443,10 @@
 
 
 (defn remove-flip [exps]
-  (if (and (has-type :flip (first exps))
+  (if (and (has-type :name (first exps))
+           (= "flip" (first-arg (first exps)))
            (> (count exps) 3))
-    ;; remove the :flip and swap the third and fourth expressions
+    ;; remove the flip and swap the third and fourth expressions
     (let [[_ e2 e3 e4 & r] exps]
       (apply list e2 e4 e3 r))
     exps))

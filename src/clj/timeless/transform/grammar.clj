@@ -30,6 +30,7 @@
     "size" "infinity" "∞"
     "true" "false"
     "null"
+    "flip"
     "_"})
 
 (defn build-op-declarations [declarations]
