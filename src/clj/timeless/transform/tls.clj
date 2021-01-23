@@ -77,7 +77,7 @@
         (+ 1 (count-binds (third-arg bind-exp))) ; (third-arg bind-exp) is the :apply-arrow's right-exp
         1))
 
-    (has-type :values clause)
+    (has-type :vals clause)
     (let [exps (all-args clause)]
       (count-binds (last exps)))
 
@@ -92,12 +92,12 @@
         is-bind (has-type :bind reformed-clause)]
     (if (= 0 index)
       (with-meta
-        (into [:values]
+        (into [:vals]
            (if is-bind
              (list reformed-clause
                    joinable-clause)
              
-             ;; else it's a :values expression
+             ;; else it's a :vals expression
              (cons-at-end exps
                           joinable-clause)))
         m)
@@ -120,12 +120,12 @@
         (if is-bind
           (f reformed-clause)
 
-          ;; else it's a :values expression
+          ;; else it's a :vals expression
           (let [exps-but-last (butlast exps)
                 last-exp (last exps)]
             (with-meta
-              [:values (cons-at-end exps-but-last
-                                    (f last-exp))]
+              [:vals (cons-at-end exps-but-last
+                                  (f last-exp))]
               m)))))))
 
 
@@ -157,7 +157,7 @@
        (if is-bind
          exps
 
-         ;; else it's a :values expression containing :bind expressions, so get the arguments of the last :bind
+         ;; else it's a :vals expression containing :bind expressions, so get the arguments of the last :bind
          (all-args (last exps))))
 
       ;; else index > 0
@@ -169,7 +169,7 @@
         (if is-bind
           (f reformed-clause)
 
-          ;; else it's a :values expression
+          ;; else it's a :vals expression
           (f (last exps)))))))
 
 
@@ -474,10 +474,12 @@
                       exps))))
 
 
-;; An :apply expression becomes a list.
-(defn apply->list [exp]
-  ;; Can't just return (all-args exp), because it's not a list.
-  (apply list (all-args exp)))
+;; Convert multiple arguments to a single list argument.
+(defn args->list [exp]
+  (with-meta
+    ;; Can't use just (all-args exp) as the argument, because it's not a list.
+    [(first exp) (apply list (all-args exp))]
+    (meta exp)))
 
 
 ;; If the right side of an arrow application within a :bind is not already wrapped in a :bind, wrap it.
@@ -621,7 +623,10 @@
 
 
 (defn transformations-6 [assertions]
-  (let [trans-map {:apply apply->list}]
+  (let [trans-map {:apply args->list
+                   :set args->list
+                   :seq args->list
+                   :and args->list}]
     (map (partial transform trans-map) assertions)))
 
 

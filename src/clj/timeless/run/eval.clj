@@ -6,7 +6,7 @@
 ;; TODO:
 ;; - Instead of str for ++, write a fn that throws an error if the args are not both strings or both seqs.
 ;; - Don't convert :num, :str or :name, so the metadata is still available for errors. Have the pretty function do that, optionally. (:names are printed without quotes.)
-;; - "+" and "++" can work with :values, in either or both arguments.g
+;; - "+" and "++" can work with :vals, in either or both arguments.
 
 (defn eval-tls [ctx exp]
   (cond

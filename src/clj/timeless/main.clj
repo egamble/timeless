@@ -59,7 +59,8 @@
       (println
        (pretty ""
                show-metadata?
-               false
+               true ; simplify
+               false ; no initial indent
                exp))
       nil)))
 
@@ -107,7 +108,9 @@
        (map (partial pretty
                      ""
                      true ; show metadata
-                     false))
+                     false ; don't simplify
+                     false ; no initial indent
+                     ))
        insert-newlines
        (apply str)
        (spit out-path)))
