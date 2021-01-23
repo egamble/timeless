@@ -626,7 +626,8 @@
   (let [trans-map {:apply args->list
                    :set args->list
                    :seq args->list
-                   :and args->list}]
+                   :and args->list
+                   :vals args->list}]
     (map (partial transform trans-map) assertions)))
 
 
