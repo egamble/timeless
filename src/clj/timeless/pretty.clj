@@ -2,7 +2,6 @@
   "Prettify a AST or TLS form."
   (:require [timeless.utils :refer :all]))
 
-;; TODO: When simplify? is true, when a :name doesn't begin with a colon, print it as a symbol.
 
 (defn pretty [indent show-metadata? simplify? initial-indent? form]
   (let [next-indent (str indent "  ")]
@@ -13,16 +12,17 @@
                        simplify?
                        false ; no initial indent
                        (first form))
-               (->> (rest form)
-                    (map #(pretty next-indent
-                                  show-metadata?
-                                  simplify?
-                                  true ; initial indent
-                                  %))
-                    insert-newlines
-                    butlast
-                    (apply str "\n"))
-               ")")
+               (when (next form)
+                 (->> (next form)
+                      (map #(pretty next-indent
+                                    show-metadata?
+                                    simplify?
+                                    true ; initial indent
+                                    %))
+                      insert-newlines
+                      butlast
+                      (apply str "\n")))
+               " )")
 
           (has-type :bind form)
           (let [subforms (rest form)]
@@ -51,6 +51,16 @@
                   initial-indent?
                   (first-arg form))
 
+          (and simplify?
+               (has-type :name form)
+               (not= \:
+                     (nth (first-arg form) 0)))
+          (pretty indent
+                  show-metadata?
+                  simplify?
+                  initial-indent?
+                  (symbol(first-arg form)))
+          
           (vector? form)
           (let [subforms (rest form)]
             (str (when initial-indent? indent)
