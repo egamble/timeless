@@ -5,12 +5,17 @@
 
 (declare load-tls-file)
 
+
 ;; TODO:
 ;; - Allow loading of lists, symbols, literal numbers and strings, but immediately convert them to :apply, :name, :num and :str.
+;; - Convert a list that's not in an [:apply (...)] expression into the :apply form.
+;; - Convert a symbol into a :name form.
+;; - Do these conversions during the recursive walk in set-metadata. (Maybe then rename set-metadata.)
 
 
-;; Moves the metadata map, if any, from the second element of each vector, to the Clojure metadata of the vector.
-;; Adds the path to the metadata.
+;; set-metadata:
+;; - Moves the metadata map, if any, from the second element of each vector, to the Clojure metadata of the vector.
+;; - Adds the path to the metadata.
 ;; For the first call, exp is all the assertions.
 ;; Each returned value, except for an included assertions list, is wrapped in an extra list,
 ;; so that included assertions are concatenated with the other assertions.
@@ -59,19 +64,28 @@
     (strip-lists (first x))
     x))
 
+
 (defn reduce-assertions [context assertion]
   (cond
     (and (list? assertion)
          (= 3 (count assertion))
-         (has-type :name (first assertion))
-         (= "=" (first-arg (first assertion)))
-         (has-type :name (second assertion)))
+         (let [[op name-exp _] assertion]
+           (or (and (symbol? op)
+                    (= '= op))
+               (and(has-type :name op)
+                   (= "=" (first-arg op))))
+           (or (symbol? name-exp)
+               (has-type :name name-exp))))
     (into context
           [[(first-arg (second assertion))
             (third assertion)]])
 
-    (and (vector? assertion)
-         (has-type :and assertion))
+    (and (has-type :apply assertion)
+         (list? (first-arg assertion)))
+    (reduce-assertions context (first-arg assertion))
+
+
+    (has-type :and assertion)
     (reduce reduce-assertions context (all-args assertion))
 
     :else

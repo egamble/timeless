@@ -3,8 +3,8 @@
   (:require [clojure.string :as str]))
 
 
-(defn p [s x]
-  (println s x)
+(defn p [msg x]
+  (println msg x)
   x)
 
 (defn error [msg]
