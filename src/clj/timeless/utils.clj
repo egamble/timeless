@@ -16,14 +16,13 @@
                 (when (and m
                            (or (:l m) (:path m)))
                   (str
-                   "("
+                   "\n("
                    (when (:l m)
-                     "at line " (:l m)
-                     ", column " (:c m))
+                     (str "line " (:l m)
+                          ", column " (:c m)))
                    (when (:path m)
-                     (when (:l m)
-                       ", ")
-                     (str "path " (:path m)))
+                     (str (when (:l m) ", ")
+                          "path " (:path m)))
                    ")"))))))
 
 (defn third [s]

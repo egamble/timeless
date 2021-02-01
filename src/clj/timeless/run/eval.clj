@@ -6,7 +6,6 @@
 ;; TODO:
 ;; - Instead of str for ++, write a fn that throws an error if the args are not both strings or both seqs.
 ;; - Don't convert :num, :str or :name, so the metadata is still available for errors. The pretty fn now does that.
-;; - Allow loading of lists, symbols, literal numbers and strings, but immediately convert them to :apply, :name, :num and :str.
 ;; - "+" and "++" can work with :vals, in either or both arguments.
 
 (defn eval-tls [ctx exp]

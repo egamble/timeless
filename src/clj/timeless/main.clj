@@ -65,15 +65,15 @@
       nil)))
 
 
-(defn get-exp-parser [in-path]
-  (let  [stripped-path (strip-tl-filepath in-path)
-         grammar (slurp (str stripped-path ".gmr"))]
-    (make-tl-exp-parser grammar)))
+(defn get-parser-and-context [in-path]
+  (let [stripped-path (strip-tl-filepath in-path)
+        grammar (slurp (str stripped-path ".gmr"))]
+    [(make-tl-exp-parser grammar)
+     (build-top-level-context in-path)]))
 
 
 (defn eval-tl-exp [in-path tl-exp & [show-metadata?]]
-  (let [parser (get-exp-parser in-path)
-        context (build-top-level-context in-path)]
+  (let [[parser context] (get-parser-and-context in-path)]
     (eval-tl-exp* parser
                   context
                   tl-exp
@@ -81,8 +81,7 @@
 
 
 (defn repl [in-path & [show-metadata?]]
-  (let [parser (get-exp-parser in-path)
-        context (build-top-level-context in-path)
+  (let [[parser context] (get-parser-and-context in-path)
         prompt (fn []
                  (print "> ")
                  (flush))

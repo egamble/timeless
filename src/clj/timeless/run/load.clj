@@ -5,6 +5,10 @@
 
 (declare load-tls-file)
 
+;; TODO:
+;; - Allow loading of lists, symbols, literal numbers and strings, but immediately convert them to :apply, :name, :num and :str.
+
+
 ;; Moves the metadata map, if any, from the second element of each vector, to the Clojure metadata of the vector.
 ;; Adds the path to the metadata.
 ;; For the first call, exp is all the assertions.
@@ -51,7 +55,6 @@
 
 
 (defn strip-lists [x]
-  (println "blaz" x "bloof" (meta x))
   (if (list? x)
     (strip-lists (first x))
     x))
