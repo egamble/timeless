@@ -4,7 +4,9 @@
 
 
 ;; TODO:
-;; - "+" and "++" can work with :vals, in either or both arguments.
+;; - :seq and :str applied to number. :str applied to a number yields the Unicode code point of the character.
+;;   Use the Clojure int fn to convert a character to a code point.
+;; - Convert tagged form of string to :str.
 
 
 (defn eval-++ [exp1 exp2]
@@ -38,6 +40,25 @@
     :else [:vals]))
 
 
+;; https://stackoverflow.com/questions/18246549/cartesian-product-in-clojure
+(defn cart [colls]
+  (if (empty? colls)
+    '(())
+    (let [c1 (first colls)]
+      (for [more (cart (rest colls))
+            x c1]
+        (cons x more)))))
+
+
+(defn spread-vals [exps]
+  (let [valss (map (fn [exp]
+                     (if (has-type :vals exp)
+                       (first-arg exp)
+                       (list exp)))
+                   exps)]
+    (cart valss)))
+
+
 (defn eval-tls [ctx exp]
   (cond
     (has-type :name exp)
@@ -53,7 +74,13 @@
         (if-let [f ({"+" eval-+
                      "++" eval-++}
                     (first-arg (first exps)))]
-          (apply f (rest exps))
+          (let [vals (map (partial apply f)
+                          (spread-vals (rest exps)))]
+            (if (next vals)
+              (with-meta
+                [:vals vals]
+                (meta (first vals)))
+              (first vals)))
           exp)))
 
     :else
