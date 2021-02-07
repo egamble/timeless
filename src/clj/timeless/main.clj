@@ -50,7 +50,7 @@
        (reduce make-declaration [() ()])))
 
 
-(defn eval-tl-exp* [parser context tl-exp show-metadata?]
+(defn eval-exp* [parser context tl-exp show-metadata?]
   (let [exp (->> (tl-exp->ast parser tl-exp)
                  (ast->tls ())
                  first
@@ -59,7 +59,7 @@
       (println
        (pretty ""
                show-metadata?
-               true ; simplify
+               (not show-metadata?) ; simplify
                false ; no initial indent
                exp))
       nil)))
@@ -72,12 +72,12 @@
      (build-top-level-context in-path)]))
 
 
-(defn eval-tl-exp [in-path tl-exp & [show-metadata?]]
+(defn eval-exp [in-path tl-exp & [show-metadata?]]
   (let [[parser context] (get-parser-and-context in-path)]
-    (eval-tl-exp* parser
-                  context
-                  tl-exp
-                  show-metadata?)))
+    (eval-exp* parser
+               context
+               tl-exp
+               show-metadata?)))
 
 
 (defn repl [in-path & [show-metadata?]]
@@ -94,10 +94,10 @@
      (map (fn [exp-lines]
             (let [tl-exp (str/join "\n" exp-lines)]
               (when-not (ws? tl-exp)
-                (eval-tl-exp* parser
-                              context
-                              tl-exp
-                              show-metadata?)
+                (eval-exp* parser
+                           context
+                           tl-exp
+                           show-metadata?)
                 (prompt))))
           (partition-by ws? lines)))))
 

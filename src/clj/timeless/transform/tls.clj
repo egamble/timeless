@@ -474,11 +474,10 @@
                       exps))))
 
 
-;; Convert multiple arguments to a single list argument.
-(defn args->list [exp]
+;; Convert multiple arguments to a single sequence argument.
+(defn args->seq [exp]
   (with-meta
-    ;; Can't use just (all-args exp) as the argument, because it's not a list.
-    [(first exp) (apply list (all-args exp))]
+    [(first exp) (all-args exp)]
     (meta exp)))
 
 
@@ -572,8 +571,8 @@
       (meta exp))
 
     (seq? exp)
-    (apply list (map (partial fill-bind-names outer-names)
-                     exp))
+    (map (partial fill-bind-names outer-names)
+         exp)
 
     :else
     exp))
@@ -623,11 +622,11 @@
 
 
 (defn transformations-6 [assertions]
-  (let [trans-map {:apply args->list
-                   :set args->list
-                   :seq args->list
-                   :and args->list
-                   :vals args->list}]
+  (let [trans-map {:apply args->seq
+                   :set args->seq
+                   :seq args->seq
+                   :and args->seq
+                   :vals args->seq}]
     (map (partial transform trans-map) assertions)))
 
 

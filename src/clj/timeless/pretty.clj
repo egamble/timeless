@@ -5,7 +5,7 @@
 
 (defn pretty [indent show-metadata? simplify? initial-indent? form]
   (let [next-indent (str indent "  ")]
-    (cond (list? form)
+    (cond (seq? form)
           (str (when initial-indent? indent) "( "
                (pretty next-indent
                        show-metadata?
