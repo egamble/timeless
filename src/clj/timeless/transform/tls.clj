@@ -474,13 +474,6 @@
                       exps))))
 
 
-;; Convert multiple arguments to a single sequence argument.
-(defn args->seq [exp]
-  (with-meta
-    [(first exp) (all-args exp)]
-    (meta exp)))
-
-
 ;; If the right side of an arrow application within a :bind is not already wrapped in a :bind, wrap it.
 (defn bind-arrow-right [exp]
   (let [m (meta exp)
@@ -621,15 +614,6 @@
     (map (partial transform trans-map) assertions)))
 
 
-(defn transformations-6 [assertions]
-  (let [trans-map {:apply args->seq
-                   :set args->seq
-                   :seq args->seq
-                   :and args->seq
-                   :vals args->seq}]
-    (map (partial transform trans-map) assertions)))
-
-
 (defn build-include-expressions [includes]
   (map #(vector :include %)
        includes))
@@ -643,6 +627,5 @@
       transformations-3
       transformations-4
       transformations-5
-      transformations-6
       (concat (build-include-expressions includes))
       top-level-fill-bind-names))

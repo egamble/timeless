@@ -2,7 +2,7 @@
   "Transform TL to TLS code."
   (:require [timeless.transform.ast :refer [tl->ast tl-exp->ast make-tl-exp-parser]]
             [timeless.transform.tls :refer [ast->tls]]
-            [timeless.run.load :refer [build-top-level-context]]
+            [timeless.run.load :refer [build-top-level-context process-form]]
             [timeless.run.eval :refer [eval-tls]]
             [timeless.pretty :refer :all]
             [timeless.utils :refer :all]
@@ -50,11 +50,18 @@
        (reduce make-declaration [() ()])))
 
 
-(defn eval-exp* [parser context tl-exp show-metadata?]
-  (let [exp (->> (tl-exp->ast parser tl-exp)
-                 (ast->tls ())
-                 first
-                 (eval-tls context))]
+(defn eval-exp* [parser context exp-str tls? show-metadata?]
+  (let [exp (if tls?
+              (->> exp-str
+                   read-string
+                   (process-form nil)
+                   first
+                   (eval-tls context))
+              (->> exp-str
+                   (tl-exp->ast parser)
+                   (ast->tls ())
+                   first
+                   (eval-tls context)))]
     (when exp
       (println
        (pretty ""
@@ -72,15 +79,16 @@
      (build-top-level-context in-path)]))
 
 
-(defn eval-exp [in-path tl-exp & [show-metadata?]]
+(defn eval-exp [in-path exp-str & [tls? show-metadata?]]
   (let [[parser context] (get-parser-and-context in-path)]
     (eval-exp* parser
                context
-               tl-exp
+               exp-str
+               tls?
                show-metadata?)))
 
 
-(defn repl [in-path & [show-metadata?]]
+(defn repl [in-path & [tls? show-metadata?]]
   (let [[parser context] (get-parser-and-context in-path)
         prompt (fn []
                  (print "> ")
@@ -92,11 +100,12 @@
         ws? (partial re-find #"^\s*$")]
     (dorun
      (map (fn [exp-lines]
-            (let [tl-exp (str/join "\n" exp-lines)]
-              (when-not (ws? tl-exp)
+            (let [exp-str (str/join "\n" exp-lines)]
+              (when-not (ws? exp-str)
                 (eval-exp* parser
                            context
-                           tl-exp
+                           exp-str
+                           tls?
                            show-metadata?)
                 (prompt))))
           (partition-by ws? lines)))))
@@ -110,7 +119,7 @@
                      false ; don't simplify
                      false ; no initial indent
                      ))
-       insert-newlines
+       interleave-newlines
        (apply str)
        (spit out-path)))
 

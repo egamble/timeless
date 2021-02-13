@@ -6,61 +6,80 @@
 (declare load-tls-file)
 
 
-;; set-metadata:
-;; - Moves the metadata map, if any, from the second element of each vector, to the Clojure metadata of the vector.
+;; process-form:
+;; - For vector forms, moves the metadata map, if present, from the second element to the Clojure metadata of the vector.
 ;; - Adds the path to the metadata.
+;; - Converts simplified TLS forms to vector form, without metadata.
 ;; Each returned value, except for an included assertions sequence, is wrapped in an extra list,
 ;; so that included assertions are concatenated with the other assertions.
-(defn set-metadata [in-path exp]
+(defn process-form [in-path exp]
   (if (has-type :include exp)
     (let [include-path (if (map? (second exp))
                          (third exp)
                          (second exp))]
       (load-tls-file include-path))
 
-    (list
-     (cond
-       (vector? exp)
-       (let [m (into (if (map? (second exp))
-                       (second exp)
-                       {})
-                     [[:path in-path]])
-             args (if (map? (second exp))
-                    (third-on exp)
-                    (rest exp))]
-         (with-meta
-           (into [(first exp)]
-                 (mapcat (partial set-metadata in-path)
-                         args))
-           m))
+    (let [f (partial mapcat
+                     (partial process-form
+                              in-path))]
+      (list
+       (cond
+         (vector? exp)
+         (let [type (first exp)
+               m (into (if (map? (second exp))
+                         (second exp)
+                         {})
+                       [[:path in-path]])
+               args (if (map? (second exp))
+                      (third-on exp)
+                      (rest exp))
+               args (cond
+                      (#{:name :num :str} type)
+                      args
 
-       (seq? exp)
-       (mapcat (partial set-metadata in-path)
-               exp)
+                      (= :bind type)
+                      (cons (first args)
+                            (f (rest args)))
 
-       :else exp))))
+                      :else (f args))]
+           (with-meta
+             (into [(first exp)] args)
+             m))
+
+         (seq? exp)
+         (into [:apply] (f exp))
+
+         (symbol? exp)
+         [:name (str exp)]
+         
+         (number? exp)
+         [:num exp]
+
+         (string? exp)
+         [:str exp]
+         
+         :else exp)))))
 
 
 (defn load-tls-file [in-path]
   (let [source (slurp (str (strip-tl-filepath in-path)
                            ".tls"))
         assertions (read-string (str "(" source ")"))]
-    (mapcat (partial set-metadata in-path)
+    (mapcat (partial process-form in-path)
             assertions)))
 
 
 (defn reduce-assertions [context assertion]
   (cond
     (and (has-type :apply assertion)
-         (let [exps (first-arg assertion)]
-           (and (seq? exps)
-                (= 3 (count exps))
+         (let [exps (all-args assertion)]
+           (and (= 3 (count exps))
                 (let [[op name-exp _] exps]
                   (and (has-type :name op)
                        (= "=" (first-arg op))
                        (has-type :name name-exp))))))
     (into context
-          (let [[op name-exp exp] (first-arg assertion)]
+          (let [[op name-exp exp] (all-args assertion)]
             [[(first-arg name-exp)
               exp]]))
 

@@ -19,13 +19,12 @@
                                     simplify?
                                     true ; initial indent
                                     %))
-                      insert-newlines
-                      butlast
-                      (apply str "\n")))
+                      (interleave (repeat "\n"))
+                      (apply str)))
                " )")
 
           (has-type :bind form)
-          (let [subforms (rest form)]
+          (let [exps (all-args form)]
             (str (when initial-indent? indent)
                  "[:bind"
                  (when (and
@@ -33,23 +32,31 @@
                         (meta form))
                    (str " " (meta form)))
                  " "
-                 (pr-str (first subforms))
+                 (pr-str (first exps))
                  (apply str (map #(str "\n"
                                        (pretty next-indent
                                                show-metadata?
                                                simplify?
                                                true ; initial indent
                                                %))
-                                 (rest subforms)))
+                                 (rest exps)))
                  "]"))
 
           (and simplify?
-               (has-types #{:apply :num :str} form))
+               (has-types #{:num :str} form))
           (pretty indent
                   show-metadata?
                   simplify?
                   initial-indent?
                   (first-arg form))
+
+          (and simplify?
+               (has-type :apply form))
+          (pretty indent
+                  show-metadata?
+                  simplify?
+                  initial-indent?
+                  (all-args form))
 
           (and simplify?
                (has-type :name form)
@@ -62,28 +69,26 @@
                   (symbol(first-arg form)))
           
           (vector? form)
-          (let [subforms (rest form)]
+          (let [exps (all-args form)]
             (str (when initial-indent? indent)
                  "[" (first form)
                  (when (and
                         show-metadata?
                         (meta form))
                    (str " " (meta form)))
-                 (when-not (empty? subforms)
-                   (let [subform1 (first subforms)]
-                     (str
-                      (if (sequential? subform1) "\n" " ")
-                      (pretty next-indent
-                              show-metadata?
-                              simplify?
-                              (sequential? subform1) ; initial indent
-                              subform1)
-                      (apply str (map #(pretty next-indent
-                                               show-metadata?
-                                               simplify?
-                                               true ; initial indent
-                                               %)
-                                      (rest subforms))))))
+                 (when-not (empty? exps)
+                   (let [multi-line? (and (sequential? (first exps))
+                                          (not (and simplify?
+                                                    (has-types #{:name :num :str}
+                                                               (first exps)))))]
+                     (->> exps
+                          (map #(pretty next-indent
+                                        show-metadata?
+                                        simplify?
+                                        multi-line? ; initial indent
+                                        %))
+                          (interleave (repeat (if multi-line? "\n" " ")))
+                          (apply str))))
                  "]"))
 
           :else

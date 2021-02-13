@@ -60,7 +60,7 @@
 (defn cons-at-end [s x]
   (concat s (list x)))
 
-(defn insert-newlines [s]
+(defn interleave-newlines [s]
   (interleave s (repeat "\n")))
 
 (defn strip-tl-filepath [path]

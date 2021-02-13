@@ -6,7 +6,10 @@
 ;; TODO:
 ;; - :seq and :str applied to number. :str applied to a number yields the Unicode code point of the character.
 ;;   Use the Clojure int fn to convert a character to a code point.
-;; - Convert tagged form of string to :str.
+;; - Convert tagged seq form of string to :str.
+
+
+(declare eval-tls)
 
 
 (defn eval-++ [exp1 exp2]
@@ -59,29 +62,60 @@
     (cart valss)))
 
 
-(defn eval-tls [ctx exp]
-  (cond
-    (has-type :name exp)
-    (if-let [v (ctx (first-arg exp))]
+(defn eval-apply [ctx exp]
+  (let [exps (map (partial eval-tls ctx)
+                  (all-args exp))]
+    (if (and (= 3 (count exps))
+             (has-type :name (first exps)))
+      (if-let [f ({"+" eval-+
+                   "++" eval-++}
+                  (first-arg (first exps)))]
+        (let [vals (map (partial apply f)
+                        (spread-vals (rest exps)))]
+          (if (next vals)
+            (with-meta
+              [:vals vals]
+              (meta (first vals)))
+            (first vals)))
+        exp)
+      exp)))
+
+
+(defn eval-in [ctx exp]
+  (let [v (eval-tls ctx (first-arg exp))]
+    (if (has-type :set v)
+      (with-meta
+        (if (has-type :set v)
+          (into [:vals] (all-args v))
+          [:in v])
+        (meta exp)))))
+
+
+(defn eval-name [ctx exp]
+  (if-let [v (ctx (first-arg exp))]
       (eval-tls ctx v)
-      exp)
+      exp))
 
-    (has-type :apply exp)
-    (let [exps (map (partial eval-tls ctx)
-                    (first-arg exp))]
-      (if (and (= 3 (count exps))
-               (has-type :name (first exps)))
-        (if-let [f ({"+" eval-+
-                     "++" eval-++}
-                    (first-arg (first exps)))]
-          (let [vals (map (partial apply f)
-                          (spread-vals (rest exps)))]
-            (if (next vals)
-              (with-meta
-                [:vals vals]
-                (meta (first vals)))
-              (first vals)))
-          exp)))
 
-    :else
+(defn eval-vals [ctx exp]
+  (with-meta
+    (into [:vals]
+          (mapcat (fn [arg]
+                    (let [v (eval-tls ctx arg)]
+                      (if (has-type :vals v)
+                        (all-args v)
+                        (list v))))
+               (all-args exp)))
+    (meta exp)))
+
+
+(defn eval-tls [ctx exp]
+  (if (vector? exp)
+    ((case (first exp)
+       :apply eval-apply
+       :in eval-in
+       :name eval-name
+       :vals eval-vals
+       (fn [ctx exp] exp))
+     ctx exp)
     exp))

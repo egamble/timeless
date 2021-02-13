@@ -22,9 +22,8 @@
 (defn alter-metadata [prefix-len exp]
   (if (sequential? exp)
     (with-meta
-      (apply vector
-             (map (partial alter-metadata prefix-len)
-                  exp))
+      (into [] (map (partial alter-metadata prefix-len)
+                    exp))
       (simplify-metadata prefix-len exp))
     exp))
 
