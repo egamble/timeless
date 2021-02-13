@@ -37,6 +37,9 @@
 (defn third-on [s]
   (rest (rest s)))
 
+(defn fourth-on [s]
+  (rest (rest (rest s))))
+
 (defn has-type [type exp]
   (and (vector? exp)
        (= type (first exp))))

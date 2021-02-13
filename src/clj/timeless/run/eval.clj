@@ -3,82 +3,130 @@
   (:require [timeless.utils :refer :all]))
 
 
-;; TODO:
-;; - :seq and :str applied to number. :str applied to a number yields the Unicode code point of the character.
-;;   Use the Clojure int fn to convert a character to a code point.
-;; - Convert tagged seq form of string to :str.
-
-
 (declare eval-tls)
 
 
-(defn eval-++ [exp1 exp2]
-  (cond
-    (and (has-type :str exp1)
-         (has-type :str exp2))
-    (with-meta
-      [:str (str (first-arg exp1)
+(defn calc-++ [exp]
+  (let [[_ _ exp1 exp2] exp
+        disallowed-types #{:num :set}]
+    (cond
+      (or (has-types disallowed-types exp1)
+          (has-types disallowed-types exp2))
+      (with-meta
+        [:vals]
+        (meta exp))
+      
+      (and (has-type :str exp1)
+           (has-type :str exp2))
+      (with-meta
+        [:str (str (first-arg exp1)
+                   (first-arg exp2))]
+        (meta exp))
+
+      (and (has-type :seq exp1)
+           (has-type :seq exp2))
+      (with-meta
+        (into [:seq] (concat (all-args exp1)
+                             (all-args exp2)))
+        (meta exp))
+
+      :else [:vals])))
+
+
+(defn calc-+ [exp]
+  (let [[_ _ exp1 exp2] exp
+        disallowed-types #{:set :seq :str}]
+    (cond
+      (or (has-types disallowed-types exp1)
+          (has-types disallowed-types exp2))
+      (with-meta
+        [:vals]
+        (meta exp))
+      
+      (and (has-type :num exp1)
+           (has-type :num exp2))
+      (with-meta
+        [:num (+ (first-arg exp1)
                  (first-arg exp2))]
-      (meta exp1))
+        (meta exp))
 
-    (and (has-type :seq exp1)
-         (has-type :seq exp2))
-    (with-meta
-      [:seq (concat (first-arg exp1)
-                    (first-arg exp2))]
-      (meta exp1))
-
-    :else [:vals]))
+      :else nil)))
 
 
-(defn eval-+ [exp1 exp2]
-  (cond
-    (and (has-type :num exp1)
-         (has-type :num exp2))
-    (with-meta
-      [:num (+ (first-arg exp1)
-               (first-arg exp2))]
-      (meta exp1))
-
-    :else [:vals]))
+;; Returns nil when can't calculate, so unchanged.
+(defn calc-predefined [exp]
+  (when-let [f ({"+" calc-+
+                 "++" calc-++}
+                (first-arg (first-arg exp)))]
+    (f exp)))
 
 
-;; https://stackoverflow.com/questions/18246549/cartesian-product-in-clojure
-(defn cart [colls]
-  (if (empty? colls)
-    '(())
-    (let [c1 (first colls)]
-      (for [more (cart (rest colls))
-            x c1]
-        (cons x more)))))
-
-
-(defn spread-vals [exps]
-  (let [valss (map (fn [exp]
-                     (if (has-type :vals exp)
-                       (first-arg exp)
-                       (list exp)))
-                   exps)]
-    (cart valss)))
+(def predefined-operators #{"+" "++"})
 
 
 (defn eval-apply [ctx exp]
   (let [exps (map (partial eval-tls ctx)
-                  (all-args exp))]
-    (if (and (= 3 (count exps))
-             (has-type :name (first exps)))
-      (if-let [f ({"+" eval-+
-                   "++" eval-++}
-                  (first-arg (first exps)))]
-        (let [vals (map (partial apply f)
-                        (spread-vals (rest exps)))]
-          (if (next vals)
-            (with-meta
-              [:vals vals]
-              (meta (first vals)))
-            (first vals)))
-        exp)
-      exp)))
+                  (all-args exp))
+        exp (with-meta
+              (into [:apply] exps)
+              (meta exp))]
+    (cond
+      (empty? (rest exps))
+      (first exps)
+
+      (has-type :apply (first exps))
+      (eval-tls ctx
+                (with-meta
+                  (into [:apply] (concat (all-args (first exps))
+                                         (rest exps)))
+                  (meta exp)))
+
+      (has-type :vals (first exps))
+      (eval-tls ctx
+                (with-meta
+                  (into [:vals] (map (fn [v]
+                                       (with-meta
+                                         (into [:apply v]
+                                               (rest exps))
+                                         (meta exp)))
+                                     (all-args (first exps))))
+                  (meta (first exps))))
+
+      (has-type :vals (second exps))
+      (eval-tls ctx
+                (with-meta
+                  (into [:vals] (map (fn [v]
+                                       (with-meta
+                                         (into [:apply (first exps) v]
+                                               (third-on exps))
+                                         (meta exp)))
+                                     (all-args (second exps))))
+                  (meta (second exps))))
+
+      (and (>= (count exps) 3)
+           (has-type :vals (third exps)))
+      (eval-tls ctx
+                (with-meta
+                  (into [:vals] (map (fn [v]
+                                       (with-meta
+                                         (into [:apply (first exps) (second exps) v]
+                                               (fourth-on exps))
+                                         (meta exp)))
+                                     (all-args (third exps))))
+                  (meta (third exps))))
+
+      (and (>= (count exps) 3)
+           (has-type :name (first exps))
+           (predefined-operators (first-arg (first exps))))
+      (let [v (calc-predefined exp)]
+        (if v
+          (eval-tls ctx
+                    (with-meta
+                      (into [:apply v] (fourth-on exps))
+                      (meta exp)))
+          exp))
+
+      :else exp)))
 
 
 (defn eval-in [ctx exp]
@@ -97,16 +145,36 @@
       exp))
 
 
+(defn eval-set [ctx exp]
+  (let [exps (->> exp
+                  all-args
+                  (map (partial eval-tls ctx))
+                  set
+                  seq)]
+    (with-meta
+      (into [:set] exps)
+      (meta exp))))
+
+
 (defn eval-vals [ctx exp]
-  (with-meta
-    (into [:vals]
-          (mapcat (fn [arg]
-                    (let [v (eval-tls ctx arg)]
-                      (if (has-type :vals v)
-                        (all-args v)
-                        (list v))))
-               (all-args exp)))
-    (meta exp)))
+  (let [exps (->> exp
+                  all-args
+                  (mapcat (fn [arg]
+                            (let [v (eval-tls ctx arg)]
+                              (if (has-type :vals v)
+                                (all-args v)
+                                (list v)))))
+                  set
+                  seq)]
+    (cond
+      (and (first exps)
+           (empty? (rest exps)))
+      (first exps)
+      
+      :else
+      (with-meta
+        (into [:vals] exps)
+        (meta exp)))))
 
 
 (defn eval-tls [ctx exp]
@@ -115,6 +183,7 @@
        :apply eval-apply
        :in eval-in
        :name eval-name
+       :set eval-set
        :vals eval-vals
        (fn [ctx exp] exp))
      ctx exp)
