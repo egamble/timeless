@@ -145,6 +145,22 @@
       exp))
 
 
+(defn eval-neg [ctx exp]
+  (let [v (eval-tls ctx (first-arg exp))]
+    (cond
+      (has-types #{:set :seq :str} v)
+      (with-meta
+        [:vals]
+        (meta exp))
+
+      (has-type :num v)
+      (with-meta
+        [:num (- (first-arg v))]
+        (meta exp))
+
+      :else exp)))
+
+
 (defn eval-set [ctx exp]
   (let [exps (->> exp
                   all-args
@@ -183,6 +199,7 @@
        :apply eval-apply
        :in eval-in
        :name eval-name
+       :neg eval-neg
        :set eval-set
        :vals eval-vals
        (fn [ctx exp] exp))
