@@ -33,8 +33,8 @@
       :else [:vals])))
 
 
-(defn calc-+ [exp]
-  (let [[_ _ exp1 exp2] exp
+(defn calc-arith [exp]
+  (let [[_ op exp1 exp2] exp
         disallowed-types #{:set :seq :str}]
     (cond
       (or (has-types disallowed-types exp1)
@@ -42,12 +42,24 @@
       (with-meta
         [:vals]
         (meta exp))
+
+      (and (= "/" (first-arg op))
+           (has-type :num exp2)
+           (= 0 (first-arg exp2)))
+      (with-meta
+        [:vals]
+        (meta exp))
       
       (and (has-type :num exp1)
            (has-type :num exp2))
       (with-meta
-        [:num (+ (first-arg exp1)
-                 (first-arg exp2))]
+        [:num (({"+" +
+                 "-" -
+                 "*" *
+                 "/" /}
+                (first-arg op))
+               (first-arg exp1)
+               (first-arg exp2))]
         (meta exp))
 
       :else nil)))
@@ -55,13 +67,32 @@
 
 ;; Returns nil when can't calculate, so unchanged.
 (defn calc-predefined [exp]
-  (when-let [f ({"+" calc-+
+  (when-let [f ({"+" calc-arith
+                 "-" calc-arith
+                 "*" calc-arith
+                 "/" calc-arith
                  "++" calc-++}
                 (first-arg (first-arg exp)))]
     (f exp)))
 
 
-(def predefined-operators #{"+" "++"})
+(def predefined-operators #{"+" "-" "*" "/" "++"})
+
+
+(defn calc-neg [exp]
+  (let [arg (second-arg exp)]
+    (cond
+      (has-types #{:set :seq :str} arg)
+      (with-meta
+        [:vals]
+        (meta exp))
+      
+      (has-type :num arg)
+      (with-meta
+        [:num (- (first-arg arg))]
+        (meta exp))
+
+      :else nil)))
 
 
 (defn eval-apply [ctx exp]
@@ -126,6 +157,16 @@
                       (meta exp)))
           exp))
 
+      (has-type :neg (first exps))
+      (let [v (calc-neg exp)]
+        (println "bar" v exp)
+        (if v
+          (eval-tls ctx
+                    (with-meta
+                      (into [:apply v] (third-on exps))
+                      (meta exp)))
+          exp))
+
       :else exp)))
 
 
@@ -145,27 +186,11 @@
       exp))
 
 
-(defn eval-neg [ctx exp]
-  (let [v (eval-tls ctx (first-arg exp))]
-    (cond
-      (has-types #{:set :seq :str} v)
-      (with-meta
-        [:vals]
-        (meta exp))
-
-      (has-type :num v)
-      (with-meta
-        [:num (- (first-arg v))]
-        (meta exp))
-
-      :else exp)))
-
-
 (defn eval-set [ctx exp]
   (let [exps (->> exp
                   all-args
                   (map (partial eval-tls ctx))
-                  set
+                  set ; Deduplicate, ignoring differences in metadata.
                   seq)]
     (with-meta
       (into [:set] exps)
@@ -180,7 +205,7 @@
                               (if (has-type :vals v)
                                 (all-args v)
                                 (list v)))))
-                  set
+                  set ; Deduplicate, ignoring differences in metadata.
                   seq)]
     (cond
       (and (first exps)
@@ -199,7 +224,6 @@
        :apply eval-apply
        :in eval-in
        :name eval-name
-       :neg eval-neg
        :set eval-set
        :vals eval-vals
        (fn [ctx exp] exp))

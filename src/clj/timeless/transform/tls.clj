@@ -304,8 +304,7 @@
 (defn transform-ast-right-section [exp]
   (let [[_ op right-exp] exp
         m (meta exp)]
-    (if (and (> (count op) 2)
-             (= "-" (first-arg op)))
+    (if (= "-" (first-arg op))
       (with-meta
         [:apply
          (with-meta
