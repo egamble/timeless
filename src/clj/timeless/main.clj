@@ -3,7 +3,7 @@
   (:require [timeless.transform.ast :refer [tl->ast tl-exp->ast make-tl-exp-parser]]
             [timeless.transform.tls :refer [ast->tls]]
             [timeless.run.load :refer [build-top-level-context process-form]]
-            [timeless.run.eval :refer [eval-tls]]
+            [timeless.run.eval :refer [eval-tls eval-context]]
             [timeless.pretty :refer :all]
             [timeless.utils :refer :all]
             [clojure.string :as str]))
@@ -76,7 +76,8 @@
   (let [stripped-path (strip-tl-filepath in-path)
         grammar (slurp (str stripped-path ".gmr"))]
     [(make-tl-exp-parser grammar)
-     (build-top-level-context in-path)]))
+     (eval-context
+      (build-top-level-context in-path))]))
 
 
 (defn eval-exp [in-path exp-str & [tls? show-metadata?]]

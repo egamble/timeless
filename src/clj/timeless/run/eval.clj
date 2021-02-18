@@ -6,6 +6,22 @@
 (declare eval-tls)
 
 
+(defn set-evaled [exp]
+  (if (vector? exp)
+    (with-meta
+      exp
+      (into (or (meta exp) {})
+            {:evaled true}))
+    exp))
+
+
+(defn reset-evaled [exp]
+  (if (and (vector? exp)
+           (meta exp))
+    (with-meta exp (dissoc (meta exp) :evaled))
+    exp))
+
+
 (defn calc-++ [exp]
   (let [[_ _ exp1 exp2] exp
         disallowed-types #{:num :set}]
@@ -79,6 +95,11 @@
 (def predefined-operators #{"+" "-" "*" "/" "++"})
 
 
+(def predefined-names
+  (into predefined-operators
+        ["Any" "Num" "Int" "Bool" "Sym" "Tag" "Arr" "Set" "Fn" "Seq" "Str" "Char"]))
+
+
 (defn calc-neg [exp]
   (let [arg (second-arg exp)]
     (cond
@@ -121,7 +142,8 @@
                                                (rest exps))
                                          (meta exp)))
                                      (all-args (first exps))))
-                  (meta (first exps))))
+                  (meta (reset-evaled
+                         (first exps)))))
 
       (has-type :vals (second exps))
       (eval-tls ctx
@@ -132,7 +154,8 @@
                                                (third-on exps))
                                          (meta exp)))
                                      (all-args (second exps))))
-                  (meta (second exps))))
+                  (meta (reset-evaled
+                         (second exps)))))
 
       (and (>= (count exps) 3)
            (has-type :vals (third exps)))
@@ -144,7 +167,8 @@
                                                (fourth-on exps))
                                          (meta exp)))
                                      (all-args (third exps))))
-                  (meta (third exps))))
+                  (meta (reset-evaled
+                         (third exps)))))
 
       (and (>= (count exps) 3)
            (has-type :name (first exps))
@@ -159,7 +183,6 @@
 
       (has-type :neg (first exps))
       (let [v (calc-neg exp)]
-        (println "bar" v exp)
         (if v
           (eval-tls ctx
                     (with-meta
@@ -181,9 +204,15 @@
 
 
 (defn eval-name [ctx exp]
-  (if-let [v (ctx (first-arg exp))]
-      (eval-tls ctx v)
-      exp))
+  (let [name (first-arg exp)]
+    (if (predefined-names name)
+      exp
+      (or (ctx (first-arg exp))
+          (with-meta
+            [:in (with-meta
+                   [:name "Any"]
+                   (meta exp))]
+            (meta exp))))))
 
 
 (defn eval-set [ctx exp]
@@ -219,13 +248,26 @@
 
 
 (defn eval-tls [ctx exp]
-  (if (vector? exp)
-    ((case (first exp)
-       :apply eval-apply
-       :in eval-in
-       :name eval-name
-       :set eval-set
-       :vals eval-vals
-       (fn [ctx exp] exp))
-     ctx exp)
+  (if (and (vector? exp)
+           (or (not (meta exp))
+               (not ((meta exp) :evaled))))
+    (set-evaled
+     ((case (first exp)
+                  :apply eval-apply
+                  :in eval-in
+                  :name eval-name
+                  :set eval-set
+                  :vals eval-vals
+                  (fn [ctx exp] exp))
+                ctx exp))
     exp))
+
+
+(defn eval-context [ctx]
+  (reduce (fn [prev-ctx name]
+            (into prev-ctx
+                  {name (eval-tls
+                         prev-ctx
+                         (prev-ctx name))}))
+          ctx
+          (keys ctx)))

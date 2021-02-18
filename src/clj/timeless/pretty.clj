@@ -30,7 +30,7 @@
                  (when (and
                         show-metadata?
                         (meta form))
-                   (str " " (meta form)))
+                   (str " " (dissoc (meta form) :evaled)))
                  " "
                  (pr-str (first exps))
                  (apply str (map #(str "\n"
@@ -75,7 +75,7 @@
                  (when (and
                         show-metadata?
                         (meta form))
-                   (str " " (meta form)))
+                   (str " " (dissoc (meta form) :evaled)))
                  (when-not (empty? exps)
                    (let [multi-line? (and (sequential? (first exps))
                                           (not (and simplify?
