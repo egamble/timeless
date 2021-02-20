@@ -102,3 +102,15 @@
     [(first exp)
      (f (first-arg exp))]
     (meta exp)))
+
+(defn has-no-value [exp]
+  (and (has-type :vals exp)
+       (empty? (all-args exp))))
+
+(defn is-empty-set [exp]
+  (and (has-type :set exp)
+       (empty? (all-args exp))))
+
+(defn has-name [name exp]
+  (and (has-type :name exp)
+       (= name (first-arg exp))))

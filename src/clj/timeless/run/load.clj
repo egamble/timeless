@@ -76,18 +76,31 @@
            (and (= 3 (count exps))
                 (let [[op name-exp _] exps]
                   (and (has-type :name op)
-                       (= "=" (first-arg op))
+                       (#{"=" "@" "∈"} (first-arg op))
                        (has-type :name name-exp))))))
-    (into context
-          (let [[op name-exp exp] (all-args assertion)]
-            [[(first-arg name-exp)
-              exp]]))
+    (let [[op name-exp exp] (all-args assertion)
+          op-name (first-arg op)
+          left-name (first-arg name-exp)
+          prev-exp (context left-name)]
+      (into context
+            {left-name 
+             (if (= "=" op-name)
+               (if prev-exp
+                 [:in [:inter
+                       [:set prev-exp]
+                       [:set exp]]]
+                 exp)
+               (if prev-exp
+                 [:in [:inter
+                       [:set prev-exp]
+                       exp]]
+                 [:in exp]))}))
 
     (has-type :and assertion)
     (reduce reduce-assertions context (all-args assertion))
 
     :else
-    (error-at "A top-level assertion must, for now, be an equals operation, or a chain of equals, with a name on the left side."
+    (error-at "A top-level assertion must, for now, be an equals or membership operation with a name on the left side."
               assertion)))
 
 
