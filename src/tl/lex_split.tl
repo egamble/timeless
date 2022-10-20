@@ -3,11 +3,13 @@
 # the characters in between the separators are collected into strings.
 
 | f :=
-{Sep << Char -> c @ Char -> [] -> ['Str;[c]],
-                        -> t:ts | t ∈ Sep -> 'Str;[c] : r,
-                                | t ∉ Sep -> c : t : ts}
+{Sep << Char -> c @ Char -> [] -> [c:""],
+                        -> t:s | t ∈ Sep -> c:"" : r,
+                               | t ∉ Sep -> c : t : s
+}
 
 | lex_split :=
 {Sep ⊂ Char -> "" -> [],
-            -> c:cs ∈ Str | r = lex_split Sep cs | c ∈ Sep -> c:r,
-                                                 | c ∉ Sep -> f Sep c r}
+            -> c:s ∈ Str | r = lex_split Sep s | c ∈ Sep -> c:r,
+                                               | c ∉ Sep -> f Sep c r
+}
