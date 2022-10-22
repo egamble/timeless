@@ -1,7 +1,6 @@
 (ns timeless.transform.tls
   "Transform an AST to produce TLS code."
-  (:require [timeless.transform.grammar :refer [predefined-names]]
-            [timeless.utils :refer :all]
+  (:require [timeless.utils :refer :all]
             [clojure.string :as str]))
 
 

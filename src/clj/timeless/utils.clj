@@ -114,3 +114,44 @@
 (defn has-name [name exp]
   (and (has-type :name exp)
        (= name (first-arg exp))))
+
+(def predefined-operators
+  #{"->" "→"
+    "|"
+    "=" "≠" "<" ">" "≤" "≥" "⊂" "⊃" "∈" "∉" "!=" "<=" ">=" "<<" ">>" "@" "!@"
+    "∪" "><"
+    "∩" "<>"
+    ":" "++"
+    ";"
+    "+" "-"
+    "*" "/"})
+
+(def predefined-names
+  (into predefined-operators
+        ["Any" "Num" "Int" "Bool" "Sym" "Tag" "Arr" "Set" "Fn" "Seq" "Str" "Char"
+         "Dm" "Im"
+         "size" "infinity" "∞"
+         "true" "false"
+         "null"
+         "flip"
+         "_"]))
+
+(defn set-meta-key [exp k v]
+  (if (vector? exp)
+    (with-meta
+      exp
+      (into (or (meta exp) {})
+            {k v}))
+    exp))
+
+(defn reset-meta-key [exp k]
+  (if (and (vector? exp)
+           (meta exp))
+    (with-meta exp (dissoc (meta exp) k))
+    exp))
+
+(defn set-evaled [exp]
+  (set-meta-key exp :evaled true))
+
+(defn set-type-set [exp type-set]
+  (set-meta-key exp :type-set type-set ))

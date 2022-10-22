@@ -3,11 +3,11 @@
   (:require [timeless.utils :refer :all]))
 
 ;; TODO: rewrite this like eval-union
-(defn eval-inter [ctx exp]
+(defn eval-inter [ctx exp eval-fn]
   (let [exps (->> exp
                   all-args
                   (mapcat (fn [subexp]
-                            (let [v (eval-tls ctx subexp)]
+                            (let [v (eval-fn ctx subexp)]
                               (if (has-type :inter v)
                                 (all-args v)
                                 (list v)))))
@@ -74,11 +74,11 @@
 (defn pairwise-reduce-union [exps]
 )
 
-(defn eval-union [ctx exp]
+(defn eval-union [ctx exp eval-fn]
   (let [exps (->> exp
                   all-args
                   (mapcat (fn [subexp]
-                            (let [v (eval-tls ctx subexp)]
+                            (let [v (eval-fn ctx subexp)]
                               (if (has-type :union v)
                                 (all-args v)
                                 (list v))))))]
@@ -96,10 +96,10 @@
 
 
 
-(defn eval-set [ctx exp]
+(defn eval-set [ctx exp eval-fn]
   (let [exps (->> exp
                   all-args
-                  (map (partial eval-tls ctx))
+                  (map (partial eval-fn ctx))
                   set ; Deduplicate, ignoring differences in metadata.
                   seq)
         {in-exps true other-exps false}
@@ -110,9 +110,12 @@
                   (into [:set] other-exps)
                   (meta exp))]
     (if in-exps
-      (eval-tls ctx
+      (eval-fn ctx
                 (with-meta
                   (into [:union new-set]
                         (map first-arg in-exps))
                   (meta exp)))
       new-set)))
+
+(defn eval-set* [ctx exp eval-fn]
+  nil)

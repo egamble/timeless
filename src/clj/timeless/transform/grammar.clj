@@ -15,24 +15,6 @@
     ("#opl" 17 "+" "-")
     ("#opl" 18 "*" "/")))
 
-(def predefined-names
-  #{"->" "→"
-    "|"
-    "=" "≠" "<" ">" "≤" "≥" "⊂" "⊃" "∈" "∉" "!=" "<=" ">=" "<<" ">>" "@" "!@"
-    "∪" "><"
-    "∩" "<>"
-    ":" "++"
-    ";"
-    "+" "-"
-    "*" "/"
-    "Any" "Num" "Int" "Bool" "Sym" "Tag" "Arr" "Set" "Fn" "Seq" "Str" "Char"
-    "Dm" "Im"
-    "size" "infinity" "∞"
-    "true" "false"
-    "null"
-    "flip"
-    "_"})
-
 (defn build-op-declarations [declarations]
   (map (fn [declaration]
          (let [[assoc precedence-str & names] declaration
