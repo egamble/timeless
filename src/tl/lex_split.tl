@@ -4,9 +4,7 @@
 # For example, if `S = {","0, ";"0} and `s = "foo, bar; baz", then
 # lex_split S s = ["foo", ","0, " bar", ";"0, " baz"].
 
-| `Foo = TagAll('Foo;Bar)
-
-| `lex_split = SetOf Char => Str => SeqOf (Char ∪ Str) ∩
+|`lex_split = SetOf Char => Str => SeqOf (Char ∪ Str) ∩
 {
  _ -> "" -> [],
  `Separators -> `char:`rest_str
