@@ -4,19 +4,19 @@
 
 
 #name Repeat+
-|`Repeat+ =
+| Repeat+ =
 {`s ∈ Str -> {s, s ++ `t | t ∈ Repeat+ s}}
 
-| `Factor =
+| Factor =
 {"1" ++ `s | s ∈ Repeat+ "1"}
 
-|`Composite =
+| Composite =
 {"",
  "1",
  `s ++ `t | s ∈ Factor ∧ t ∈ Repeat+ s
 }
 
-|`out =
+| out =
 {∈ Composite -> "composite",
  ∉ Composite -> "prime"
 }
