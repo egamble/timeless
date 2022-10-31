@@ -8,7 +8,7 @@ or ends with whitespace, so that the start and end column numbers are correct.
 <S1> = ws operation-1 ws
 
 
-<exp> = group | apply | section | set | seq | str | num | name | quote | unquote
+<exp> = group | apply | section | set | seq | str | num | name | quote | unquote | free
 
 
 group = left-paren ws gte-0 ws right-paren
@@ -22,7 +22,7 @@ truncated-embedded = op-10 ws gt-10
 
 
 (*
-Sets can't have empty elements.
+Sets can't have empty elements, except that a comma can follow the right-most clause.
 *)
 
 clause-maybe-embedded = gt-1
@@ -37,7 +37,7 @@ clause = abbreviated-clause | unabbreviated-clause
 set = set-left ws
       (
       epsilon |
-      ((clause ws comma ws)* clause)
+      ((clause ws comma ws)* clause (epsilon | (ws comma)))
       )
       ws set-right
 
@@ -104,11 +104,17 @@ range = <'..'>
 <quote-op> = <"'">
 <unquote-op> = <'~'>
 
+<free-op> = <'`'>
+
 
 
 <quotable> = group | set | seq | str | num | name | op
 quote = quote-op ws quotable
 unquote = unquote-op ws quotable
+
+
+
+free = free-op ws (name | (left-paren ws name ws right-paren))
 
 
 
